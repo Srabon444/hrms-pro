@@ -1,0 +1,11 @@
+node_modules
+build
+.svelte-kit
+.git
+.env
+.env.*
+test-results
+playwright-report
+docs
+.superpowers
+*.pdf
