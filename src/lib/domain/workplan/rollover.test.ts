@@ -10,8 +10,20 @@ describe('rolloverIncomplete', () => {
 		];
 
 		expect(rolloverIncomplete(items, '2026-08-25')).toEqual([
-			{ description: 'Get 200 resumes', target_value: '200', owner: 'Monir', week_start: '2026-08-25', carried_over_from: '1' },
-			{ description: 'Headhunt 5 devs', target_value: '5', owner: 'Monir', week_start: '2026-08-25', carried_over_from: '2' }
+			{
+				description: 'Get 200 resumes',
+				target_value: '200',
+				owner: 'Monir',
+				week_start: '2026-08-25',
+				carried_over_from: '1'
+			},
+			{
+				description: 'Headhunt 5 devs',
+				target_value: '5',
+				owner: 'Monir',
+				week_start: '2026-08-25',
+				carried_over_from: '2'
+			}
 		]);
 	});
 

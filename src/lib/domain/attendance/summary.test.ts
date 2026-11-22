@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summarizeAttendance, type AttendanceRecord } from './attendanceSummary';
+import { summarizeAttendance, type AttendanceRecord } from './summary';
 
 describe('summarizeAttendance', () => {
 	it('counts each status and flags employees under 8 hours', () => {
