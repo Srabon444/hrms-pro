@@ -1,0 +1,303 @@
+import { sql } from 'drizzle-orm';
+import {
+	bigint,
+	boolean,
+	check,
+	index,
+	integer,
+	jsonb,
+	pgTable,
+	smallint,
+	text,
+	unique,
+	uuid
+} from 'drizzle-orm/pg-core';
+import { citext, createdAt, tenantBase, tenantKey, tfk, tstz, updatedAt } from './_helpers';
+export { tenants } from './tenants';
+
+export const users = pgTable(
+	'users',
+	{
+		id: uuid().primaryKey().defaultRandom(),
+		email: citext().notNull().unique(),
+		passwordHash: text().notNull(),
+		name: text().notNull(),
+		isPlatformAdmin: boolean().notNull().default(false),
+		totpSecretEnc: text(),
+		totpEnabled: boolean().notNull().default(false),
+		totpLastStep: bigint({ mode: 'number' }),
+		recoveryCodes: jsonb()
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		googleSub: text().unique(),
+		status: text().notNull().default('active'),
+		lastLoginAt: tstz(),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [check('users_status_ck', sql`${t.status} in ('active','disabled')`)]
+);
+
+export const sessions = pgTable(
+	'sessions',
+	{
+		id: text().primaryKey(),
+		userId: uuid()
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		expiresAt: tstz().notNull(),
+		idleExpiresAt: tstz().notNull(),
+		lastSeenAt: tstz().notNull().defaultNow(),
+		ip: text(),
+		userAgent: text(),
+		createdAt: createdAt()
+	},
+	(t) => [index('sessions_user_idx').on(t.userId)]
+);
+
+export const passwordResets = pgTable('password_resets', {
+	tokenHash: text().primaryKey(),
+	userId: uuid()
+		.notNull()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	expiresAt: tstz().notNull(),
+	usedAt: tstz(),
+	createdAt: createdAt()
+});
+
+export const platformAudit = pgTable('platform_audit', {
+	id: uuid().primaryKey().defaultRandom(),
+	actorUserId: uuid(),
+	action: text().notNull(),
+	target: text(),
+	meta: jsonb()
+		.notNull()
+		.default(sql`'{}'::jsonb`),
+	ip: text(),
+	createdAt: createdAt()
+});
+
+export const memberships = pgTable(
+	'memberships',
+	{
+		...tenantBase(),
+		userId: uuid()
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		employeeId: uuid(),
+		status: text().notNull().default('active'),
+		exAccessUntil: tstz(),
+		lastUsedAt: tstz()
+	},
+	(t) => [
+		tenantKey('memberships', t),
+		unique('memberships_tenant_user_uq').on(t.tenantId, t.userId),
+		unique('memberships_tenant_employee_uq').on(t.tenantId, t.employeeId),
+		index('memberships_user_idx').on(t.userId),
+		check('memberships_status_ck', sql`${t.status} in ('active','ex_employee','disabled')`)
+	]
+);
+
+export const roles = pgTable(
+	'roles',
+	{
+		...tenantBase(),
+		key: text().notNull(),
+		name: text().notNull(),
+		description: text(),
+		isSystem: boolean().notNull().default(false),
+		locked: boolean().notNull().default(false)
+	},
+	(t) => [tenantKey('roles', t), unique('roles_tenant_key_uq').on(t.tenantId, t.key)]
+);
+
+export const rolePermissions = pgTable(
+	'role_permissions',
+	{
+		...tenantBase(),
+		roleId: uuid().notNull(),
+		permission: text().notNull(),
+		scope: text().notNull()
+	},
+	(t) => [
+		tenantKey('role_permissions', t),
+		tfk('role_permissions_role_fk', t, t.roleId, roles, 'cascade'),
+		unique('role_permissions_uq').on(t.tenantId, t.roleId, t.permission, t.scope),
+		check('role_permissions_scope_ck', sql`${t.scope} in ('own','team','department','all')`)
+	]
+);
+
+export const membershipRoles = pgTable(
+	'membership_roles',
+	{
+		...tenantBase(),
+		membershipId: uuid().notNull(),
+		roleId: uuid().notNull()
+	},
+	(t) => [
+		tenantKey('membership_roles', t),
+		tfk('membership_roles_membership_fk', t, t.membershipId, memberships, 'cascade'),
+		tfk('membership_roles_role_fk', t, t.roleId, roles, 'cascade'),
+		unique('membership_roles_uq').on(t.tenantId, t.membershipId, t.roleId)
+	]
+);
+
+export const invitations = pgTable(
+	'invitations',
+	{
+		...tenantBase(),
+		email: citext().notNull(),
+		tokenHash: text().notNull().unique(),
+		roleIds: uuid()
+			.array()
+			.notNull()
+			.default(sql`'{}'::uuid[]`),
+		employeeId: uuid(),
+		invitedByMembershipId: uuid(),
+		expiresAt: tstz().notNull(),
+		acceptedAt: tstz(),
+		revokedAt: tstz()
+	},
+	(t) => [tenantKey('invitations', t), index('invitations_tenant_email_idx').on(t.tenantId, t.email)]
+);
+
+export const tenantSettings = pgTable(
+	'tenant_settings',
+	{
+		...tenantBase(),
+		legalName: text(),
+		logoFileId: uuid(),
+		address: text(),
+		currency: text().notNull().default('BDT'),
+		timezone: text().notNull().default('Asia/Dhaka'),
+		fiscalYearStartMonth: smallint().notNull().default(7),
+		weekendDays: smallint()
+			.array()
+			.notNull()
+			.default(sql`'{5,6}'::smallint[]`),
+		payrollProrationBasis: text().notNull().default('calendar'),
+		mealPayrollLagMonths: smallint().notNull().default(1),
+		latePolicyCount: smallint().notNull().default(0),
+		latePolicyPenalty: text().notNull().default('lop'),
+		require2faForSensitive: boolean().notNull().default(false),
+		allowSingleAdminApproval: boolean().notNull().default(false),
+		retentionCandidatesDays: integer().notNull().default(365),
+		retentionTicketsDays: integer().notNull().default(730),
+		retentionAuditDays: integer().notNull().default(730),
+		exEmployeeAccessDays: integer().notNull().default(90),
+		employeeCodePrefix: text().notNull().default('EMP-')
+	},
+	(t) => [
+		tenantKey('tenant_settings', t),
+		unique('tenant_settings_tenant_uq').on(t.tenantId),
+		check('tenant_settings_fy_ck', sql`${t.fiscalYearStartMonth} between 1 and 12`),
+		check('tenant_settings_basis_ck', sql`${t.payrollProrationBasis} in ('calendar','working')`),
+		check('tenant_settings_late_ck', sql`${t.latePolicyPenalty} in ('lop','leave')`),
+		check('tenant_settings_lag_ck', sql`${t.mealPayrollLagMonths} between 0 and 3`),
+		check('tenant_settings_audit_ret_ck', sql`${t.retentionAuditDays} >= 365`)
+	]
+);
+
+export const counters = pgTable(
+	'counters',
+	{
+		...tenantBase(),
+		name: text().notNull(),
+		value: bigint({ mode: 'number' }).notNull().default(0)
+	},
+	(t) => [tenantKey('counters', t), unique('counters_tenant_name_uq').on(t.tenantId, t.name)]
+);
+
+export const auditLog = pgTable(
+	'audit_log',
+	{
+		...tenantBase(),
+		actorUserId: uuid(),
+		actorKind: text().notNull().default('user'),
+		tableName: text().notNull(),
+		rowId: uuid(),
+		op: text().notNull(),
+		changedColumns: text()
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		oldValues: jsonb(),
+		newValues: jsonb(),
+		event: text()
+	},
+	(t) => [
+		tenantKey('audit_log', t),
+		index('audit_log_tenant_created_idx').on(t.tenantId, t.createdAt),
+		index('audit_log_tenant_row_idx').on(t.tenantId, t.tableName, t.rowId)
+	]
+);
+
+export const auditSensitive = pgTable(
+	'audit_sensitive',
+	{
+		...tenantBase(),
+		auditId: uuid().notNull(),
+		oldValues: jsonb(),
+		newValues: jsonb()
+	},
+	(t) => [
+		tenantKey('audit_sensitive', t),
+		tfk('audit_sensitive_audit_fk', t, t.auditId, auditLog, 'cascade'),
+		index('audit_sensitive_audit_idx').on(t.tenantId, t.auditId)
+	]
+);
+
+export const notifications = pgTable(
+	'notifications',
+	{
+		...tenantBase(),
+		membershipId: uuid().notNull(),
+		category: text().notNull(),
+		title: text().notNull(),
+		body: text(),
+		link: text(),
+		readAt: tstz()
+	},
+	(t) => [
+		tenantKey('notifications', t),
+		tfk('notifications_membership_fk', t, t.membershipId, memberships, 'cascade'),
+		index('notifications_member_idx').on(t.tenantId, t.membershipId, t.readAt)
+	]
+);
+
+export const notificationPrefs = pgTable(
+	'notification_prefs',
+	{
+		...tenantBase(),
+		membershipId: uuid().notNull(),
+		category: text().notNull(),
+		email: boolean().notNull().default(true)
+	},
+	(t) => [
+		tenantKey('notification_prefs', t),
+		tfk('notification_prefs_membership_fk', t, t.membershipId, memberships, 'cascade'),
+		unique('notification_prefs_uq').on(t.tenantId, t.membershipId, t.category)
+	]
+);
+
+export const files = pgTable(
+	'files',
+	{
+		...tenantBase(),
+		key: text().notNull(),
+		filename: text().notNull(),
+		mime: text().notNull(),
+		size: integer().notNull(),
+		sha256: text().notNull(),
+		ownerType: text().notNull(),
+		ownerId: uuid(),
+		uploadedByUserId: uuid()
+	},
+	(t) => [
+		tenantKey('files', t),
+		unique('files_key_uq').on(t.key),
+		index('files_owner_idx').on(t.tenantId, t.ownerType, t.ownerId),
+		check('files_size_ck', sql`${t.size} > 0`)
+	]
+);
