@@ -18,6 +18,19 @@ export type SalaryPart = {
 };
 export type Segment = { from: string; to: string | null; parts: SalaryPart[] };
 export type Item = { id: string; amount: number };
+export type Settle = {
+	salaryPaid: boolean;
+	leave: { name: string; days: number }[];
+	serviceYears: number;
+	gratuityDays: number;
+	gratuityMinYears: number;
+	noticePayDays: number;
+	noticeShortDays: number;
+	asset: number;
+	pfOwn: number;
+	pfEmployer: number;
+	pfVested: boolean;
+};
 
 export type PayInput = {
 	days: string[];
@@ -45,6 +58,7 @@ export type PayInput = {
 		remainingMonths: number;
 	};
 	names: Record<string, string>;
+	settle?: Settle;
 };
 
 export type PayResult = {
@@ -87,11 +101,15 @@ export const failed = (error: string): PayResult => ({
 
 export function computePay(input: PayInput): PayResult {
 	const basis = input.days.length;
-	const employed = input.days.filter((d) => d >= input.join && (input.exit === null || d <= input.exit));
+	const settle = input.settle;
+	const month = !settle?.salaryPaid;
+	const employed = month ? input.days.filter((d) => d >= input.join && (input.exit === null || d <= input.exit)) : [];
 	const uncovered = employed.find((d) => !segmentOn(input.segments, d));
 	if (uncovered) return failed(`No approved salary covers ${uncovered}.`);
-	const latest = segmentOn(input.segments, employed[employed.length - 1] ?? '');
-	if (!latest) return failed('Not employed on any paid day of this month.');
+	const lastDay = settle ? (input.exit ?? '') : (employed[employed.length - 1] ?? '');
+	const latest = segmentOn(input.segments, lastDay);
+	if (!latest)
+		return failed(settle ? `No approved salary covers ${lastDay}.` : 'Not employed on any paid day of this month.');
 
 	const parts = new Map<string, SalaryPart>();
 	for (const s of input.segments) {
@@ -107,7 +125,7 @@ export function computePay(input: PayInput): PayResult {
 	const name = (code: string) => input.names[code] ?? code;
 
 	const inRange = input.unpaid.filter((u) => employed.includes(u.date));
-	const lateDays = input.latePolicyCount ? Math.floor(input.lates / input.latePolicyCount) : 0;
+	const lateDays = month && input.latePolicyCount ? Math.floor(input.lates / input.latePolicyCount) : 0;
 	const unpaidDays = inRange.reduce((sum, u) => sum + u.days, 0) + lateDays;
 	const lop = Math.min(
 		earned,
@@ -118,9 +136,11 @@ export function computePay(input: PayInput): PayResult {
 	);
 	if (lop) lines.push({ code: 'LOP', name: name('LOP'), kind: 'deduction', taxable: false, amount: lop });
 
-	const overtime = Math.round(
-		(basicOf(latest) * input.overtimeMinutes * input.overtimeRateBp) / (input.overtimeMonthlyHours * 60 * 10_000)
-	);
+	const overtime = month
+		? Math.round(
+				(basicOf(latest) * input.overtimeMinutes * input.overtimeRateBp) / (input.overtimeMonthlyHours * 60 * 10_000)
+			)
+		: 0;
 	if (overtime)
 		lines.push({ code: 'OVERTIME', name: name('OVERTIME'), kind: 'earning', taxable: true, amount: overtime });
 
@@ -139,6 +159,8 @@ export function computePay(input: PayInput): PayResult {
 			taxable: false,
 			amount: pfEmployer
 		});
+	const settled = settle ? settlementLines(basicOf(latest), pf, pfEmployer, settle) : { lines: [], notes: [] };
+	lines.push(...settled.lines);
 
 	const taxable = lines.filter((l) => l.kind === 'earning' && l.taxable).reduce((sum, l) => sum + l.amount, 0) - lop;
 	const t = input.tax;
@@ -150,10 +172,15 @@ export function computePay(input: PayInput): PayResult {
 
 	const total = (kind: LineKind) => lines.filter((l) => l.kind === kind).reduce((sum, l) => sum + l.amount, 0);
 	let left = total('earning') - total('deduction');
-	if (left < 0) return failed('Unpaid days, provident fund and tax are more than the pay for this month.');
+	if (left < 0)
+		return failed(
+			settle
+				? 'Deductions are more than the settlement. Lower the notice or asset deduction.'
+				: 'Unpaid days, provident fund and tax are more than the pay for this month.'
+		);
 
 	const claimed = { expenses: input.expenses.map((e) => e.id), instalments: [] as string[], meals: [] as string[] };
-	const skipped: string[] = [];
+	const skipped: string[] = [...settled.notes];
 	for (const [code, items, into] of [
 		['LOAN', input.instalments, claimed.instalments],
 		['MEAL', input.meals, claimed.meals]
@@ -161,7 +188,7 @@ export function computePay(input: PayInput): PayResult {
 		let sum = 0;
 		for (const item of items) {
 			if (item.amount > left) {
-				skipped.push(`${name(code)} of ৳${(item.amount / 100).toFixed(2)} does not fit in this month's pay.`);
+				skipped.push(`${name(code)} of ${money(item.amount)} does not fit in this month's pay.`);
 				continue;
 			}
 			left -= item.amount;
@@ -187,6 +214,47 @@ export function computePay(input: PayInput): PayResult {
 		skipped,
 		error: null
 	};
+}
+
+const money = (poisha: number) => `৳${(poisha / 100).toFixed(2)}`;
+
+export function settlementLines(basic: number, pf: number, pfEmployer: number, s: Settle) {
+	const day = basic / 30;
+	const lines: PayLine[] = [];
+	const notes: string[] = [];
+	const add = (code: string, name: string, kind: LineKind, taxable: boolean, amount: number) => {
+		if (amount > 0) lines.push({ code, name, kind, taxable, amount });
+	};
+	for (const l of s.leave)
+		add('LEAVE_ENCASH', `Leave encashment: ${l.name} (${l.days} days)`, 'earning', true, Math.round(day * l.days));
+	add(
+		'NOTICE_PAY',
+		`Pay in lieu of ${s.noticePayDays} days' notice`,
+		'earning',
+		true,
+		Math.round(day * s.noticePayDays)
+	);
+	if (s.serviceYears >= s.gratuityMinYears)
+		add(
+			'GRATUITY',
+			`Gratuity for ${s.serviceYears} years of service`,
+			'earning',
+			false,
+			Math.round(day * s.gratuityDays * s.serviceYears)
+		);
+	add('PF_PAYOUT', 'Provident fund payout (own)', 'earning', false, s.pfOwn + pf);
+	const employer = s.pfEmployer + pfEmployer;
+	if (s.pfVested) add('PF_EMPLOYER_PAYOUT', 'Provident fund payout (employer)', 'earning', false, employer);
+	else if (employer > 0) notes.push(`Employer provident fund of ${money(employer)} is not vested.`);
+	add(
+		'NOTICE',
+		`Notice shortfall of ${s.noticeShortDays} days`,
+		'deduction',
+		false,
+		Math.round(day * s.noticeShortDays)
+	);
+	add('ASSET', 'Unreturned assets', 'deduction', false, s.asset);
+	return { lines, notes };
 }
 
 export const serviceMonths = (join: string, on: string) =>

@@ -639,6 +639,7 @@ describe('payroll inputs', () => {
 					tenantId: tenant.id,
 					runType: 'final',
 					period: '2024-08',
+					employeeId: ids.hal,
 					status: 'approved',
 					inputsHash: '',
 					outputHash: '',
@@ -724,6 +725,7 @@ describe('bonus runs', () => {
 					tenantId: tenant.id,
 					runType: 'final',
 					period: '2024-08',
+					employeeId: ids.lee,
 					status: 'approved',
 					inputsHash: '',
 					outputHash: '',
@@ -756,7 +758,7 @@ describe('bonus runs', () => {
 		expect(await code(startRun(who.po, { period: '2024-08', runType: 'bonus', title: 'Eid\nbonus' }))).toBe(
 			'invalid: The bonus name cannot have line breaks.'
 		);
-		expect(await code(startRun(who.po, { period: '2024-08', runType: 'final', title: 'x' }))).toBe(
+		expect(await code(startRun(who.po, { period: '2024-08', runType: 'nope', title: 'x' }))).toBe(
 			'invalid: Choose what to pay.'
 		);
 		const regular = await startRun(who.po, { period: '2024-08', title: 'ignored' });
@@ -831,6 +833,7 @@ describe('arrears runs', () => {
 					tenantId: tenant.id,
 					runType: 'final',
 					period,
+					employeeId,
 					status: 'approved',
 					inputsHash: '',
 					outputHash: '',
@@ -953,5 +956,210 @@ describe('arrears runs', () => {
 		expect(
 			(await withTenant(systemCtx(tenant.id), (tx) => payrollApprovals(tx, who.fin.access))).map((a) => a.title)
 		).toEqual(['Salary arrears for 2024-09']);
+	});
+});
+
+describe('final settlement', () => {
+	const approve = async (period: string) => approveRun(who.fin, { runId: await startRun(who.po, { period }) });
+	const settle = (employeeId: string, form: Record<string, string> = {}) =>
+		startRun(who.po, { runType: 'final', employeeId, ...form });
+	const leaves = (employeeId: string, exitDate: string | null) =>
+		db((tx) => tx.update(employees).set({ exitDate }).where(eq(employees.id, employeeId)));
+
+	beforeAll(async () => {
+		tenant = await createTenant('payroll-final');
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await member('po', ['payroll_officer'], null);
+		await member('fin', ['finance'], null);
+		await member('adm', ['hr_admin'], null);
+		await member('owner', ['finance'], null, true);
+		await db(async (tx) => {
+			for (const c of await tx.select().from(payComponents)) comp[c.code] = c.id;
+		});
+		ids.sam = await hire('Sam', '2018-08-01');
+		ids.ted = await hire('Ted', '2023-01-01');
+		ids.una = await hire('Una', '2024-01-01');
+		ids.vic = await hire('Vic', '2024-01-01');
+		await member('sam', ['employee'], ids.sam);
+		await pay(ids.sam, '2018-08-01', '30000');
+		await pay(ids.ted, '2023-01-01', '20000');
+		await pay(ids.una, '2024-01-01', '10000');
+		await pay(ids.vic, '2024-01-01', '10000');
+		await db(async (tx) => {
+			await tx.update(tenantSettings).set({ pfEmployeeRateBp: 1_000, pfEmployerRateBp: 1_000, pfVestingMonths: 20 });
+			const [earned] = await tx.select().from(leaveTypes).where(eq(leaveTypes.code, 'earned'));
+			const [casual] = await tx.select().from(leaveTypes).where(eq(leaveTypes.code, 'casual'));
+			const [sick] = await tx.select().from(leaveTypes).where(eq(leaveTypes.code, 'sick'));
+			const ledger = (leaveTypeId: string, kind: string, days: number, fiscalYear = 2024) => ({
+				tenantId: tenant.id,
+				employeeId: ids.sam,
+				leaveTypeId,
+				fiscalYear,
+				kind,
+				days
+			});
+			await tx
+				.insert(leaveLedger)
+				.values([
+					ledger(earned.id, 'accrual', 14),
+					ledger(earned.id, 'taken', -2),
+					ledger(earned.id, 'accrual', 9, 2023),
+					ledger(casual.id, 'accrual', 10),
+					ledger(casual.id, 'taken', -10),
+					ledger(sick.id, 'accrual', 14)
+				]);
+			await tx.update(leaveTypes).set({ encashable: true }).where(eq(leaveTypes.id, casual.id));
+			const [loan] = await tx
+				.insert(loans)
+				.values({
+					tenantId: tenant.id,
+					employeeId: ids.sam,
+					kind: 'loan',
+					amount: 300_000,
+					instalments: 3,
+					startPeriod: '2024-08',
+					reason: 'Rent',
+					status: 'approved',
+					requestedByUserId: who.po.user.userId
+				})
+				.returning({ id: loans.id });
+			await tx.insert(loanInstalments).values(
+				['2024-08', '2024-09', '2024-10'].map((period) => ({
+					tenantId: tenant.id,
+					loanId: loan.id,
+					employeeId: ids.sam,
+					period,
+					amount: 100_000
+				}))
+			);
+			await tx.insert(mealBills).values({
+				tenantId: tenant.id,
+				employeeId: ids.sam,
+				period: '2024-08',
+				status: 'partially_paid',
+				billingMode: 'direct',
+				total: 50_000,
+				paid: 10_000
+			});
+		});
+		const taxYearId = await startTaxYear(who.adm, { fy: '2024-25' });
+		await confirmTaxYear(who.adm, { taxYearId });
+		await approve('2024-07');
+		await leaves(ids.sam, '2024-08-15');
+		await leaves(ids.ted, '2024-08-31');
+		await leaves(ids.una, '2024-09-10');
+	});
+
+	it('settles a leaver once: the exit month, leave, gratuity, provident fund, notice, assets, loans and meals', async () => {
+		expect(await code(settle('nope'))).toBe('invalid: Choose who is leaving.');
+		expect(await code(settle(ids.sam, { noticePayDays: '5', noticeShortDays: '5' }))).toBe(
+			'invalid: Enter notice paid in lieu or a notice shortfall, not both.'
+		);
+		expect(await code(settle(ids.sam, { assetDeduction: '1.234' }))).toBe(
+			'invalid: Enter the asset deduction in taka, up to 2 decimals.'
+		);
+		expect(await code(settle(ids.vic))).toBe('no_exit');
+		await leaves(ids.vic, '2099-01-31');
+		expect(await code(settle(ids.vic))).toBe('future');
+		await leaves(ids.vic, null);
+		expect(await code(startRun(who.fin, { runType: 'final', employeeId: ids.sam }))).toBe('forbidden');
+
+		const samRun = await settle(ids.sam, { assetDeduction: '1500.50' });
+		expect(await code(settle(ids.sam))).toBe('exists');
+		const [run] = await db((tx) => tx.select().from(payrollRuns).where(eq(payrollRuns.id, samRun)));
+		expect([run.runType, run.period, run.employeeId, run.assetDeduction, run.title]).toEqual([
+			'final',
+			'2024-08',
+			ids.sam,
+			150_050,
+			null
+		]);
+		const sam = await slipOf(samRun, ids.sam);
+		expect(sam.amounts).toEqual({
+			BASIC: 1_451_613,
+			PF: 145_161,
+			PF_EMPLOYER: 145_161,
+			LEAVE_ENCASH: 1_200_000,
+			GRATUITY: 18_000_000,
+			PF_PAYOUT: 445_161,
+			PF_EMPLOYER_PAYOUT: 445_161,
+			ASSET: 150_050,
+			LOAN: 300_000,
+			MEAL: 40_000
+		});
+		expect([sam.paidDays, sam.taxable, sam.tax, sam.net, sam.error, sam.notes]).toEqual([
+			15,
+			2_651_613,
+			0,
+			roundTaka(21_541_935 - 635_211),
+			null,
+			[]
+		]);
+		const names = await db((tx) =>
+			tx.select({ name: payslipLines.name }).from(payslipLines).where(eq(payslipLines.payslipId, sam.id))
+		);
+		expect(names.map((n) => n.name)).toContain('Leave encashment: Earned leave (12 days)');
+
+		const august = await startRun(who.po, { period: '2024-08' });
+		expect(
+			(await db((tx) => tx.select().from(payslips).where(eq(payslips.runId, august)))).map((s) => s.employeeId).sort()
+		).toEqual([ids.ted, ids.una, ids.vic].sort());
+		await approveRun(who.fin, { runId: august });
+
+		const tedRun = await settle(ids.ted, { noticePayDays: '10' });
+		const ted = await slipOf(tedRun, ids.ted);
+		expect(ted.amounts).toEqual({ NOTICE_PAY: 666_667, PF_PAYOUT: 400_000, PF_EMPLOYER_PAYOUT: 400_000 });
+		expect([ted.paidDays, ted.net, ted.notes]).toEqual([0, 1_466_700, []]);
+		expect(await code(reopenRun(who.owner, { runId: august }))).toBe('settled');
+
+		const september = await startRun(who.po, { period: '2024-09' });
+		expect(await code(settle(ids.una))).toBe('in_payroll');
+		await voidRun(who.po, { runId: september });
+		const unaRun = await settle(ids.una);
+		const una = await slipOf(unaRun, ids.una);
+		expect([una.paidDays, una.amounts, una.notes]).toEqual([
+			10,
+			{ BASIC: 333_333, PF: 33_333, PF_EMPLOYER: 33_333, PF_PAYOUT: 233_333 },
+			['Employer provident fund of ৳2333.33 is not vested.']
+		]);
+		await leaves(ids.una, '2024-10-05');
+		await recomputeRun(who.po, { runId: unaRun });
+		expect((await slipOf(unaRun, ids.una)).error).toBe(
+			'The exit date is no longer in 2024-09. Void this run and start a new one.'
+		);
+		await voidRun(who.po, { runId: unaRun });
+
+		const board = await payrollBoard(who.po, samRun);
+		expect(board.leavers.map((l) => l.name)).toEqual(['Una']);
+		expect(board.run!.leaver).toBe('Sam');
+		expect(
+			(await withTenant(systemCtx(tenant.id), (tx) => payrollApprovals(tx, who.fin.access))).map((a) => a.title)
+		).toEqual(['Final settlement for 2024-08 · Sam', 'Final settlement for 2024-08 · Ted']);
+
+		await approveRun(who.fin, { runId: samRun });
+		await payRun(who.fin, { runId: samRun });
+		const after = await db(async (tx) => ({
+			instalments: (await tx.select().from(loanInstalments).where(eq(loanInstalments.employeeId, ids.sam))).map(
+				(i) => i.status
+			),
+			loan: (await tx.select().from(loans).where(eq(loans.employeeId, ids.sam)))[0].status,
+			meal: (await tx.select().from(mealBills).where(eq(mealBills.employeeId, ids.sam)))[0].status,
+			encash: await tx
+				.select({ days: leaveLedger.days, fiscalYear: leaveLedger.fiscalYear, refId: leaveLedger.refId })
+				.from(leaveLedger)
+				.where(and(eq(leaveLedger.employeeId, ids.sam), eq(leaveLedger.kind, 'encash')))
+		}));
+		expect(after).toEqual({
+			instalments: ['paid', 'paid', 'paid'],
+			loan: 'closed',
+			meal: 'deducted',
+			encash: [{ days: -12, fiscalYear: 2024, refId: sam.id }]
+		});
+		const mail = (await queue('mail').getJob(`payslip-mail-${sam.id}`))!.data;
+		expect([mail.to, mail.subject]).toEqual([emails.sam, 'Your Final settlement payslip for 2024-08']);
+		expect(await myPayslips(who.sam)).toEqual([
+			{ id: sam.id, period: '2024-08', name: 'Final settlement', net: sam.net }
+		]);
+		expect((await openPayslipPdf(who.sam, sam.id)).fileName).toBe('final-2024-08.pdf');
 	});
 });

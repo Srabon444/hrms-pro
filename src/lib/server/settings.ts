@@ -103,7 +103,22 @@ export const payrollSettingsSchema = z.object({
 		.number()
 		.int('Enter whole months.')
 		.min(1, 'Arrears look back 1 to 24 months.')
-		.max(24, 'Arrears look back 1 to 24 months.')
+		.max(24, 'Arrears look back 1 to 24 months.'),
+	gratuityDaysPerYear: z.coerce
+		.number()
+		.int('Enter whole days.')
+		.min(0, 'Gratuity is 0 to 90 days of basic per year.')
+		.max(90, 'Gratuity is 0 to 90 days of basic per year.'),
+	gratuityMinYears: z.coerce
+		.number()
+		.int('Enter whole years.')
+		.min(0, 'Years before gratuity must be 0 to 40.')
+		.max(40, 'Years before gratuity must be 0 to 40.'),
+	pfVestingMonths: z.coerce
+		.number()
+		.int('Enter whole months.')
+		.min(0, 'Provident fund vesting must be 0 to 120 months.')
+		.max(120, 'Provident fund vesting must be 0 to 120 months.')
 });
 
 export async function savePayrollSettings(ctx: TenantCtx, raw: Record<string, string>) {

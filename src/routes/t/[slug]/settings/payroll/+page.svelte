@@ -101,6 +101,33 @@
 			required
 			value={s.arrearsLookbackMonths}
 		/>
+		<Field
+			label="Gratuity (days of basic per year of service)"
+			name="gratuityDaysPerYear"
+			type="number"
+			min={0}
+			max={90}
+			required
+			value={s.gratuityDaysPerYear}
+		/>
+		<Field
+			label="Years of service before gratuity"
+			name="gratuityMinYears"
+			type="number"
+			min={0}
+			max={40}
+			required
+			value={s.gratuityMinYears}
+		/>
+		<Field
+			label="Months before the employer provident fund vests"
+			name="pfVestingMonths"
+			type="number"
+			min={0}
+			max={120}
+			required
+			value={s.pfVestingMonths}
+		/>
 	</div>
 	<Button type="submit">Save payroll settings</Button>
 </form>

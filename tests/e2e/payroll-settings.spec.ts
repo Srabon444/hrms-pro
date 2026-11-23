@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { fixture, signIn } from './fixtures';
 
-test('an admin sets provident fund, overtime and festival bonus pay rules', async ({ page, request }) => {
+test('an admin sets provident fund, overtime, bonus and settlement pay rules', async ({ page, request }) => {
 	const f = await fixture(request, { tenant: {}, users: [{ key: 'adm', roles: ['hr_admin'] }] });
 	await signIn(page, f.users.adm.email);
 	await page.goto(`/t/${f.tenant!.slug}`);
@@ -13,6 +13,9 @@ test('an admin sets provident fund, overtime and festival bonus pay rules', asyn
 	await page.getByLabel('Festival bonus (% of basic)').fill('50');
 	await page.getByLabel('Months of service before a festival bonus').fill('6');
 	await page.getByLabel('Months that salary arrears look back').fill('3');
+	await page.getByLabel('Gratuity (days of basic per year of service)').fill('45');
+	await page.getByLabel('Years of service before gratuity').fill('3');
+	await page.getByLabel('Months before the employer provident fund vests').fill('36');
 	await page.getByRole('button', { name: 'Save payroll settings' }).click();
 	await expect(page.getByRole('status')).toHaveText('Payroll settings saved.');
 	await page.reload();
@@ -22,4 +25,7 @@ test('an admin sets provident fund, overtime and festival bonus pay rules', asyn
 	await expect(page.getByLabel('Festival bonus (% of basic)')).toHaveValue('50.00');
 	await expect(page.getByLabel('Months of service before a festival bonus')).toHaveValue('6');
 	await expect(page.getByLabel('Months that salary arrears look back')).toHaveValue('3');
+	await expect(page.getByLabel('Gratuity (days of basic per year of service)')).toHaveValue('45');
+	await expect(page.getByLabel('Years of service before gratuity')).toHaveValue('3');
+	await expect(page.getByLabel('Months before the employer provident fund vests')).toHaveValue('36');
 });

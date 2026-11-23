@@ -22,7 +22,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 			overtimeMonthlyHours: s.overtimeMonthlyHours,
 			bonusRate: taka(s.bonusRateBp),
 			bonusMinServiceMonths: s.bonusMinServiceMonths,
-			arrearsLookbackMonths: s.arrearsLookbackMonths
+			arrearsLookbackMonths: s.arrearsLookbackMonths,
+			gratuityDaysPerYear: s.gratuityDaysPerYear,
+			gratuityMinYears: s.gratuityMinYears,
+			pfVestingMonths: s.pfVestingMonths
 		}
 	};
 };

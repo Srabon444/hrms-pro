@@ -15,7 +15,10 @@ const valid = {
 	overtimeMonthlyHours: '208',
 	bonusRateBp: '150.5',
 	bonusMinServiceMonths: '6',
-	arrearsLookbackMonths: '6'
+	arrearsLookbackMonths: '6',
+	gratuityDaysPerYear: '45',
+	gratuityMinYears: '3',
+	pfVestingMonths: '36'
 };
 const reason = (raw: Record<string, string>) =>
 	savePayrollSettings(systemCtx(tenant.id), raw).then(
@@ -36,6 +39,12 @@ it('stores payroll settings in basis points and refuses values out of range', as
 		1000, 1250, 20000, 208
 	]);
 	expect([s.bonusRateBp, s.bonusMinServiceMonths, s.arrearsLookbackMonths]).toEqual([15050, 6, 6]);
+	expect([s.gratuityDaysPerYear, s.gratuityMinYears, s.pfVestingMonths]).toEqual([45, 3, 36]);
+	expect(await reason({ ...valid, gratuityDaysPerYear: '91' })).toBe('Gratuity is 0 to 90 days of basic per year.');
+	expect(await reason({ ...valid, gratuityDaysPerYear: '-1' })).toBe('Gratuity is 0 to 90 days of basic per year.');
+	expect(await reason({ ...valid, gratuityMinYears: '41' })).toBe('Years before gratuity must be 0 to 40.');
+	expect(await reason({ ...valid, gratuityMinYears: '2.5' })).toBe('Enter whole years.');
+	expect(await reason({ ...valid, pfVestingMonths: '121' })).toBe('Provident fund vesting must be 0 to 120 months.');
 	expect(await reason({ ...valid, arrearsLookbackMonths: '0' })).toBe('Arrears look back 1 to 24 months.');
 	expect(await reason({ ...valid, arrearsLookbackMonths: '25' })).toBe('Arrears look back 1 to 24 months.');
 	expect(await reason({ ...valid, bonusRateBp: '500.01' })).toContain('festival bonus');

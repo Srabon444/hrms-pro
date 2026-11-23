@@ -17,6 +17,7 @@ test('payroll computes a month and a festival bonus that finance approves and pa
 		await page.context().clearCookies();
 		await signIn(page, f.users[key].email);
 		await page.goto(`${t}/${path}`);
+		await page.locator('html[data-hydrated]').waitFor({ state: 'attached' });
 	};
 	const status = (p: Page) => p.getByRole('status');
 
@@ -102,4 +103,77 @@ test('payroll computes a month and a festival bonus that finance approves and pa
 	const bonusPdf = page.waitForEvent('download');
 	await bonus.getByRole('link', { name: `Download PDF of ${period} Eid-ul-Adha bonus` }).click();
 	expect((await bonusPdf).suggestedFilename()).toBe(`bonus-${period}.pdf`);
+});
+
+test('payroll settles a leaver with notice pay that finance approves and pays', async ({ page, request }) => {
+	const f = await fixture(request, {
+		tenant: {},
+		users: [
+			{ key: 'adm', roles: ['hr_admin'] },
+			{ key: 'po', roles: ['payroll_officer'] },
+			{ key: 'fin', roles: ['finance'] },
+			{ key: 'bob', roles: ['employee'], employee: true }
+		]
+	});
+	const t = `/t/${f.tenant!.slug}`;
+	const as = async (key: string, path: string) => {
+		await page.context().clearCookies();
+		await signIn(page, f.users[key].email);
+		await page.goto(`${t}/${path}`);
+		await page.locator('html[data-hydrated]').waitFor({ state: 'attached' });
+	};
+	const status = page.getByRole('status');
+	const today = new Date().toISOString().slice(0, 10);
+
+	await as('adm', 'settings/tax');
+	await page.getByRole('button', { name: 'Set up tax year' }).click();
+	await expect(status).toContainText('set up. Review and confirm it.');
+	await page.getByRole('button', { name: /^Confirm rules for / }).click();
+	await expect(status).toHaveText('Tax rules confirmed.');
+
+	await as('po', 'payroll/salaries');
+	const offer = page.getByRole('region', { name: 'New salary' });
+	await offer.getByLabel('Employee').selectOption(f.users.bob.employeeId!);
+	await offer.getByLabel('Starts on').fill('2026-01-05');
+	await offer.getByLabel('Basic (৳)').fill('30000');
+	await offer.getByLabel('Reason').fill('Offer letter');
+	await offer.getByRole('button', { name: 'Send for approval' }).click();
+	await expect(status).toHaveText('Salary change sent for approval.');
+	await as('fin', 'payroll/salaries');
+	await page.getByRole('button', { name: /^Approve salary of bob/ }).click();
+	await expect(status).toHaveText('Salary change approved.');
+
+	await as('adm', `employees/${f.users.bob.employeeId}`);
+	const exit = page.getByRole('region', { name: 'Exit' });
+	await exit.getByLabel('Last working day').fill(today);
+	await exit.getByLabel('Exit type').selectOption('termination');
+	await exit.getByRole('button', { name: 'Record exit' }).click();
+	await expect(status).toHaveText('Exit recorded.');
+
+	await as('po', 'payroll');
+	await page.getByLabel('What to pay').selectOption('final');
+	await expect(page.getByLabel('Month', { exact: true })).toHaveCount(0);
+	await page.getByLabel('Who is leaving').selectOption(f.users.bob.employeeId!);
+	await page.getByLabel('Notice paid in lieu (days)').fill('10');
+	await page.getByRole('button', { name: 'Run payroll' }).click();
+	await expect(status).toHaveText('Payroll computed. Review it and send it for approval.');
+	const period = today.slice(0, 7);
+	const run = page.getByRole('region', { name: 'Payroll run' });
+	await expect(run.getByRole('heading')).toHaveText(
+		new RegExp(`^Final settlement for ${period} · bob \\w+ · Waiting for approval$`)
+	);
+	await expect(run.getByTestId('payslip-row')).toContainText("Pay in lieu of 10 days' notice: ৳10000.00");
+	await expect(page.getByRole('navigation', { name: 'Payroll runs' })).toContainText(/Final settlement · bob \w+/);
+
+	await as('fin', 'approvals');
+	await page.getByRole('link', { name: new RegExp(`^Final settlement for ${period} · bob`) }).click();
+	await page.getByRole('button', { name: 'Approve payroll' }).click();
+	await expect(status).toHaveText('Payroll approved.');
+	await page.getByRole('button', { name: 'Mark paid' }).click();
+	await expect(status).toHaveText('Payroll marked paid.');
+	await expect(run.getByRole('heading')).toContainText('· Paid');
+
+	await as('po', 'payroll');
+	await page.getByLabel('What to pay').selectOption('final');
+	await expect(page.getByLabel('Who is leaving').getByRole('option')).toHaveText(['Choose…']);
 });

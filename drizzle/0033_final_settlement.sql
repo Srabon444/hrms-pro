@@ -1,0 +1,11 @@
+ALTER TABLE "tenant_settings" ADD COLUMN "gratuity_days_per_year" smallint DEFAULT 30 NOT NULL;--> statement-breakpoint
+ALTER TABLE "tenant_settings" ADD COLUMN "gratuity_min_years" smallint DEFAULT 5 NOT NULL;--> statement-breakpoint
+ALTER TABLE "tenant_settings" ADD COLUMN "pf_vesting_months" smallint DEFAULT 24 NOT NULL;--> statement-breakpoint
+ALTER TABLE "payroll_runs" ADD COLUMN "employee_id" uuid;--> statement-breakpoint
+ALTER TABLE "payroll_runs" ADD COLUMN "notice_pay_days" smallint DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "payroll_runs" ADD COLUMN "notice_short_days" smallint DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "payroll_runs" ADD COLUMN "asset_deduction" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "payroll_runs" ADD CONSTRAINT "payroll_runs_employee_fk" FOREIGN KEY ("tenant_id","employee_id") REFERENCES "public"."employees"("tenant_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "payroll_runs_final_uq" ON "payroll_runs" USING btree ("tenant_id","employee_id") WHERE "payroll_runs"."run_type" = 'final' and "payroll_runs"."status" <> 'void';--> statement-breakpoint
+ALTER TABLE "tenant_settings" ADD CONSTRAINT "tenant_settings_settlement_ck" CHECK ("tenant_settings"."gratuity_days_per_year" between 0 and 90 and "tenant_settings"."gratuity_min_years" between 0 and 40 and "tenant_settings"."pf_vesting_months" between 0 and 120);--> statement-breakpoint
+ALTER TABLE "payroll_runs" ADD CONSTRAINT "payroll_runs_final_ck" CHECK (("payroll_runs"."run_type" = 'final') = ("payroll_runs"."employee_id" is not null) and "payroll_runs"."notice_pay_days" between 0 and 365 and "payroll_runs"."notice_short_days" between 0 and 365 and ("payroll_runs"."notice_pay_days" = 0 or "payroll_runs"."notice_short_days" = 0) and "payroll_runs"."asset_deduction" >= 0 and ("payroll_runs"."run_type" = 'final' or "payroll_runs"."notice_pay_days" + "payroll_runs"."notice_short_days" + "payroll_runs"."asset_deduction" = 0));

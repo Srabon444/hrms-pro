@@ -38,17 +38,56 @@
 {#if b.canRun}
 	<form method="POST" action="?/start" class="mt-4 flex items-end gap-2 text-sm">
 		<label class="text-slate-700">
-			Month
-			<input name="period" type="month" required max={b.thisMonth} value={b.thisMonth} class={`${input} block`} />
-		</label>
-		<label class="text-slate-700">
 			What to pay
 			<select name="runType" bind:value={runType} class={`${input} block`}>
 				<option value="regular">Monthly pay</option>
 				<option value="bonus">Festival bonus</option>
 				<option value="arrears">Salary arrears</option>
+				<option value="final">Final settlement</option>
 			</select>
 		</label>
+		{#if runType === 'final'}
+			<label class="text-slate-700">
+				Who is leaving
+				<select name="employeeId" required class={`${input} block`}>
+					<option value="">Choose…</option>
+					{#each b.leavers as l (l.id)}
+						<option value={l.id}>{l.name} ({l.code}), leaves {l.exit}</option>
+					{/each}
+				</select>
+			</label>
+			<label class="text-slate-700">
+				Notice paid in lieu (days)
+				<input name="noticePayDays" type="number" min="0" max="365" step="1" value="0" class={`${input} block w-28`} />
+			</label>
+			<label class="text-slate-700">
+				Notice shortfall (days)
+				<input
+					name="noticeShortDays"
+					type="number"
+					min="0"
+					max="365"
+					step="1"
+					value="0"
+					class={`${input} block w-28`}
+				/>
+			</label>
+			<label class="text-slate-700">
+				Unreturned assets (৳)
+				<input
+					name="assetDeduction"
+					inputmode="decimal"
+					pattern={'\\d{1,7}(\\.\\d{1,2})?'}
+					placeholder="0.00"
+					class={`${input} block w-32`}
+				/>
+			</label>
+		{:else}
+			<label class="text-slate-700">
+				Month
+				<input name="period" type="month" required max={b.thisMonth} value={b.thisMonth} class={`${input} block`} />
+			</label>
+		{/if}
 		{#if runType === 'bonus'}
 			<label class="text-slate-700">
 				Bonus name
@@ -74,7 +113,9 @@
 
 {#if r}
 	<section class="mt-6 max-w-5xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Payroll run">
-		<h2 class="font-semibold text-slate-900">{runName(r)} for {r.period} · {statusLabel[r.status]}</h2>
+		<h2 class="font-semibold text-slate-900">
+			{runName(r)} for {r.period}{r.leaver ? ` · ${r.leaver}` : ''} · {statusLabel[r.status]}
+		</h2>
 		<p class="mt-1 text-sm text-slate-600" data-testid="run-totals">
 			{r.slips.length} payslip(s) · Gross ৳{taka(r.totals.gross)} · Deductions ৳{taka(r.totals.deductions)} · Net ৳{taka(
 				r.totals.net

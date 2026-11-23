@@ -13,8 +13,10 @@ import {
 	type LineKind,
 	type PayLine,
 	type PayResult,
-	type Segment
+	type Segment,
+	type Settle
 } from '../payroll';
+import { poishaOf } from '../money';
 import { fiscalMonths, fiscalYearOf, type TaxCategory } from '../tax';
 import type { ApprovalItem } from './approvals';
 import { singleAdmin } from './approval-chain';
@@ -45,7 +47,7 @@ import {
 import { config } from './config';
 import { addDays, addMonths } from './dates';
 import { AppError } from './errors';
-import { isWorkingDay } from './leave-days';
+import { fiscalYearOf as leaveYearOf, isWorkingDay } from './leave-days';
 import { tenantToday } from './lifecycle';
 import { advisoryLock, LOCK } from './locks';
 import { log } from './log';
@@ -56,7 +58,16 @@ import { scopesOf, userCtx, type Access, type requireMember } from './rbac/acces
 import { withTenant, type Tx } from './tenancy';
 
 type Member = ReturnType<typeof requireMember>;
-type Run = { id: string; period: string; runType: string; title: string | null };
+type Run = {
+	id: string;
+	period: string;
+	runType: string;
+	title: string | null;
+	employeeId?: string | null;
+	noticePayDays?: number;
+	noticeShortDays?: number;
+	assetDeduction?: number;
+};
 
 const periodSchema = z.object({ period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Choose a month.') });
 const startSchema = periodSchema
@@ -72,6 +83,24 @@ const startSchema = periodSchema
 	.refine((v) => v.runType !== 'bonus' || v.title, {
 		message: 'Name the bonus, like Eid-ul-Fitr bonus.',
 		path: ['title']
+	});
+const noticeDays = (msg: string) =>
+	z.coerce.number().int('Enter whole days of notice.').min(0, msg).max(365, msg).default(0);
+const finalSchema = z
+	.object({
+		employeeId: z.uuid({ error: 'Choose who is leaving.' }),
+		noticePayDays: noticeDays('Notice paid in lieu is 0 to 365 days.'),
+		noticeShortDays: noticeDays('Notice shortfall is 0 to 365 days.'),
+		assetDeduction: z
+			.string()
+			.trim()
+			.regex(/^(\d{1,7}(\.\d{1,2})?)?$/, 'Enter the asset deduction in taka, up to 2 decimals.')
+			.default('')
+			.transform((v) => (v ? poishaOf(v) : 0))
+	})
+	.refine((v) => !(v.noticePayDays && v.noticeShortDays), {
+		message: 'Enter notice paid in lieu or a notice shortfall, not both.',
+		path: ['noticeShortDays']
 	});
 const runSchema = z.object({ runId: z.uuid({ error: 'Choose a payroll run.' }) });
 
@@ -93,9 +122,8 @@ const sha = (value: unknown) => createHash('sha256').update(JSON.stringify(value
 
 const finalsIn = (tx: Tx, period: string) =>
 	tx
-		.select({ id: payslips.employeeId })
-		.from(payslips)
-		.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
+		.select({ id: payrollRuns.employeeId })
+		.from(payrollRuns)
 		.where(and(eq(payrollRuns.runType, 'final'), ne(payrollRuns.status, 'void'), eq(payrollRuns.period, period)));
 
 const among = (ids: string[]) => (col: PgColumn) => (ids.length ? inArray(col, ids) : sql`false`);
@@ -222,6 +250,7 @@ export async function loadPayrollInputs(tx: Tx, run: Run) {
 	const { from, to } = periodRange(run.period);
 	const fy = fiscalYearOf(from);
 	const months = fiscalMonths(fy);
+	const final = run.runType === 'final';
 	const [settings] = await tx
 		.select({
 			weekendDays: tenantSettings.weekendDays,
@@ -243,11 +272,13 @@ export async function loadPayrollInputs(tx: Tx, run: Run) {
 		})
 		.from(employees)
 		.where(
-			and(
-				lte(employees.joinDate, to),
-				or(isNull(employees.exitDate), gte(employees.exitDate, from)),
-				notInArray(employees.id, finalsIn(tx, run.period))
-			)
+			final
+				? eq(employees.id, run.employeeId ?? sql`null`)
+				: and(
+						lte(employees.joinDate, to),
+						or(isNull(employees.exitDate), gte(employees.exitDate, from)),
+						notInArray(employees.id, finalsIn(tx, run.period))
+					)
 		)
 		.orderBy(asc(employees.id));
 	const mine = among(people.map((p) => p.id));
@@ -378,9 +409,13 @@ export async function loadPayrollInputs(tx: Tx, run: Run) {
 		.where(
 			and(
 				mine(mealBills.employeeId),
-				eq(mealBills.status, 'issued'),
-				eq(mealBills.billingMode, 'payroll'),
-				lte(mealBills.period, addMonths(run.period, -(settings?.mealLag ?? 1))),
+				final
+					? inArray(mealBills.status, ['issued', 'partially_paid'])
+					: and(
+							eq(mealBills.status, 'issued'),
+							eq(mealBills.billingMode, 'payroll'),
+							lte(mealBills.period, addMonths(run.period, -(settings?.mealLag ?? 1)))
+						),
 				gt(sql`${mealBills.total} - ${mealBills.paid}`, 0),
 				claimable(mealBills.payrollRunId)
 			)
@@ -398,7 +433,7 @@ export async function loadPayrollInputs(tx: Tx, run: Run) {
 			and(
 				mine(loanInstalments.employeeId),
 				eq(loanInstalments.status, 'due'),
-				lte(loanInstalments.period, run.period),
+				final ? undefined : lte(loanInstalments.period, run.period),
 				claimable(loanInstalments.payrollRunId)
 			)
 		)
@@ -453,7 +488,7 @@ export async function loadPayrollInputs(tx: Tx, run: Run) {
 	return {
 		period: run.period,
 		fy,
-		remainingMonths: months.length - months.indexOf(run.period),
+		remainingMonths: final ? 1 : months.length - months.indexOf(run.period),
 		settings,
 		people,
 		salaries,
@@ -475,7 +510,112 @@ export async function loadPayrollInputs(tx: Tx, run: Run) {
 
 type Inputs = Awaited<ReturnType<typeof loadPayrollInputs>>;
 
-export function computeRun(inputs: Inputs) {
+async function encashable(tx: Tx, employeeId: string, exit: string) {
+	const [{ fyStart }] = await tx.select({ fyStart: tenantSettings.fiscalYearStartMonth }).from(tenantSettings);
+	const fiscalYear = leaveYearOf(exit, fyStart);
+	const days = sql<number>`sum(${leaveLedger.days})`.mapWith(Number);
+	return tx
+		.select({
+			leaveTypeId: leaveTypes.id,
+			name: leaveTypes.name,
+			fiscalYear: sql<number>`${fiscalYear}::int`.mapWith(Number),
+			days
+		})
+		.from(leaveLedger)
+		.innerJoin(leaveTypes, eq(leaveTypes.id, leaveLedger.leaveTypeId))
+		.where(
+			and(
+				eq(leaveLedger.employeeId, employeeId),
+				eq(leaveLedger.fiscalYear, fiscalYear),
+				eq(leaveTypes.encashable, true)
+			)
+		)
+		.groupBy(leaveTypes.id, leaveTypes.name)
+		.having(sql`sum(${leaveLedger.days}) > 0`)
+		.orderBy(asc(leaveTypes.name));
+}
+
+export async function loadFinalInputs(tx: Tx, run: Run) {
+	const inputs = await loadPayrollInputs(tx, run);
+	const employeeId = run.employeeId!;
+	const [settings] = await tx
+		.select({
+			gratuityDays: tenantSettings.gratuityDaysPerYear,
+			gratuityMinYears: tenantSettings.gratuityMinYears,
+			vestingMonths: tenantSettings.pfVestingMonths
+		})
+		.from(tenantSettings);
+	const exit = inputs.people[0]?.exit ?? null;
+	const [salaryPaid] = await tx
+		.select({ id: payslips.id })
+		.from(payslips)
+		.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
+		.where(
+			and(
+				eq(payslips.employeeId, employeeId),
+				eq(payrollRuns.runType, 'regular'),
+				eq(payrollRuns.period, run.period),
+				inArray(payrollRuns.status, ['approved', 'paid'])
+			)
+		)
+		.limit(1);
+	const [pf] = await tx
+		.select({
+			own: sql<number>`coalesce(sum(case when ${payslipLines.code} <> 'PF' then 0 when ${payslipLines.kind} = 'deduction' then ${payslipLines.amount} else -${payslipLines.amount} end), 0)`.mapWith(
+				Number
+			),
+			employer:
+				sql<number>`coalesce(sum(case when ${payslipLines.code} = 'PF_EMPLOYER' then ${payslipLines.amount} else 0 end), 0)`.mapWith(
+					Number
+				)
+		})
+		.from(payslipLines)
+		.innerJoin(payslips, eq(payslips.id, payslipLines.payslipId))
+		.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
+		.where(and(eq(payslipLines.employeeId, employeeId), inArray(payrollRuns.status, ['approved', 'paid'])));
+	return {
+		...inputs,
+		final: {
+			employeeId,
+			settings,
+			salaryPaid: Boolean(salaryPaid),
+			leave: exit ? (await encashable(tx, employeeId, exit)).map(({ name, days }) => ({ name, days })) : [],
+			pfOwn: pf.own,
+			pfEmployer: pf.employer,
+			noticePayDays: run.noticePayDays ?? 0,
+			noticeShortDays: run.noticeShortDays ?? 0,
+			asset: run.assetDeduction ?? 0
+		}
+	};
+}
+
+export function computeFinalRun(inputs: Awaited<ReturnType<typeof loadFinalInputs>>) {
+	const f = inputs.final;
+	const p = inputs.people[0];
+	if (!p?.exit || p.exit.slice(0, 7) !== inputs.period)
+		return [
+			{
+				employeeId: f.employeeId,
+				...failed(`The exit date is no longer in ${inputs.period}. Void this run and start a new one.`)
+			}
+		];
+	const months = serviceMonths(p.join, addDays(p.exit, 1));
+	return computeRun(inputs, {
+		salaryPaid: f.salaryPaid,
+		leave: f.leave,
+		serviceYears: Math.floor(months / 12),
+		gratuityDays: f.settings.gratuityDays,
+		gratuityMinYears: f.settings.gratuityMinYears,
+		noticePayDays: f.noticePayDays,
+		noticeShortDays: f.noticeShortDays,
+		asset: f.asset,
+		pfOwn: f.pfOwn,
+		pfEmployer: f.pfEmployer,
+		pfVested: months >= f.settings.vestingMonths
+	});
+}
+
+export function computeRun(inputs: Inputs, settle?: Settle) {
 	const { from, to } = periodRange(inputs.period);
 	const s = inputs.settings;
 	const holidaySet = new Set(inputs.offDays);
@@ -542,7 +682,8 @@ export function computeRun(inputs: Inputs) {
 				ytdTax: ytd?.tax ?? 0,
 				remainingMonths: inputs.remainingMonths
 			},
-			names
+			names,
+			settle
 		});
 		return { employeeId: p.id, ...result };
 	});
@@ -600,6 +741,10 @@ async function compute(tx: Tx, run: Run) {
 		const inputs = await loadArrearsInputs(tx, run);
 		return { inputs, slips: computeArrearsRun(inputs), snapshot: null };
 	}
+	if (run.runType === 'final') {
+		const inputs = await loadFinalInputs(tx, run);
+		return { inputs, slips: computeFinalRun(inputs), snapshot: null };
+	}
 	const inputs = await loadPayrollInputs(tx, run);
 	return { inputs, slips: computeRun(inputs), snapshot: inputs.settings };
 }
@@ -653,7 +798,60 @@ async function lockedRun(tx: Tx, m: Member, runId: string) {
 	return run;
 }
 
+async function startFinal(m: Member, form: Record<string, string>) {
+	const input = finalSchema.parse(form);
+	return withTenant(payrollCtx(m, 'payroll.run'), async (tx) => {
+		await advisoryLock(tx, LOCK.payroll, m.tenant.id);
+		const [e] = await tx
+			.select({ name: employees.fullName, exit: employees.exitDate })
+			.from(employees)
+			.where(eq(employees.id, input.employeeId));
+		if (!e) throw new AppError('not_found', 'That employee does not exist.', 404);
+		if (!e.exit) throw new AppError('no_exit', `Set ${e.name}'s exit date before settling.`, 409);
+		const period = e.exit.slice(0, 7);
+		if (period > (await tenantToday(tx)).slice(0, 7))
+			throw new AppError('future', `Settle ${e.name} once ${period} starts.`, 400);
+		const [pending] = await tx
+			.select({ id: payslips.id })
+			.from(payslips)
+			.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
+			.where(
+				and(
+					eq(payslips.employeeId, input.employeeId),
+					eq(payrollRuns.runType, 'regular'),
+					eq(payrollRuns.period, period),
+					eq(payrollRuns.status, 'computed')
+				)
+			)
+			.limit(1);
+		if (pending)
+			throw new AppError(
+				'in_payroll',
+				`${e.name} is in the ${period} payroll waiting for approval. Approve or void it first.`,
+				409
+			);
+		const [run] = await tx
+			.insert(payrollRuns)
+			.values({
+				tenantId: m.tenant.id,
+				runType: 'final',
+				period,
+				...input,
+				inputsHash: '',
+				outputHash: '',
+				computedByUserId: m.user.userId,
+				computedAt: new Date()
+			})
+			.onConflictDoNothing()
+			.returning();
+		if (!run) throw new AppError('exists', `${e.name} already has a final settlement.`, 409);
+		await computeInto(tx, m, run);
+		return run.id;
+	});
+}
+
 export async function startRun(m: Member, form: Record<string, string>) {
+	if (form.runType === 'final') return startFinal(m, form);
 	const { period, runType, title } = startSchema.parse(form);
 	return withTenant(payrollCtx(m, 'payroll.run'), async (tx) => {
 		await advisoryLock(tx, LOCK.payroll, m.tenant.id);
@@ -752,6 +950,19 @@ export async function reopenRun(m: Member, form: Record<string, string>) {
 	await withTenant(payrollCtx(m, 'payroll.approve'), async (tx) => {
 		const run = await lockedRun(tx, m, runId);
 		if (run.status !== 'approved') throw new AppError('locked', 'Only an approved, unpaid run can be reopened.', 409);
+		if (run.runType === 'regular') {
+			const [settled] = await tx
+				.select({ id: payslips.id })
+				.from(payslips)
+				.where(and(eq(payslips.runId, run.id), inArray(payslips.employeeId, finalsIn(tx, run.period))))
+				.limit(1);
+			if (settled)
+				throw new AppError(
+					'settled',
+					'Someone in this run has a final settlement for this month, so reopening would drop their pay.',
+					409
+				);
+		}
 		for (const table of [expenseClaims, mealBills, loanInstalments])
 			await tx.update(table).set({ payrollRunId: null }).where(eq(table.payrollRunId, run.id));
 		await tx
@@ -792,6 +1003,7 @@ export async function payRun(m: Member, form: Record<string, string>) {
 			.update(payrollRuns)
 			.set({ status: 'paid', paidByUserId: m.user.userId, paidAt: now })
 			.where(eq(payrollRuns.id, run.id));
+		if (run.runType === 'final') await encashLeave(tx, m, run);
 		const recipients = await tx
 			.select({
 				id: payslips.id,
@@ -829,6 +1041,41 @@ export async function payRun(m: Member, form: Record<string, string>) {
 	).catch((err) => log.warn({ tenantId: m.tenant.id, err: (err as Error).message }, 'payslip mails not queued'));
 }
 
+async function encashLeave(tx: Tx, m: Member, run: Run) {
+	const [slip] = await tx
+		.select({ id: payslips.id, employeeId: payslips.employeeId, exit: employees.exitDate })
+		.from(payslips)
+		.innerJoin(employees, eq(employees.id, payslips.employeeId))
+		.where(
+			and(
+				eq(payslips.runId, run.id),
+				sql`exists (select 1 from ${payslipLines} where ${payslipLines.payslipId} = ${payslips.id} and ${payslipLines.code} = 'LEAVE_ENCASH')`
+			)
+		);
+	if (!slip?.exit) return;
+	const rows = await encashable(tx, slip.employeeId, slip.exit);
+	if (rows.length)
+		await tx.insert(leaveLedger).values(
+			rows.map((r) => ({
+				tenantId: m.tenant.id,
+				employeeId: slip.employeeId,
+				leaveTypeId: r.leaveTypeId,
+				fiscalYear: r.fiscalYear,
+				kind: 'encash',
+				days: -r.days,
+				refId: slip.id,
+				note: 'Encashed in the final settlement.',
+				createdByUserId: m.user.userId
+			}))
+		);
+}
+
+const leaver = sql<
+	string | null
+>`(select ${employees.fullName} from ${employees} where ${employees.id} = ${payrollRuns.employeeId})`;
+const titled = (r: { runType: string; title: string | null; leaver: string | null }) =>
+	[slipName(r), r.leaver].filter(Boolean).join(' · ') || null;
+
 export function canSeePayroll(access: Access) {
 	return allScope(access, 'payroll.run') || allScope(access, 'payroll.approve');
 }
@@ -841,6 +1088,21 @@ export async function payrollBoard(m: Member, runId?: string) {
 			.from(payrollRuns)
 			.orderBy(desc(payrollRuns.period), desc(payrollRuns.createdAt))
 			.limit(36);
+		const names = await tx
+			.select({ id: employees.id, name: employees.fullName })
+			.from(employees)
+			.where(among(runs.flatMap((r) => r.employeeId ?? []))(employees.id));
+		const leaverOf = (r: { employeeId: string | null }) => names.find((n) => n.id === r.employeeId)?.name ?? null;
+		const leavers = await tx
+			.select({ id: employees.id, name: employees.fullName, code: employees.code, exit: employees.exitDate })
+			.from(employees)
+			.where(
+				and(
+					sql`${employees.exitDate} is not null`,
+					sql`not exists (select 1 from ${payrollRuns} where ${payrollRuns.employeeId} = ${employees.id} and ${payrollRuns.runType} = 'final' and ${payrollRuns.status} <> 'void')`
+				)
+			)
+			.orderBy(asc(employees.fullName));
 		const run = runs.find((r) => r.id === runId) ?? runs[0];
 		const slips = run ? await storedSlips(tx, run.id) : [];
 		const people = slips.length
@@ -862,9 +1124,16 @@ export async function payrollBoard(m: Member, runId?: string) {
 			canReopen: m.access.isOwner && allScope(m.access, 'payroll.approve'),
 			selfApprove: lone,
 			me: m.user.userId,
-			runs: runs.map((r) => ({ id: r.id, period: r.period, name: slipName(r), status: r.status })),
+			leavers,
+			runs: runs.map((r) => ({
+				id: r.id,
+				period: r.period,
+				name: titled({ ...r, leaver: leaverOf(r) }),
+				status: r.status
+			})),
 			run: run && {
 				...run,
+				leaver: leaverOf(run),
 				totals: {
 					gross: slips.reduce((sum, s) => sum + s.gross, 0),
 					deductions: slips.reduce((sum, s) => sum + s.deductions, 0),
@@ -886,6 +1155,7 @@ export async function payrollApprovals(tx: Tx, access: Access): Promise<Approval
 			period: payrollRuns.period,
 			runType: payrollRuns.runType,
 			title: payrollRuns.title,
+			leaver,
 			at: payrollRuns.computedAt
 		})
 		.from(payrollRuns)
@@ -894,7 +1164,7 @@ export async function payrollApprovals(tx: Tx, access: Access): Promise<Approval
 	return rows.map((r) => ({
 		id: r.id,
 		kind: 'Payroll',
-		title: `${runName(r)} for ${r.period}`,
+		title: `${runName(r)} for ${r.period}${r.leaver ? ` · ${r.leaver}` : ''}`,
 		requestedBy: 'Payroll',
 		at: r.at,
 		link: `payroll?run=${r.id}`

@@ -123,6 +123,10 @@ export const payrollRuns = pgTable(
 		runType: text().notNull().default('regular'),
 		title: text(),
 		period: text().notNull(),
+		employeeId: uuid(),
+		noticePayDays: smallint().notNull().default(0),
+		noticeShortDays: smallint().notNull().default(0),
+		assetDeduction: integer().notNull().default(0),
 		settings: jsonb(),
 		status: text().notNull().default('computed'),
 		inputsHash: text().notNull(),
@@ -136,12 +140,20 @@ export const payrollRuns = pgTable(
 	},
 	(t) => [
 		tenantKey('payroll_runs', t),
+		tfk('payroll_runs_employee_fk', t, t.employeeId, employees, 'restrict'),
+		uniqueIndex('payroll_runs_final_uq')
+			.on(t.tenantId, t.employeeId)
+			.where(sql`${t.runType} = 'final' and ${t.status} <> 'void'`),
 		uniqueIndex('payroll_runs_regular_uq')
 			.on(t.tenantId, t.period)
 			.where(sql`${t.runType} = 'regular' and ${t.status} <> 'void'`),
 		check('payroll_runs_period_ck', sql`${t.period} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
 		check('payroll_runs_type_ck', sql`${t.runType} in ('regular','bonus','arrears','final')`),
 		check('payroll_runs_status_ck', sql`${t.status} in ('computed','approved','paid','void')`),
+		check(
+			'payroll_runs_final_ck',
+			sql`(${t.runType} = 'final') = (${t.employeeId} is not null) and ${t.noticePayDays} between 0 and 365 and ${t.noticeShortDays} between 0 and 365 and (${t.noticePayDays} = 0 or ${t.noticeShortDays} = 0) and ${t.assetDeduction} >= 0 and (${t.runType} = 'final' or ${t.noticePayDays} + ${t.noticeShortDays} + ${t.assetDeduction} = 0)`
+		),
 		check(
 			'payroll_runs_title_ck',
 			sql`(${t.runType} = 'bonus') = (${t.title} is not null) and (${t.title} is null or length(trim(${t.title})) between 1 and 60)`

@@ -7,10 +7,12 @@ import {
 	roundTaka,
 	runName,
 	serviceMonths,
+	settlementLines,
 	slipName,
 	type LineKind,
 	type PayInput,
-	type Segment
+	type Segment,
+	type Settle
 } from './payroll';
 
 const days = Array.from({ length: 30 }, (_, i) => `2026-11-${String(i + 1).padStart(2, '0')}`);
@@ -281,5 +283,119 @@ describe('arrears', () => {
 		expect(runName({ runType: 'arrears', title: null })).toBe('Salary arrears');
 		expect(slipName({ runType: 'regular', title: null })).toBeNull();
 		expect(slipName({ runType: 'bonus', title: 'Eid bonus' })).toBe('Eid bonus');
+	});
+});
+
+describe('final settlement', () => {
+	const settle: Settle = {
+		salaryPaid: false,
+		leave: [{ name: 'Annual leave', days: 12 }],
+		serviceYears: 6,
+		gratuityDays: 30,
+		gratuityMinYears: 5,
+		noticePayDays: 0,
+		noticeShortDays: 0,
+		asset: 0,
+		pfOwn: 600_000,
+		pfEmployer: 600_000,
+		pfVested: true
+	};
+	const lines = (r: { lines: { code: string; name: string; kind: LineKind; taxable: boolean; amount: number }[] }) =>
+		r.lines.map((l) => [l.code, l.kind, l.taxable, l.amount]);
+
+	it('encashes leave and pays gratuity from the minimum years at a thirtieth of basic a day, and pays out both provident fund shares', () => {
+		const r = settlementLines(3_000_000, 30_000, 20_000, { ...settle, serviceYears: 5 });
+		expect(lines(r)).toEqual([
+			['LEAVE_ENCASH', 'earning', true, 1_200_000],
+			['GRATUITY', 'earning', false, 15_000_000],
+			['PF_PAYOUT', 'earning', false, 630_000],
+			['PF_EMPLOYER_PAYOUT', 'earning', false, 620_000]
+		]);
+		expect(r.lines.map((l) => l.name)).toEqual([
+			'Leave encashment: Annual leave (12 days)',
+			'Gratuity for 5 years of service',
+			'Provident fund payout (own)',
+			'Provident fund payout (employer)'
+		]);
+		expect(r.notes).toEqual([]);
+	});
+
+	it('skips gratuity before the minimum years, keeps unvested employer fund back, and prices notice and assets', () => {
+		const paid = settlementLines(3_000_000, 0, 0, {
+			...settle,
+			leave: [],
+			serviceYears: 4,
+			noticePayDays: 10,
+			pfVested: false
+		});
+		expect(lines(paid)).toEqual([
+			['NOTICE_PAY', 'earning', true, 1_000_000],
+			['PF_PAYOUT', 'earning', false, 600_000]
+		]);
+		expect(paid.notes).toEqual(['Employer provident fund of ৳6000.00 is not vested.']);
+		const short = settlementLines(3_000_000, 0, 0, {
+			...settle,
+			leave: [],
+			gratuityDays: 0,
+			pfOwn: 0,
+			pfEmployer: 0,
+			noticeShortDays: 5,
+			asset: 250_000
+		});
+		expect(lines(short)).toEqual([
+			['NOTICE', 'deduction', false, 500_000],
+			['ASSET', 'deduction', false, 250_000]
+		]);
+		expect(short.lines.map((l) => l.name)).toEqual(['Notice shortfall of 5 days', 'Unreturned assets']);
+	});
+
+	it('pays the exit month to the exit day, then settles on the full monthly basic', () => {
+		const r = computePay({
+			...base,
+			exit: '2026-11-15',
+			pfEmployeeRateBp: 1000,
+			tax: { ...base.tax, remainingMonths: 1 },
+			settle
+		});
+		expect(amounts(r)).toEqual({
+			BASIC: 1_500_000,
+			HOUSE_RENT: 750_000,
+			MEDICAL: 250_000,
+			PF: 150_000,
+			LEAVE_ENCASH: 1_200_000,
+			GRATUITY: 18_000_000,
+			PF_PAYOUT: 750_000,
+			PF_EMPLOYER_PAYOUT: 600_000
+		});
+		expect([r.paidDays, r.taxable, r.error]).toEqual([15, 3_700_000, null]);
+	});
+
+	it('leaves the month out when payroll already paid it', () => {
+		const r = computePay({
+			...base,
+			exit: '2026-11-30',
+			unpaid: [{ date: '2026-11-03', days: 1 }],
+			lates: 9,
+			overtimeMinutes: 600,
+			pfEmployeeRateBp: 1000,
+			tax: { ...base.tax, remainingMonths: 1 },
+			settle: { ...settle, salaryPaid: true, gratuityDays: 0 }
+		});
+		expect(amounts(r)).toEqual({ LEAVE_ENCASH: 1_200_000, PF_PAYOUT: 600_000, PF_EMPLOYER_PAYOUT: 600_000 });
+		expect([r.paidDays, r.unpaidDays, r.net]).toEqual([0, 0, 2_400_000]);
+	});
+
+	it('refuses a settlement whose deductions are more than it pays, or with no salary on the exit day', () => {
+		const settled = { ...base, exit: '2026-11-30', tax: { ...base.tax, remainingMonths: 1 } };
+		expect(
+			computePay({
+				...settled,
+				settle: { ...settle, salaryPaid: true, leave: [], gratuityDays: 0, pfOwn: 0, pfEmployer: 0, asset: 100_000 }
+			}).error
+		).toBe('Deductions are more than the settlement. Lower the notice or asset deduction.');
+		expect(
+			computePay({ ...settled, segments: [{ ...salary, to: '2026-11-20' }], settle: { ...settle, salaryPaid: true } })
+				.error
+		).toBe('No approved salary covers 2026-11-30.');
 	});
 });

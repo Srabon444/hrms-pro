@@ -207,7 +207,10 @@ export const tenantSettings = pgTable(
 		overtimeMonthlyHours: smallint().notNull().default(208),
 		bonusRateBp: integer().notNull().default(10_000),
 		bonusMinServiceMonths: smallint().notNull().default(0),
-		arrearsLookbackMonths: smallint().notNull().default(12)
+		arrearsLookbackMonths: smallint().notNull().default(12),
+		gratuityDaysPerYear: smallint().notNull().default(30),
+		gratuityMinYears: smallint().notNull().default(5),
+		pfVestingMonths: smallint().notNull().default(24)
 	},
 	(t) => [
 		tenantKey('tenant_settings', t),
@@ -235,7 +238,11 @@ export const tenantSettings = pgTable(
 			'tenant_settings_bonus_ck',
 			sql`${t.bonusRateBp} between 0 and 50000 and ${t.bonusMinServiceMonths} between 0 and 120`
 		),
-		check('tenant_settings_arrears_ck', sql`${t.arrearsLookbackMonths} between 1 and 24`)
+		check('tenant_settings_arrears_ck', sql`${t.arrearsLookbackMonths} between 1 and 24`),
+		check(
+			'tenant_settings_settlement_ck',
+			sql`${t.gratuityDaysPerYear} between 0 and 90 and ${t.gratuityMinYears} between 0 and 40 and ${t.pfVestingMonths} between 0 and 120`
+		)
 	]
 );
 
