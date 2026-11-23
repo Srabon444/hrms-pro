@@ -5,14 +5,21 @@ export const PASSWORD = 'e2e correct horse battery';
 
 export type Fixture = {
 	tenant: { id: string; slug: string; name: string } | null;
-	users: Record<string, { id: string; email: string }>;
+	users: Record<string, { id: string; email: string; employeeId?: string }>;
 };
 
 export async function fixture(
 	request: APIRequestContext,
 	body: {
 		tenant?: { name?: string; require2fa?: boolean };
-		users: { key: string; roles?: string[]; member?: boolean; platformAdmin?: boolean; totpSecret?: string }[];
+		users: {
+			key: string;
+			roles?: string[];
+			member?: boolean;
+			platformAdmin?: boolean;
+			employee?: boolean;
+			totpSecret?: string;
+		}[];
 	}
 ): Promise<Fixture> {
 	const res = await request.post('/api/test/fixture', { data: { password: PASSWORD, ...body } });

@@ -13,6 +13,7 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 import { citext, createdAt, tenantBase, tenantKey, tfk, tstz, updatedAt } from './_helpers';
+import { employees } from './org';
 export { tenants } from './tenants';
 
 export const users = pgTable(
@@ -94,6 +95,7 @@ export const memberships = pgTable(
 		tenantKey('memberships', t),
 		unique('memberships_tenant_user_uq').on(t.tenantId, t.userId),
 		unique('memberships_tenant_employee_uq').on(t.tenantId, t.employeeId),
+		tfk('memberships_employee_fk', t, t.employeeId, employees, 'restrict'),
 		index('memberships_user_idx').on(t.userId),
 		check('memberships_status_ck', sql`${t.status} in ('active','ex_employee','disabled')`)
 	]
@@ -159,7 +161,11 @@ export const invitations = pgTable(
 		acceptedAt: tstz(),
 		revokedAt: tstz()
 	},
-	(t) => [tenantKey('invitations', t), index('invitations_tenant_email_idx').on(t.tenantId, t.email)]
+	(t) => [
+		tenantKey('invitations', t),
+		index('invitations_tenant_email_idx').on(t.tenantId, t.email),
+		tfk('invitations_employee_fk', t, t.employeeId, employees, 'restrict')
+	]
 );
 
 export const tenantSettings = pgTable(

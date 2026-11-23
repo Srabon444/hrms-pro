@@ -1,6 +1,16 @@
 import { sql } from 'drizzle-orm';
-import { check, date, index, pgTable, smallint, text, unique, uuid } from 'drizzle-orm/pg-core';
-import { tenantBase, tenantKey, tfk } from './_helpers';
+import {
+	check,
+	date,
+	index,
+	pgTable,
+	smallint,
+	text,
+	unique,
+	uuid,
+	type PgTableExtraConfigValue
+} from 'drizzle-orm/pg-core';
+import { citext, tenantBase, tenantKey, tfk } from './_helpers';
 
 const nameCheck = (table: string, col: unknown) =>
 	check(`${table}_name_ck`, sql`length(trim(${col})) between 1 and 120`);
@@ -13,9 +23,10 @@ export const branches = pgTable('branches', { ...tenantBase(), name: text().notN
 
 export const departments = pgTable(
 	'departments',
-	{ ...tenantBase(), name: text().notNull(), parentId: uuid() },
-	(t) => [
+	{ ...tenantBase(), name: text().notNull(), parentId: uuid(), headEmployeeId: uuid() },
+	(t): PgTableExtraConfigValue[] => [
 		tenantKey('departments', t),
+		tfk('departments_head_fk', t, t.headEmployeeId, employees, 'restrict'),
 		unique('departments_name_uq').on(t.tenantId, t.name),
 		tfk('departments_parent_fk', t, t.parentId, t, 'restrict'),
 		index('departments_parent_idx').on(t.tenantId, t.parentId),
@@ -40,4 +51,82 @@ export const holidays = pgTable(
 	'holidays',
 	{ ...tenantBase(), date: date({ mode: 'string' }).notNull(), name: text().notNull() },
 	(t) => [tenantKey('holidays', t), unique('holidays_date_uq').on(t.tenantId, t.date), nameCheck('holidays', t.name)]
+);
+
+export const EMPLOYEE_STATUSES = ['onboarding', 'probation', 'active', 'notice', 'exited'] as const;
+export const EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contract', 'intern'] as const;
+export const GENDERS = ['female', 'male', 'other', 'undisclosed'] as const;
+
+const inList = (col: unknown, values: readonly string[]) =>
+	sql`${col} in (${sql.raw(values.map((v) => `'${v}'`).join(','))})`;
+
+export const employees = pgTable(
+	'employees',
+	{
+		...tenantBase(),
+		code: text().notNull(),
+		fullName: text().notNull(),
+		workEmail: citext(),
+		personalEmail: citext(),
+		phone: text(),
+		dateOfBirth: date({ mode: 'string' }),
+		gender: text(),
+		bloodGroup: text(),
+		presentAddress: text(),
+		permanentAddress: text(),
+		nationalId: text(),
+		passportNumber: text(),
+		taxId: text(),
+		bankName: text(),
+		bankAccountName: text(),
+		bankAccountNumber: text(),
+		departmentId: uuid(),
+		designationId: uuid(),
+		gradeId: uuid(),
+		branchId: uuid(),
+		managerId: uuid(),
+		employmentType: text().notNull().default('full_time'),
+		joinDate: date({ mode: 'string' }).notNull(),
+		probationEndDate: date({ mode: 'string' }),
+		confirmationDate: date({ mode: 'string' }),
+		status: text().notNull().default('onboarding'),
+		exitDate: date({ mode: 'string' }),
+		exitReason: text()
+	},
+	(t): PgTableExtraConfigValue[] => [
+		tenantKey('employees', t),
+		unique('employees_code_uq').on(t.tenantId, t.code),
+		unique('employees_work_email_uq').on(t.tenantId, t.workEmail),
+		tfk('employees_department_fk', t, t.departmentId, departments, 'restrict'),
+		tfk('employees_designation_fk', t, t.designationId, designations, 'restrict'),
+		tfk('employees_grade_fk', t, t.gradeId, grades, 'restrict'),
+		tfk('employees_branch_fk', t, t.branchId, branches, 'restrict'),
+		tfk('employees_manager_fk', t, t.managerId, t, 'restrict'),
+		index('employees_department_idx').on(t.tenantId, t.departmentId),
+		index('employees_manager_idx').on(t.tenantId, t.managerId),
+		index('employees_status_idx').on(t.tenantId, t.status),
+		check('employees_name_ck', sql`length(trim(${t.fullName})) between 1 and 160`),
+		check('employees_not_own_manager_ck', sql`${t.managerId} is distinct from ${t.id}`),
+		check('employees_status_ck', inList(t.status, EMPLOYEE_STATUSES)),
+		check('employees_type_ck', inList(t.employmentType, EMPLOYMENT_TYPES)),
+		check('employees_gender_ck', sql`${t.gender} is null or ${inList(t.gender, GENDERS)}`),
+		check('employees_exit_ck', sql`${t.exitDate} is null or ${t.exitDate} >= ${t.joinDate}`)
+	]
+);
+
+export const employeeHistory = pgTable(
+	'employee_history',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		field: text().notNull(),
+		oldValue: text(),
+		newValue: text(),
+		changedByUserId: uuid()
+	},
+	(t) => [
+		tenantKey('employee_history', t),
+		tfk('employee_history_employee_fk', t, t.employeeId, employees, 'cascade'),
+		index('employee_history_employee_idx').on(t.tenantId, t.employeeId, t.createdAt)
+	]
 );

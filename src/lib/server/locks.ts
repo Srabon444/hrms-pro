@@ -5,7 +5,6 @@ export const LOCK = {
 	payroll: 1,
 	mealBilling: 2,
 	leaveBalance: 3,
-	employeeCode: 4,
 	attendance: 5,
 	orgTree: 6
 } as const;

@@ -6,7 +6,7 @@ import { encrypt } from '#lib/server/auth/crypto.ts';
 import { createUser } from '#lib/server/auth/users.ts';
 import { config } from '#lib/server/config.ts';
 import { authPool } from '#lib/server/db/index.ts';
-import { tenantSettings, tenants, users } from '#lib/server/db/schema/index.ts';
+import { employees, memberships, tenantSettings, tenants, users } from '#lib/server/db/schema/index.ts';
 import { addMember, seedTenant } from '#lib/server/platform/tenants.ts';
 import { systemCtx, withTenant } from '#lib/server/tenancy/index.ts';
 import type { RequestHandler } from './$types';
@@ -20,6 +20,7 @@ const bodySchema = z.object({
 			roles: z.array(z.string()).default([]),
 			member: z.boolean().default(true),
 			platformAdmin: z.boolean().default(false),
+			employee: z.boolean().default(false),
 			totpSecret: z.string().optional()
 		})
 	)
@@ -42,7 +43,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			await tx.update(tenantSettings).set({ require2faForSensitive });
 		});
 	}
-	const created: Record<string, { id: string; email: string }> = {};
+	const created: Record<string, { id: string; email: string; employeeId?: string }> = {};
 	for (const u of body.users) {
 		const email = `${u.key}-${run}@e2e.local`;
 		const id = await createUser({
@@ -56,11 +57,28 @@ export const POST: RequestHandler = async ({ request }) => {
 				.db.update(users)
 				.set({ totpSecretEnc: encrypt(u.totpSecret), totpEnabled: true })
 				.where(eq(users.id, id));
+		let employeeId: string | undefined;
 		if (tenant && u.member) {
 			const tenantId = tenant.id;
-			await withTenant(systemCtx(tenantId), (tx) => addMember(tx, tenantId, id, u.roles));
+			await withTenant(systemCtx(tenantId), async (tx) => {
+				const membershipId = await addMember(tx, tenantId, id, u.roles);
+				if (!u.employee) return;
+				const [e] = await tx
+					.insert(employees)
+					.values({
+						tenantId,
+						code: `E2E-${u.key.toUpperCase()}`,
+						fullName: `${u.key} ${run}`,
+						employmentType: 'full_time',
+						status: 'active',
+						joinDate: '2026-01-05'
+					})
+					.returning({ id: employees.id });
+				employeeId = e.id;
+				await tx.update(memberships).set({ employeeId }).where(eq(memberships.id, membershipId));
+			});
 		}
-		created[u.key] = { id, email };
+		created[u.key] = { id, email, employeeId };
 	}
 	return Response.json({ tenant, users: created });
 };
