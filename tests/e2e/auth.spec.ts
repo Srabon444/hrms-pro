@@ -113,3 +113,15 @@ test('forgotten password is reset through the emailed link', async ({ page, requ
 	await signIn(page, f.users.forgetful.email, 'a fresh new passphrase');
 	await expect(page).toHaveURL(`/t/${f.tenant!.slug}`);
 });
+
+test('an organisation that requires two-factor sends privileged members to enrol first', async ({ page, request }) => {
+	const f = await fixture(request, {
+		tenant: { require2fa: true },
+		users: [{ key: 'hr', roles: ['hr_admin'] }, { key: 'plain' }]
+	});
+	await signIn(page, f.users.hr.email);
+	await expect(page).toHaveURL(/\/account\/security\?required=1/);
+	await page.context().clearCookies();
+	await signIn(page, f.users.plain.email);
+	await expect(page).toHaveURL(`/t/${f.tenant!.slug}`);
+});

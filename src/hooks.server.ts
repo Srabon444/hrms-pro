@@ -7,7 +7,9 @@ import { withTestNow } from '#lib/server/clock.ts';
 import { config } from '#lib/server/config.ts';
 import { log } from '#lib/server/log.ts';
 import { httpDuration } from '#lib/server/metrics.ts';
+import { loadAccess } from '#lib/server/rbac/access.ts';
 import { hit } from '#lib/server/ratelimit.ts';
+import { holdsRestricted } from '#lib/rbac/grants.ts';
 import { resolveTenantAccess } from '#lib/server/tenancy/resolve.ts';
 
 const securityHeaders: Record<string, string> = {
@@ -38,6 +40,7 @@ const route: Handle = async ({ event, resolve }) => {
 	});
 	event.locals.tenant = null;
 	event.locals.membership = null;
+	event.locals.access = null;
 	const user = event.locals.user;
 
 	if (user && !SAFE_METHODS.has(event.request.method)) {
@@ -52,6 +55,9 @@ const route: Handle = async ({ event, resolve }) => {
 		if (access) {
 			event.locals.tenant = access.tenant;
 			event.locals.membership = access.membership;
+			event.locals.access = await loadAccess(access.tenant.id, access.membership);
+			if (access.tenant.require2faForSensitive && !user.totpEnabled && holdsRestricted(event.locals.access.grants))
+				redirect(303, '/account/security?required=1');
 			if (event.cookies.get(LAST_TENANT_COOKIE) !== slug) setLastTenant(event.cookies, event.url, slug);
 		}
 	}

@@ -11,7 +11,7 @@ export type Fixture = {
 export async function fixture(
 	request: APIRequestContext,
 	body: {
-		tenant?: { name?: string };
+		tenant?: { name?: string; require2fa?: boolean };
 		users: { key: string; roles?: string[]; member?: boolean; platformAdmin?: boolean; totpSecret?: string }[];
 	}
 ): Promise<Fixture> {

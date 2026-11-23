@@ -6,14 +6,14 @@ import { encrypt } from '#lib/server/auth/crypto.ts';
 import { createUser } from '#lib/server/auth/users.ts';
 import { config } from '#lib/server/config.ts';
 import { authPool } from '#lib/server/db/index.ts';
-import { tenants, users } from '#lib/server/db/schema/index.ts';
+import { tenantSettings, tenants, users } from '#lib/server/db/schema/index.ts';
 import { addMember, seedTenant } from '#lib/server/platform/tenants.ts';
 import { systemCtx, withTenant } from '#lib/server/tenancy/index.ts';
 import type { RequestHandler } from './$types';
 
 const bodySchema = z.object({
 	password: z.string().min(10),
-	tenant: z.object({ name: z.string().default('E2E Org') }).optional(),
+	tenant: z.object({ name: z.string().default('E2E Org'), require2fa: z.boolean().default(false) }).optional(),
 	users: z.array(
 		z.object({
 			key: z.string().regex(/^[a-z0-9]+$/),
@@ -36,7 +36,11 @@ export const POST: RequestHandler = async ({ request }) => {
 			.values({ slug: `e2e-${run}`, name: `${body.tenant.name} ${run}` })
 			.returning({ id: tenants.id, slug: tenants.slug, name: tenants.name });
 		const id = tenant.id;
-		await withTenant(systemCtx(id), (tx) => seedTenant(tx, id));
+		const require2faForSensitive = body.tenant.require2fa;
+		await withTenant(systemCtx(id), async (tx) => {
+			await seedTenant(tx, id);
+			await tx.update(tenantSettings).set({ require2faForSensitive });
+		});
 	}
 	const created: Record<string, { id: string; email: string }> = {};
 	for (const u of body.users) {

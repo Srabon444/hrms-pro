@@ -1,10 +1,10 @@
 import { and, eq } from 'drizzle-orm';
 import { now } from '../clock';
 import { authPool } from '../db';
-import { memberships, tenants } from '../db/schema';
+import { memberships, tenantSettings, tenants } from '../db/schema';
 
 export type TenantAccess = {
-	tenant: { id: string; slug: string; name: string };
+	tenant: { id: string; slug: string; name: string; require2faForSensitive: boolean };
 	membership: { id: string; status: 'active' | 'ex_employee'; employeeId: string | null };
 };
 
@@ -19,16 +19,18 @@ export async function resolveTenantAccess(slug: string, userId: string): Promise
 			membershipId: memberships.id,
 			status: memberships.status,
 			employeeId: memberships.employeeId,
-			exAccessUntil: memberships.exAccessUntil
+			exAccessUntil: memberships.exAccessUntil,
+			require2fa: tenantSettings.require2faForSensitive
 		})
 		.from(tenants)
 		.innerJoin(memberships, and(eq(memberships.tenantId, tenants.id), eq(memberships.userId, userId)))
+		.leftJoin(tenantSettings, eq(tenantSettings.tenantId, tenants.id))
 		.where(eq(tenants.slug, slug));
 	if (!row || row.tenantStatus !== 'active') return null;
 	const exAllowed = row.status === 'ex_employee' && !!row.exAccessUntil && row.exAccessUntil > now();
 	if (row.status !== 'active' && !exAllowed) return null;
 	return {
-		tenant: { id: row.id, slug: row.slug, name: row.name },
+		tenant: { id: row.id, slug: row.slug, name: row.name, require2faForSensitive: !!row.require2fa },
 		membership: { id: row.membershipId, status: row.status as 'active' | 'ex_employee', employeeId: row.employeeId }
 	};
 }
