@@ -37,13 +37,16 @@ describe('access resolution', () => {
 		expect(access.grants['audit.sensitive']).toEqual(['all']);
 	});
 
-	it('gives no grants to a membership that is not active', async () => {
+	it('limits a former employee to their own records and gives a disabled member nothing', async () => {
 		const m = await member(['hr_admin']);
 		await withTenant(systemCtx(tenant.id), (tx) =>
 			tx.update(memberships).set({ status: 'ex_employee' }).where(eq(memberships.id, m.id))
 		);
-		const access = await loadAccess(tenant.id, { ...m, status: 'ex_employee' });
-		expect(access.grants).toEqual({});
+		const former = await loadAccess(tenant.id, { ...m, status: 'ex_employee' });
+		expect(former.grants).toEqual({ 'employee.read': ['own'], 'document.read': ['own'], 'payroll.read': ['own'] });
+		expect(former.roleKeys).toEqual([]);
+		const disabled = await loadAccess(tenant.id, { ...m, status: 'disabled' });
+		expect(disabled.grants).toEqual({});
 	});
 
 	it('cannot read another tenant’s membership roles', async () => {

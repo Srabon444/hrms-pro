@@ -77,12 +77,12 @@ function assertCanHandOut(access: Access, list: RoleSummary[]) {
 	if (blocked) throw new AppError('role_not_grantable', `You cannot grant or remove the ${blocked.name} role.`, 403);
 }
 
-async function lockOwnerRole(tx: Tx): Promise<string> {
+export async function lockOwnerRole(tx: Tx): Promise<string> {
 	const [owner] = await tx.select({ id: roles.id }).from(roles).where(eq(roles.key, 'owner')).for('update');
 	return owner.id;
 }
 
-async function otherActiveOwners(tx: Tx, ownerRoleId: string, exceptMembershipId: string): Promise<number> {
+export async function otherActiveOwners(tx: Tx, ownerRoleId: string, exceptMembershipId: string): Promise<number> {
 	const [row] = await tx
 		.select({ n: sql<number>`count(*)::int` })
 		.from(membershipRoles)

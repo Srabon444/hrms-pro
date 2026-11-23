@@ -53,3 +53,19 @@
 		{/each}
 	</ul>
 </section>
+
+<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Upcoming exits">
+	<h2 class="font-semibold text-slate-900">Upcoming exits</h2>
+	<ul class="mt-3 divide-y divide-slate-100 text-sm">
+		{#each data.exits as x (x.id)}
+			<li class="flex gap-3 py-2" data-testid="exit-row">
+				<a href="/t/{data.tenant.slug}/employees/{x.id}" class="font-medium text-indigo-700 hover:underline">
+					{x.fullName}
+				</a>
+				<span class="text-slate-500">{x.code} · last day {x.exitDate} · {x.exitType ?? ''}</span>
+			</li>
+		{:else}
+			<li class="py-2 text-slate-500">Nobody is on notice.</li>
+		{/each}
+	</ul>
+</section>

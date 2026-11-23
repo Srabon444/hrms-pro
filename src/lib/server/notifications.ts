@@ -7,7 +7,8 @@ import type { Tx } from './tenancy';
 export const NOTIFICATION_CATEGORIES = {
 	access: 'Access and roles',
 	approvals: 'Approvals',
-	profile: 'Profile changes'
+	profile: 'Profile changes',
+	people: 'Joiners and leavers'
 } as const;
 
 export type NotificationCategory = keyof typeof NOTIFICATION_CATEGORIES;

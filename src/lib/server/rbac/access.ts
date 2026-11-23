@@ -13,11 +13,18 @@ export type Access = {
 	isOwner: boolean;
 };
 
+const EX_EMPLOYEE_GRANTS: GrantMap = {
+	'employee.read': ['own'],
+	'document.read': ['own'],
+	'payroll.read': ['own']
+};
+
 export async function readAccess(
 	tx: Tx,
 	membership: { id: string; status: string; employeeId: string | null }
 ): Promise<Access> {
 	const base = { membershipId: membership.id, employeeId: membership.employeeId };
+	if (membership.status === 'ex_employee') return { ...base, grants: EX_EMPLOYEE_GRANTS, roleKeys: [], isOwner: false };
 	if (membership.status !== 'active') return { ...base, grants: {}, roleKeys: [], isOwner: false };
 	const rows = await tx
 		.select({ key: roles.key, permission: rolePermissions.permission, scope: rolePermissions.scope })

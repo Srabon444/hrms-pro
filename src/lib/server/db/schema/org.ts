@@ -59,6 +59,7 @@ export const holidays = pgTable(
 export const EMPLOYEE_STATUSES = ['onboarding', 'probation', 'active', 'notice', 'exited'] as const;
 export const EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contract', 'intern'] as const;
 export const GENDERS = ['female', 'male', 'other', 'undisclosed'] as const;
+export const EXIT_TYPES = ['resignation', 'termination', 'retirement', 'contract_end', 'other'] as const;
 
 const inList = (col: unknown, values: readonly string[]) =>
 	sql`${col} in (${sql.raw(values.map((v) => `'${v}'`).join(','))})`;
@@ -94,7 +95,8 @@ export const employees = pgTable(
 		confirmationDate: date({ mode: 'string' }),
 		status: text().notNull().default('onboarding'),
 		exitDate: date({ mode: 'string' }),
-		exitReason: text()
+		exitReason: text(),
+		exitType: text()
 	},
 	(t): PgTableExtraConfigValue[] => [
 		tenantKey('employees', t),
@@ -113,7 +115,8 @@ export const employees = pgTable(
 		check('employees_status_ck', inList(t.status, EMPLOYEE_STATUSES)),
 		check('employees_type_ck', inList(t.employmentType, EMPLOYMENT_TYPES)),
 		check('employees_gender_ck', sql`${t.gender} is null or ${inList(t.gender, GENDERS)}`),
-		check('employees_exit_ck', sql`${t.exitDate} is null or ${t.exitDate} >= ${t.joinDate}`)
+		check('employees_exit_ck', sql`${t.exitDate} is null or ${t.exitDate} >= ${t.joinDate}`),
+		check('employees_exit_type_ck', sql`${t.exitType} is null or ${inList(t.exitType, EXIT_TYPES)}`)
 	]
 );
 

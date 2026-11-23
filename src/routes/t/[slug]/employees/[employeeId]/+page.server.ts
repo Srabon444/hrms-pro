@@ -1,7 +1,8 @@
 import { error, fail } from '@sveltejs/kit';
 import { z } from 'zod';
 import { cancelChange, CHANGE_LABELS, ownPendingChange, requestChange } from '#lib/server/change-requests.ts';
-import { DOCUMENT_CATEGORIES } from '#lib/server/db/schema/org.ts';
+import { DOCUMENT_CATEGORIES, EXIT_TYPES } from '#lib/server/db/schema/org.ts';
+import { exitRights, recordExit, rehire, withdrawExit } from '#lib/server/exits.ts';
 import { deleteDocument, listDocuments, uploadDocument } from '#lib/server/documents.ts';
 import { employeeChoices, getEmployee, updateEmployee } from '#lib/server/employees.ts';
 import { employeeActionError, formFields } from '#lib/server/http/employee-form.ts';
@@ -23,6 +24,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			lists: await profileLists(tx, m.access, record.employee.id, record.employee.status),
 			pendingChange: await ownPendingChange(tx, m.access, record.employee.id),
 			changeLabels: CHANGE_LABELS,
+			exit: await exitRights(tx, m.access, record.employee),
+			exitTypes: EXIT_TYPES,
 			documentCategories: DOCUMENT_CATEGORIES
 		};
 	});
@@ -43,6 +46,33 @@ export const actions: Actions = {
 			return profileError(err, locals.requestId);
 		}
 		return { ownSaved: true };
+	},
+	recordExit: async ({ request, locals, params }) => {
+		const m = requirePerm(locals, 'employee.delete');
+		try {
+			await recordExit(m, params.employeeId, formFields(await request.formData()));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { exitRecorded: true };
+	},
+	withdrawExit: async ({ locals, params }) => {
+		const m = requirePerm(locals, 'employee.delete');
+		try {
+			await withdrawExit(m, params.employeeId);
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { exitWithdrawn: true };
+	},
+	rehire: async ({ request, locals, params }) => {
+		const m = requirePerm(locals, 'employee.create');
+		try {
+			await rehire(m, params.employeeId, formFields(await request.formData()));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { rehired: true };
 	},
 	requestChange: async ({ request, locals, params }) => {
 		const m = requireMember(locals);

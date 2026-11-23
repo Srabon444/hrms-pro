@@ -19,7 +19,7 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('files', 'plain', '{id,tenant_id,filename,mime,size,owner_type,owner_id,uploaded_by_user_id}'),
 	('branches', 'plain', '{id,tenant_id,name,address}'),
 	('departments', 'plain', '{id,tenant_id,name,parent_id,head_employee_id}'),
-	('employees', 'plain', '{id,tenant_id,code,full_name,work_email,personal_email,phone,gender,blood_group,department_id,designation_id,grade_id,branch_id,manager_id,employment_type,join_date,probation_end_date,confirmation_date,status,exit_date,exit_reason}'),
+	('employees', 'plain', '{id,tenant_id,code,full_name,work_email,personal_email,phone,gender,blood_group,department_id,designation_id,grade_id,branch_id,manager_id,employment_type,join_date,probation_end_date,confirmation_date,status,exit_date,exit_reason,exit_type}'),
 	('employee_history', 'plain', '{id,tenant_id,employee_id,field,old_value,new_value,changed_by_user_id}'),
 	('employee_contacts', 'plain', '{id,tenant_id,employee_id,name,relation,phone}'),
 	('employee_education', 'plain', '{id,tenant_id,employee_id,degree,institution,passing_year}'),

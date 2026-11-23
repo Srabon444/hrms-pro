@@ -92,6 +92,9 @@
 	<Alert message={profileMessage} />
 	{#if form && 'ownSaved' in form}<Alert tone="info" message="Contact details saved." />{/if}
 	{#if form && 'entryAdded' in form}<Alert tone="info" message="Entry added." />{/if}
+	{#if form && 'exitRecorded' in form}<Alert tone="info" message="Exit recorded." />{/if}
+	{#if form && 'exitWithdrawn' in form}<Alert tone="info" message="Exit withdrawn." />{/if}
+	{#if form && 'rehired' in form}<Alert tone="info" message="Rehired." />{/if}
 </div>
 
 {#if lists.canEditSelf}
@@ -212,6 +215,52 @@
 		{/if}
 	</section>
 {/each}
+
+{#if data.exit.canExit}
+	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Exit">
+		<h2 class="font-semibold text-slate-900">Exit</h2>
+		{#if e.status === 'notice' && e.exitDate}
+			<p class="mt-3 text-sm text-slate-700" data-testid="exit-pending">
+				Leaving on {e.exitDate} ({e.exitType ?? 'other'}). Access ends automatically after that day.
+			</p>
+			<form method="POST" action="?/withdrawExit" class="mt-3">
+				<Button type="submit" variant="secondary">Withdraw exit</Button>
+			</form>
+		{:else}
+			<form method="POST" action="?/recordExit" class="mt-4 grid gap-3 sm:grid-cols-2">
+				<label class="text-sm text-slate-700">
+					Last working day
+					<input name="exitDate" type="date" required class="{field} mt-1 block w-full" />
+				</label>
+				<label class="text-sm text-slate-700">
+					Exit type
+					<select name="exitType" required class="{field} mt-1 block w-full">
+						{#each data.exitTypes as t (t)}<option value={t}>{t.replace('_', ' ')}</option>{/each}
+					</select>
+				</label>
+				<label class="text-sm text-slate-700 sm:col-span-2">
+					Reason
+					<textarea name="exitReason" maxlength={500} class="{field} mt-1 block w-full"></textarea>
+				</label>
+				<div class="sm:col-span-2"><Button type="submit" variant="danger">Record exit</Button></div>
+			</form>
+		{/if}
+	</section>
+{/if}
+
+{#if data.exit.canRehire}
+	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Rehire">
+		<h2 class="font-semibold text-slate-900">Rehire</h2>
+		<p class="mt-1 text-sm text-slate-600">Left on {e.exitDate}. Rehiring keeps the same code and history.</p>
+		<form method="POST" action="?/rehire" class="mt-3 flex items-end gap-3">
+			<label class="text-sm text-slate-700">
+				New join date
+				<input name="joinDate" type="date" required class="{field} mt-1 block" />
+			</label>
+			<Button type="submit">Rehire</Button>
+		</form>
+	</section>
+{/if}
 
 {#if data.canUpdate && data.choices}
 	<form method="POST" action="?/save" class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200">

@@ -1,7 +1,7 @@
 import { closePools } from './lib/server/db';
 import { processors } from './lib/server/jobs';
 import { log } from './lib/server/log';
-import { closeQueues, startWorker, type QueueName } from './lib/server/queue';
+import { closeQueues, queue, startWorker, type QueueName } from './lib/server/queue';
 import { closeRedis } from './lib/server/redis';
 
 try {
@@ -12,6 +12,7 @@ try {
 
 const workers = (Object.keys(processors) as QueueName[]).map((name) => startWorker(name, processors[name]));
 await Promise.all(workers.map((w) => w.waitUntilReady()));
+await queue('lifecycle').upsertJobScheduler('hourly', { pattern: '5 * * * *' }, { name: 'run' });
 log.info({ queues: Object.keys(processors) }, 'worker ready');
 
 async function shutdown(signal: string) {
