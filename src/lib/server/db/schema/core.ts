@@ -194,7 +194,8 @@ export const tenantSettings = pgTable(
 		exEmployeeAccessDays: integer().notNull().default(90),
 		employeeCodePrefix: text().notNull().default('EMP-'),
 		noticePeriodDays: integer().notNull().default(30),
-		overtimeDailyCapMinutes: smallint().notNull().default(120)
+		overtimeDailyCapMinutes: smallint().notNull().default(120),
+		compOffExpiryDays: smallint().notNull().default(90)
 	},
 	(t) => [
 		tenantKey('tenant_settings', t),
@@ -205,7 +206,8 @@ export const tenantSettings = pgTable(
 		check('tenant_settings_late_ck', sql`${t.latePolicyPenalty} in ('lop','leave')`),
 		check('tenant_settings_lag_ck', sql`${t.mealPayrollLagMonths} between 0 and 3`),
 		check('tenant_settings_audit_ret_ck', sql`${t.retentionAuditDays} >= 365`),
-		check('tenant_settings_overtime_ck', sql`${t.overtimeDailyCapMinutes} between 15 and 720`)
+		check('tenant_settings_overtime_ck', sql`${t.overtimeDailyCapMinutes} between 15 and 720`),
+		check('tenant_settings_comp_off_ck', sql`${t.compOffExpiryDays} between 1 and 365`)
 	]
 );
 

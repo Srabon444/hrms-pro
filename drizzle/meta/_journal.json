@@ -127,6 +127,13 @@
       "when": 1795443199308,
       "tag": "0017_attendance_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795444330009,
+      "tag": "0018_comp_off_expiry",
+      "breakpoints": true
     }
   ]
 }

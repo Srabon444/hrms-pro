@@ -1,0 +1,2 @@
+ALTER TABLE "tenant_settings" ADD COLUMN "comp_off_expiry_days" smallint DEFAULT 90 NOT NULL;--> statement-breakpoint
+ALTER TABLE "tenant_settings" ADD CONSTRAINT "tenant_settings_comp_off_ck" CHECK ("tenant_settings"."comp_off_expiry_days" between 1 and 365);

@@ -22,7 +22,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			exEmployeeAccessDays: s.exEmployeeAccessDays,
 			noticePeriodDays: s.noticePeriodDays,
 			retentionAuditDays: s.retentionAuditDays,
-			overtimeDailyCapMinutes: s.overtimeDailyCapMinutes
+			overtimeDailyCapMinutes: s.overtimeDailyCapMinutes,
+			compOffExpiryDays: s.compOffExpiryDays
 		},
 		timezones: Intl.supportedValuesOf('timeZone'),
 		isOwner: m.access.isOwner
@@ -46,7 +47,8 @@ export const actions: Actions = {
 				exEmployeeAccessDays: field(form, 'exEmployeeAccessDays'),
 				noticePeriodDays: field(form, 'noticePeriodDays'),
 				retentionAuditDays: field(form, 'retentionAuditDays'),
-				overtimeDailyCapMinutes: field(form, 'overtimeDailyCapMinutes')
+				overtimeDailyCapMinutes: field(form, 'overtimeDailyCapMinutes'),
+				compOffExpiryDays: field(form, 'compOffExpiryDays')
 			});
 		} catch (err) {
 			if (err instanceof z.ZodError) return fail(400, { message: err.issues[0].message });

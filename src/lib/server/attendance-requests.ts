@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { activeMemberships, approvers, deciderWhere, rightsOver, singleAdmin } from './approval-chain';
 import type { ApprovalItem } from './approvals';
 import { calendar, recomputeAttendance, shiftOn } from './attendance';
+import { compDays, creditCompOff } from './comp-off';
 import { shiftDayOf, zonedInstant } from './attendance-day';
 import { now } from './clock';
 import { addDays, dateIn } from './dates';
@@ -160,6 +161,7 @@ async function dayOf(tx: Tx, employeeId: string, date: string) {
 			firstIn: attendanceDays.firstIn,
 			lastOut: attendanceDays.lastOut,
 			workedMinutes: attendanceDays.workedMinutes,
+			halfDayMinutes: shifts.halfDayMinutes,
 			fullDayMinutes: shifts.fullDayMinutes
 		})
 		.from(attendanceDays)
@@ -168,8 +170,9 @@ async function dayOf(tx: Tx, employeeId: string, date: string) {
 	return d ?? null;
 }
 
-const extraMinutes = (d: Awaited<ReturnType<typeof dayOf>>) =>
-	!d ? 0 : ['weekend', 'holiday'].includes(d.status) ? d.workedMinutes : d.workedMinutes - (d.fullDayMinutes ?? 0);
+type Day = Awaited<ReturnType<typeof dayOf>>;
+const offDay = (d: Day) => !!d && ['weekend', 'holiday'].includes(d.status);
+const extraMinutes = (d: Day) => (!d ? 0 : offDay(d) ? d.workedMinutes : d.workedMinutes - (d.fullDayMinutes ?? 0));
 
 export async function getAttendanceRequest(tx: Tx, access: Access, requestId: string) {
 	const found = await load(tx, access, requestId, false);
@@ -196,6 +199,7 @@ export async function getAttendanceRequest(tx: Tx, access: Access, requestId: st
 			workedMinutes: day.workedMinutes,
 			extraMinutes: Math.max(0, extraMinutes(day))
 		},
+		compOff: r.kind === 'overtime' && offDay(day),
 		canDecide: rights.canDecide && r.status === 'pending',
 		canCancel: rights.canCancel && cancellable(r, dateIn(now(), timeZone))
 	};
@@ -214,13 +218,16 @@ const decisionSchema = z.object({
 
 async function overtimeMinutes(tx: Tx, r: Request, asked: number | null) {
 	const day = await dayOf(tx, r.employeeId, r.date);
-	const off = !!day && ['weekend', 'holiday'].includes(day.status);
 	const [s] = await tx.select({ cap: tenantSettings.overtimeDailyCapMinutes }).from(tenantSettings);
-	const limits = [r.minutes!, asked ?? r.minutes!, extraMinutes(day), off ? 1440 : (s?.cap ?? 120)];
+	const limits = [r.minutes!, asked ?? r.minutes!, extraMinutes(day), offDay(day) ? 1440 : (s?.cap ?? 120)];
 	const approved = roundDown(Math.min(...limits));
 	if (approved < 15)
 		throw new AppError('no_overtime', 'Attendance shows less than 15 minutes of overtime that day.', 409);
-	return approved;
+	const comp =
+		offDay(day) && day!.fullDayMinutes
+			? compDays(approved, { halfDayMinutes: day!.halfDayMinutes!, fullDayMinutes: day!.fullDayMinutes })
+			: 0;
+	return { approved, comp };
 }
 
 export async function decideAttendance(m: Member, requestId: string, raw: Record<string, string>) {
@@ -235,7 +242,9 @@ export async function decideAttendance(m: Member, requestId: string, raw: Record
 				? new AppError('self_approval', 'Someone else has to decide on your own request.', 403)
 				: new AppError('forbidden', 'You cannot decide on this request.', 403);
 		const approve = input.decision === 'approve';
-		const approvedMinutes = approve && r.kind === 'overtime' ? await overtimeMinutes(tx, r, input.minutes) : null;
+		const overtime = approve && r.kind === 'overtime' ? await overtimeMinutes(tx, r, input.minutes) : null;
+		const approvedMinutes = overtime?.approved ?? null;
+		const credited = overtime ? await creditCompOff(tx, m.tenant.id, r, overtime.comp, m.user.userId) : 0;
 		await tx
 			.update(attendanceRequests)
 			.set({
@@ -268,7 +277,11 @@ export async function decideAttendance(m: Member, requestId: string, raw: Record
 			{
 				category: 'approvals',
 				title: `Your ${describe(r, timeZone).toLowerCase()} was ${approve ? 'approved' : 'declined'}`,
-				body: [approvedMinutes !== null ? `${approvedMinutes} min approved.` : '', input.note ?? '']
+				body: [
+					approvedMinutes !== null ? `${approvedMinutes} min approved.` : '',
+					credited ? `${credited} day${credited === 1 ? '' : 's'} of compensatory leave added.` : '',
+					input.note ?? ''
+				]
 					.filter(Boolean)
 					.join(' '),
 				link: 'attendance'

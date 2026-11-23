@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, ne, sql, sum } from 'drizzle-orm';
 import { z } from 'zod';
+import { expireCompOff } from './comp-off';
 import { authPool } from './db';
 import {
 	employees,
@@ -113,9 +114,10 @@ export async function accrue(tx: Tx, tenantId: string, employeeIds?: string[]) {
 export async function runLeaveAccrual() {
 	const list = await authPool().db.select({ id: tenants.id }).from(tenants).where(eq(tenants.status, 'active'));
 	for (const t of list)
-		await withTenant(systemCtx(t.id), (tx) => accrue(tx, t.id)).catch((err) =>
-			log.error({ tenantId: t.id, err: (err as Error).message }, 'leave accrual failed')
-		);
+		await withTenant(systemCtx(t.id), async (tx) => {
+			await accrue(tx, t.id);
+			await expireCompOff(tx, t.id);
+		}).catch((err) => log.error({ tenantId: t.id, err: (err as Error).message }, 'leave accrual failed'));
 }
 
 export async function balanceRows(tx: Tx, e: { id: string; gender: string | null }, fy: number) {

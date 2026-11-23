@@ -62,6 +62,12 @@
 
 {#if r.canDecide}
 	<form method="POST" action="?/decide" class="mt-6 max-w-3xl space-y-3">
+		{#if r.compOff}
+			<p class="text-sm text-slate-600" data-testid="comp-off">
+				Worked on a weekend or holiday: approving also adds compensatory leave, half a day or a full day by the shift's
+				minutes.
+			</p>
+		{/if}
 		{#if r.kind === 'overtime'}
 			<label class="block text-sm text-slate-700">
 				Minutes to approve

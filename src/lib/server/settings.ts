@@ -34,7 +34,12 @@ export const settingsSchema = z.object({
 		.number()
 		.int()
 		.min(15, 'Daily overtime cap must be 15 to 720 minutes.')
-		.max(720, 'Daily overtime cap must be 15 to 720 minutes.')
+		.max(720, 'Daily overtime cap must be 15 to 720 minutes.'),
+	compOffExpiryDays: z.coerce
+		.number()
+		.int()
+		.min(1, 'Compensatory leave must expire after 1 to 365 days.')
+		.max(365, 'Compensatory leave must expire after 1 to 365 days.')
 });
 
 export type SettingsInput = z.input<typeof settingsSchema>;

@@ -10,6 +10,9 @@ import {
 	requestAttendance
 } from '../../src/lib/server/attendance-requests';
 import { withTestNow } from '../../src/lib/server/clock';
+import { compDays, expireCompOff } from '../../src/lib/server/comp-off';
+import { runLeaveAccrual } from '../../src/lib/server/leave';
+import { fiscalYearOf } from '../../src/lib/server/leave-days';
 import { closePools } from '../../src/lib/server/db';
 import {
 	attendanceDays,
@@ -17,6 +20,8 @@ import {
 	attendanceRequests,
 	memberships,
 	holidays,
+	leaveLedger,
+	leaveTypes,
 	notifications,
 	rolePermissions,
 	roles,
@@ -97,6 +102,30 @@ const latest = (employeeId: string) =>
 			.limit(1);
 		return r;
 	});
+const FY = fiscalYearOf('2026-03-20', 7);
+const comp = (employeeId: string) =>
+	withTenant(sys(), async (tx) =>
+		(
+			await tx
+				.select({
+					kind: leaveLedger.kind,
+					days: leaveLedger.days,
+					expiresOn: leaveLedger.expiresOn,
+					period: leaveLedger.period,
+					fy: leaveLedger.fiscalYear
+				})
+				.from(leaveLedger)
+				.innerJoin(leaveTypes, eq(leaveTypes.id, leaveLedger.leaveTypeId))
+				.where(
+					and(
+						eq(leaveLedger.employeeId, employeeId),
+						eq(leaveTypes.code, 'compensatory'),
+						eq(leaveLedger.fiscalYear, FY)
+					)
+				)
+				.orderBy(asc(leaveLedger.createdAt), asc(leaveLedger.days))
+		).map((r) => [r.kind, r.days, r.expiresOn, r.period])
+	);
 const inbox = (key: string) =>
 	later(() => withTenant(sys(), (tx) => attendanceApprovals(tx, who[key].access))).then((l) => l.map((i) => i.title));
 
@@ -237,6 +266,7 @@ describe('attendance requests', () => {
 		expect(view).toMatchObject({ canDecide: true, day: { status: 'present', workedMinutes: 540, extraMinutes: 60 } });
 		expect(await decide('boss', tenth.id, { decision: 'approve' })).toBe('ok');
 		expect((await latest(ids.staff)).approvedMinutes).toBe(60);
+		expect(view!.compOff).toBe(false);
 
 		expect(await punchAt(ids.staff, '2026-03-16T09:00')).toBe('ok');
 		expect(await punchAt(ids.staff, '2026-03-16T21:00')).toBe('ok');
@@ -252,6 +282,7 @@ describe('attendance requests', () => {
 		const weekend = await latest(ids.staff);
 		expect(await decide('boss', weekend.id, { decision: 'approve' })).toBe('ok');
 		expect((await latest(ids.staff)).approvedMinutes).toBe(360);
+		expect(await comp(ids.staff)).toEqual([['comp_credit', 0.5, '2026-06-12', `ot:${weekend.id}`]]);
 
 		await withTenant(sys(), (tx) => tx.update(tenantSettings).set({ overtimeDailyCapMinutes: 720 }));
 		expect(await punchAt(ids.staff, '2026-03-17T09:00')).toBe('ok');
@@ -261,6 +292,14 @@ describe('attendance requests', () => {
 		expect(await decide('boss', trimmed.id, { decision: 'approve', minutes: '5' })).toBe('invalid');
 		expect(await decide('boss', trimmed.id, { decision: 'approve', minutes: '50' })).toBe('ok');
 		expect((await latest(ids.staff)).approvedMinutes).toBe(45);
+
+		expect(await punchAt(ids.staff, '2026-03-19T09:00')).toBe('ok');
+		expect(await punchAt(ids.staff, '2026-03-19T21:00')).toBe('ok');
+		expect(await ask('staff', { kind: 'overtime', date: '2026-03-19', minutes: '240', reason })).toBe('ok');
+		const long = await latest(ids.staff);
+		expect(await decide('boss', long.id, { decision: 'approve' })).toBe('ok');
+		expect((await latest(ids.staff)).approvedMinutes).toBe(240);
+		expect(await comp(ids.staff)).toHaveLength(1);
 
 		expect(await ask('staff', { kind: 'overtime', date: '2026-03-18', minutes: '60', reason })).toBe('ok');
 		const none = await latest(ids.staff);
@@ -287,5 +326,69 @@ describe('attendance requests', () => {
 		expect(told.map((t) => t.m)).toEqual([ids['m:hr2']]);
 		expect(await decide('hr', r.id, { decision: 'approve' })).toBe('self_approval');
 		expect(await decide('hr2', r.id, { decision: 'approve' })).toBe('ok');
+	});
+
+	it('grants a full or half compensatory day by the shift thresholds', () => {
+		const shift = { halfDayMinutes: 240, fullDayMinutes: 480 };
+		expect([480, 479, 240, 239].map((m) => compDays(m, shift))).toEqual([1, 0.5, 0.5, 0]);
+	});
+
+	it('expires unused compensatory leave oldest first', async () => {
+		const [t] = await withTenant(sys(), (tx) =>
+			tx.select().from(leaveTypes).where(eq(leaveTypes.code, 'compensatory'))
+		);
+		const row = (kind: string, days: number, expiresOn: string | null, fiscalYear = FY, employeeId = ids.peer) => ({
+			tenantId: tenant.id,
+			employeeId,
+			leaveTypeId: t.id,
+			fiscalYear,
+			kind,
+			days,
+			expiresOn
+		});
+		const [a, c] = await withTenant(sys(), (tx) =>
+			tx
+				.insert(leaveLedger)
+				.values([
+					row('comp_credit', 1, '2026-03-01'),
+					row('comp_credit', 0.5, '2026-03-05'),
+					row('comp_credit', 1, '2026-04-30'),
+					row('comp_credit', 2, '2025-03-01', FY - 1)
+				])
+				.returning({ id: leaveLedger.id })
+		);
+		await withTenant(sys(), (tx) => tx.insert(leaveLedger).values(row('taken', -1, null)));
+		const run = () => at('2026-03-20T10:00:00', () => withTenant(sys(), (tx) => expireCompOff(tx, tenant.id)));
+		const expiries = async () => (await comp(ids.peer)).filter((r) => r[0] === 'expiry').map((r) => [r[1], r[3]]);
+		await run();
+		expect(await expiries()).toEqual([[-0.5, `comp:${c.id}`]]);
+		await run();
+		expect(await expiries()).toEqual([[-0.5, `comp:${c.id}`]]);
+		await withTenant(sys(), (tx) => tx.insert(leaveLedger).values(row('adjustment', 1, null)));
+		await run();
+		expect(await expiries()).toEqual([
+			[-0.5, `comp:${c.id}`],
+			[-1, `comp:${a.id}`]
+		]);
+		const [, q, p] = await withTenant(sys(), (tx) =>
+			tx
+				.insert(leaveLedger)
+				.values([
+					row('comp_credit', 1, '2026-04-30', FY, ids.owl),
+					row('comp_credit', 0.5, '2026-03-02', FY, ids.owl),
+					row('comp_credit', 1, '2026-03-01', FY, ids.owl),
+					row('taken', -0.5, null, FY, ids.owl)
+				])
+				.returning({ id: leaveLedger.id })
+		);
+		await at('2026-03-20T10:00:00', runLeaveAccrual);
+		const owl = (await comp(ids.owl)).filter((x) => x[0] === 'expiry').map((x) => [x[1], x[3]]);
+		expect(owl).toHaveLength(2);
+		expect(owl).toEqual(
+			expect.arrayContaining([
+				[-0.5, `comp:${p.id}`],
+				[-0.5, `comp:${q.id}`]
+			])
+		);
 	});
 });

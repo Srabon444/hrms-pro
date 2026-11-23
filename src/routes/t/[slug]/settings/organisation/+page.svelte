@@ -79,6 +79,14 @@
 			max={720}
 			value={s.overtimeDailyCapMinutes}
 		/>
+		<Field
+			label="Compensatory leave expires after (days)"
+			name="compOffExpiryDays"
+			type="number"
+			min={1}
+			max={365}
+			value={s.compOffExpiryDays}
+		/>
 	</div>
 	<div class="space-y-2">
 		<label class="flex items-center gap-2 text-sm">
