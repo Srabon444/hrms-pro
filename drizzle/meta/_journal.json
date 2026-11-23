@@ -183,6 +183,13 @@
       "when": 1795449359986,
       "tag": "0025_expenses",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795450376944,
+      "tag": "0026_loans",
+      "breakpoints": true
     }
   ]
 }

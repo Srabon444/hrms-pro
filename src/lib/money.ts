@@ -10,3 +10,8 @@ export const employeeShare = (unitCost: number, subsidyPct: number) =>
 
 export const mealCharge = (ate: boolean, guests: number, unitCost: number, subsidyPct: number) =>
 	(ate ? employeeShare(unitCost, subsidyPct) : 0) + guests * unitCost;
+
+export const instalmentPlan = (amount: number, count: number) => {
+	const each = Math.floor(amount / count / 100) * 100;
+	return Array.from({ length: count }, (_, i) => (i === count - 1 ? amount - each * (count - 1) : each));
+};

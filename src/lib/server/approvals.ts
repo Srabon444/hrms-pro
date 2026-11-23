@@ -2,6 +2,7 @@ import { attendanceApprovals } from './attendance-requests';
 import { changeApprovals } from './change-requests';
 import { expenseApprovals } from './expenses';
 import { leaveApprovals } from './leave-requests';
+import { loanApprovals } from './loans';
 import { resignationApprovals } from './resignations';
 import { salaryApprovals } from './salaries';
 import type { Access } from './rbac/access';
@@ -13,6 +14,7 @@ type ApprovalSource = (tx: Tx, access: Access) => Promise<ApprovalItem[]>;
 
 const SOURCES: ApprovalSource[] = [
 	expenseApprovals,
+	loanApprovals,
 	changeApprovals,
 	leaveApprovals,
 	attendanceApprovals,
