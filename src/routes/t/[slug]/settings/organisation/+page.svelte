@@ -72,6 +72,14 @@
 			value={s.retentionAuditDays}
 		/>
 		<Field
+			label="Keep rejected candidates (days)"
+			name="retentionCandidatesDays"
+			type="number"
+			min={30}
+			max={3650}
+			value={s.retentionCandidatesDays}
+		/>
+		<Field
 			label="Overtime cap per working day (minutes)"
 			name="overtimeDailyCapMinutes"
 			type="number"

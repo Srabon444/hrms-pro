@@ -93,6 +93,7 @@ describe('organisation settings', () => {
 		exEmployeeAccessDays: '90',
 		noticePeriodDays: '30',
 		retentionAuditDays: '730',
+		retentionCandidatesDays: '180',
 		overtimeDailyCapMinutes: '120',
 		compOffExpiryDays: '90'
 	};
@@ -103,11 +104,13 @@ describe('organisation settings', () => {
 		expect(s.weekendDays).toEqual([5, 6]);
 		expect(s.require2faForSensitive).toBe(true);
 		expect(s.employeeCodePrefix).toBe('ACM-');
+		expect(s.retentionCandidatesDays).toBe(180);
 	});
 
 	it('validates every field on the server', async () => {
 		expect(await code(saveSettings(a, false, { ...base, timezone: 'Mars/Base' }))).toBe('invalid');
 		expect(await code(saveSettings(a, false, { ...base, retentionAuditDays: '30' }))).toBe('invalid');
+		expect(await code(saveSettings(a, false, { ...base, retentionCandidatesDays: '29' }))).toBe('invalid');
 		expect(await code(saveSettings(a, false, { ...base, noticePeriodDays: '400' }))).toBe('invalid');
 		expect(await code(saveSettings(a, false, { ...base, overtimeDailyCapMinutes: '10' }))).toBe('invalid');
 		expect(await code(saveSettings(a, false, { ...base, compOffExpiryDays: '0' }))).toBe('invalid');

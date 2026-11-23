@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, count, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { computeFunnel } from '../domain/recruitment/funnel';
 import { poishaOf } from '../money';
 import { zonedInstant } from './attendance-day';
 import { auditEvent } from './audit';
 import { now } from './clock';
+import { authPool } from './db';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import {
 	CANDIDATE_SOURCES,
@@ -24,7 +25,8 @@ import {
 	offers,
 	pipelineStages,
 	roles,
-	tenantSettings
+	tenantSettings,
+	tenants
 } from './db/schema';
 import { EMPLOYMENT_FIELDS, insertEmployee, PROFILE_FIELDS } from './employees';
 import { AppError } from './errors';
@@ -35,7 +37,7 @@ import { can, userCtx, type requireMember } from './rbac/access';
 import { inviteMember, toActor } from './rbac/members';
 import { sniffType } from './sniff';
 import { deleteObject, getObject, putObject } from './storage';
-import { withTenant, type TenantCtx, type Tx } from './tenancy';
+import { systemCtx, withTenant, type TenantCtx, type Tx } from './tenancy';
 
 const RESUME_TYPES = new Set([
 	'application/pdf',
@@ -740,4 +742,37 @@ export async function hireCandidate(m: Member, raw: Record<string, string>) {
 			return { employeeId: hired.employeeId, invite: `Hired, but the invite failed: ${err.message}` };
 		throw err;
 	}
+}
+
+export async function purgeTenantCandidates(tenantId: string): Promise<number> {
+	const keys = await withTenant(systemCtx(tenantId), async (tx) => {
+		const [s] = await tx.select({ days: tenantSettings.retentionCandidatesDays }).from(tenantSettings);
+		const cutoff = new Date(now().getTime() - (s?.days ?? 365) * 86_400_000);
+		const gone = await tx
+			.delete(candidates)
+			.where(
+				and(
+					isNull(candidates.employeeId),
+					lt(candidates.updatedAt, cutoff),
+					sql`exists (
+						select 1 from pipeline_stages ps join job_openings jo on jo.id = ps.opening_id
+						where ps.id = ${candidates.stageId}
+						and (ps.kind = 'rejected' or (jo.status = 'closed' and jo.updated_at < ${cutoff.toISOString()}))
+					)`
+				)
+			)
+			.returning({ key: candidates.resumeKey });
+		return gone.map((g) => g.key);
+	});
+	for (const key of keys)
+		if (key) await deleteObject(key).catch((err) => log.error({ err, key }, 'purged resume delete failed'));
+	return keys.length;
+}
+
+export async function purgeCandidates() {
+	const list = await authPool().db.select({ id: tenants.id }).from(tenants).where(eq(tenants.status, 'active'));
+	for (const t of list)
+		await purgeTenantCandidates(t.id).catch((err) =>
+			log.error({ tenantId: t.id, err: (err as Error).message }, 'candidate purge failed')
+		);
 }

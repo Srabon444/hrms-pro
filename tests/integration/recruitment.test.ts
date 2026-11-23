@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { withTestNow } from '../../src/lib/server/clock';
 import { closePools } from '../../src/lib/server/db';
 import { processors } from '../../src/lib/server/jobs';
 import { closeQueues, startWorker } from '../../src/lib/server/queue';
@@ -13,7 +14,8 @@ import {
 	invitations,
 	memberships,
 	notifications,
-	offers
+	offers,
+	tenantSettings
 } from '../../src/lib/server/db/schema';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
@@ -29,6 +31,7 @@ import {
 	myInterviews,
 	openingView,
 	openResume,
+	purgeTenantCandidates,
 	recruitmentBoard,
 	saveOpening,
 	scheduleInterview,
@@ -392,4 +395,57 @@ describe('interviews, offers and hiring', () => {
 			)
 		).toEqual([]);
 	});
+});
+
+it('purges rejected candidates and those of long-closed openings after the retention period', async () => {
+	const t = await createTenant('ats-purge');
+	const sys = systemCtx(t.id);
+	const pause = () => new Promise((r) => setTimeout(r, 20));
+	await withTenant(sys, (tx) => tx.update(tenantSettings).set({ retentionCandidatesDays: 30 }));
+	const live = await saveOpening(sys, { ...opening, title: 'Live' });
+	const ended = await saveOpening(sys, { ...opening, title: 'Ended' });
+	const stageOf = async (id: string, name: string) =>
+		(await withTenant(sys, (tx) => openingView(tx, id))).stages.find((s) => s.name === name)!.id;
+	const add = (openingId: string, fullName: string, file: File | null = null) =>
+		addCandidate(sys, { openingId, fullName }, file);
+	const reject = async (openingId: string, candidateId: string) =>
+		moveCandidate(sys, { candidateId, stageId: await stageOf(openingId, 'Rejected') });
+
+	const oldReject = await add(live, 'Old reject', pdf());
+	await reject(live, oldReject);
+	await add(live, 'Still waiting');
+	await add(ended, 'Leftover');
+	const hiredOne = await add(ended, 'Hired one');
+	await withTenant(sys, async (tx) => {
+		const [e] = await tx
+			.insert(employees)
+			.values({ tenantId: t.id, code: 'P-1', fullName: 'Hired one', joinDate: '2026-01-01' })
+			.returning();
+		await tx.update(candidates).set({ employeeId: e.id }).where(eq(candidates.id, hiredOne));
+	});
+	await pause();
+	await saveOpening(sys, { ...opening, openingId: ended, title: 'Ended', status: 'closed' });
+	await pause();
+	const newReject = await add(live, 'New reject');
+	await reject(live, newReject);
+
+	const [{ resumeKey }] = await withTenant(sys, (tx) =>
+		tx.select().from(candidates).where(eq(candidates.id, oldReject))
+	);
+	const [last] = await withTenant(sys, (tx) => tx.select().from(candidates).where(eq(candidates.id, hiredOne)));
+	const closedAt = (await withTenant(sys, (tx) => openingView(tx, ended))).opening.updatedAt;
+	const between = (last.updatedAt.getTime() + closedAt.getTime()) / 2 + 30 * 86_400_000;
+	const left = async () =>
+		(await withTenant(sys, (tx) => tx.select({ name: candidates.fullName }).from(candidates)))
+			.map((c) => c.name)
+			.sort();
+
+	expect(await withTestNow(new Date(between).toISOString(), () => purgeTenantCandidates(t.id))).toBe(1);
+	expect(await left()).toEqual(['Hired one', 'Leftover', 'New reject', 'Still waiting']);
+	expect(await code(getObject(resumeKey!))).not.toBe('ok');
+
+	expect(
+		await withTestNow(new Date(Date.now() + 31 * 86_400_000).toISOString(), () => purgeTenantCandidates(t.id))
+	).toBe(2);
+	expect(await left()).toEqual(['Hired one', 'Still waiting']);
 });

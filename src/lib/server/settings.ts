@@ -32,6 +32,7 @@ export const settingsSchema = z.object({
 		.min(0, 'Notice period must be 0 to 365 days.')
 		.max(365, 'Notice period must be 0 to 365 days.'),
 	retentionAuditDays: days(365, 'Keep audit history for 365 to 3650 days.'),
+	retentionCandidatesDays: days(30, 'Keep rejected candidates for 30 to 3650 days.'),
 	overtimeDailyCapMinutes: z.coerce
 		.number()
 		.int()

@@ -22,6 +22,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			exEmployeeAccessDays: s.exEmployeeAccessDays,
 			noticePeriodDays: s.noticePeriodDays,
 			retentionAuditDays: s.retentionAuditDays,
+			retentionCandidatesDays: s.retentionCandidatesDays,
 			overtimeDailyCapMinutes: s.overtimeDailyCapMinutes,
 			compOffExpiryDays: s.compOffExpiryDays
 		},
@@ -47,6 +48,7 @@ export const actions: Actions = {
 				exEmployeeAccessDays: field(form, 'exEmployeeAccessDays'),
 				noticePeriodDays: field(form, 'noticePeriodDays'),
 				retentionAuditDays: field(form, 'retentionAuditDays'),
+				retentionCandidatesDays: field(form, 'retentionCandidatesDays'),
 				overtimeDailyCapMinutes: field(form, 'overtimeDailyCapMinutes'),
 				compOffExpiryDays: field(form, 'compOffExpiryDays')
 			});

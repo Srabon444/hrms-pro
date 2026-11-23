@@ -5,6 +5,7 @@ import { runLeaveAccrual } from './leave';
 import { deliverMail, type Mail } from './mail';
 import { sendMealBill, sweepMealBills, type BillJob } from './meal-bills';
 import { runMeals } from './meal-orders';
+import { purgeCandidates } from './recruitment';
 import type { QueueName } from './queue';
 
 export const processors: Record<QueueName, Processor> = {
@@ -16,5 +17,6 @@ export const processors: Record<QueueName, Processor> = {
 		await runAttendance();
 		await runMeals();
 		await sweepMealBills();
+		await purgeCandidates();
 	}
 };

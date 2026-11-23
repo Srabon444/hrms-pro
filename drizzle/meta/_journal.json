@@ -253,6 +253,13 @@
       "when": 1795466528977,
       "tag": "0035_interviews_offers",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795468315069,
+      "tag": "0036_candidate_retention_check",
+      "breakpoints": true
     }
   ]
 }
