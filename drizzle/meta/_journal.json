@@ -288,6 +288,20 @@
       "when": 1795472225670,
       "tag": "0040_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795473445646,
+      "tag": "0041_helpdesk",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795474432566,
+      "tag": "0042_helpdesk_categories",
+      "breakpoints": true
     }
   ]
 }

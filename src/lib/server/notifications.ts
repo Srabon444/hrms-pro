@@ -10,7 +10,8 @@ export const NOTIFICATION_CATEGORIES = {
 	profile: 'Profile changes',
 	people: 'Joiners and leavers',
 	recruitment: 'Interviews',
-	performance: 'Performance reviews'
+	performance: 'Performance reviews',
+	helpdesk: 'Helpdesk tickets'
 } as const;
 
 export type NotificationCategory = keyof typeof NOTIFICATION_CATEGORIES;

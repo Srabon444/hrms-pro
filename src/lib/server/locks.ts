@@ -6,7 +6,8 @@ export const LOCK = {
 	mealBilling: 2,
 	leaveBalance: 3,
 	attendance: 5,
-	orgTree: 6
+	orgTree: 6,
+	helpdesk: 7
 } as const;
 
 export const advisoryLock = (tx: Tx, ns: (typeof LOCK)[keyof typeof LOCK], key: string) =>
