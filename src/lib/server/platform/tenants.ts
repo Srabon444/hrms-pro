@@ -16,6 +16,7 @@ import { AppError } from '../errors';
 import { createInvitation, invitationMail } from '../invitations';
 import { seedLeaveTypes } from '../leave-types';
 import { sendMail } from '../mail';
+import { seedPayComponents } from '../salaries';
 import { seedShift } from '../shifts';
 import { systemCtx, withTenant, type Tx } from '../tenancy';
 
@@ -33,6 +34,7 @@ export async function seedTenant(tx: Tx, tenantId: string): Promise<Record<strin
 	await tx.insert(tenantSettings).values({ tenantId }).onConflictDoNothing({ target: tenantSettings.tenantId });
 	await seedLeaveTypes(tx, tenantId);
 	await seedShift(tx, tenantId);
+	await seedPayComponents(tx, tenantId);
 	const created = await tx
 		.insert(roles)
 		.values(

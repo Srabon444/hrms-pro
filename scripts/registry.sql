@@ -56,5 +56,15 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('audit_log', 'excluded', '{}'),
 	('audit_sensitive', 'excluded', '{}'),
 	('notifications', 'excluded', '{}'),
-	('notification_prefs', 'excluded', '{}')
+	('notification_prefs', 'excluded', '{}'),
+	('pay_components', 'plain', '{id,tenant_id,code,name,kind,calc,taxable,system,active}'),
+	('salary_changes', 'row_only', '{}'),
+	('employee_salaries', 'row_only', '{}'),
+	('employee_salary_lines', 'row_only', '{}')
 on conflict (table_name) do update set mode = excluded.mode, plain_columns = excluded.plain_columns;
+
+insert into owner_row_tables (table_name, flag) values
+	('salary_changes', 'salary_all'),
+	('employee_salaries', 'salary_all'),
+	('employee_salary_lines', 'salary_all')
+on conflict (table_name) do update set flag = excluded.flag;
