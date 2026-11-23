@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, lte } from 'drizzle-orm';
 import { z } from 'zod';
+import { recomputeAttendance } from './attendance';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { shiftAssignments, shifts } from './db/schema';
 import { AppError } from './errors';
@@ -140,6 +141,7 @@ export async function assignShift(m: Member, employeeId: string, raw: Record<str
 				target: [shiftAssignments.tenantId, shiftAssignments.employeeId, shiftAssignments.effectiveFrom],
 				set: { shiftId: s.id, createdByUserId: m.user.userId }
 			});
+		await recomputeAttendance(tx, m.tenant.id, input.effectiveFrom, '9999-12-31', [e.id]);
 	});
 }
 
@@ -151,8 +153,9 @@ export async function removeShiftAssignment(m: Member, employeeId: string, assig
 			? await tx
 					.delete(shiftAssignments)
 					.where(and(eq(shiftAssignments.id, id.data), eq(shiftAssignments.employeeId, e.id)))
-					.returning({ id: shiftAssignments.id })
+					.returning({ effectiveFrom: shiftAssignments.effectiveFrom })
 			: [];
 		if (!gone.length) throw new AppError('not_found', 'That shift assignment does not exist.', 404);
+		await recomputeAttendance(tx, m.tenant.id, gone[0].effectiveFrom, '9999-12-31', [e.id]);
 	});
 }

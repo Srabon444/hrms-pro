@@ -1,7 +1,21 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, smallint, text, time, pgTable, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { tenantBase, tenantKey, tfk } from './_helpers';
+import {
+	boolean,
+	check,
+	date,
+	index,
+	pgTable,
+	smallint,
+	text,
+	time,
+	unique,
+	uniqueIndex,
+	uuid
+} from 'drizzle-orm/pg-core';
+import { tenantBase, tenantKey, tfk, tstz } from './_helpers';
 import { employees } from './org';
+
+export const PUNCH_SOURCES = ['web', 'manual', 'device', 'regularization'] as const;
 
 export const shifts = pgTable(
 	'shifts',
@@ -47,5 +61,54 @@ export const shiftAssignments = pgTable(
 		tfk('shift_assignments_employee_fk', t, t.employeeId, employees, 'restrict'),
 		tfk('shift_assignments_shift_fk', t, t.shiftId, shifts, 'restrict'),
 		unique('shift_assignments_from_uq').on(t.tenantId, t.employeeId, t.effectiveFrom)
+	]
+);
+
+export const attendancePunches = pgTable(
+	'attendance_punches',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		at: tstz().notNull(),
+		source: text().notNull(),
+		ip: text(),
+		createdByUserId: uuid()
+	},
+	(t) => [
+		tenantKey('attendance_punches', t),
+		tfk('attendance_punches_employee_fk', t, t.employeeId, employees, 'restrict'),
+		unique('attendance_punches_at_uq').on(t.tenantId, t.employeeId, t.at),
+		check('attendance_punches_source_ck', sql`${t.source} in ('web','manual','device','regularization')`),
+		check('attendance_punches_ip_ck', sql`${t.ip} is null or length(${t.ip}) <= 64`)
+	]
+);
+
+export const attendanceDays = pgTable(
+	'attendance_days',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		date: date({ mode: 'string' }).notNull(),
+		shiftId: uuid(),
+		status: text().notNull(),
+		firstIn: tstz(),
+		lastOut: tstz(),
+		workedMinutes: smallint().notNull().default(0),
+		lateMinutes: smallint().notNull().default(0)
+	},
+	(t) => [
+		tenantKey('attendance_days', t),
+		tfk('attendance_days_employee_fk', t, t.employeeId, employees, 'restrict'),
+		tfk('attendance_days_shift_fk', t, t.shiftId, shifts, 'restrict'),
+		unique('attendance_days_day_uq').on(t.tenantId, t.employeeId, t.date),
+		index('attendance_days_date_idx').on(t.tenantId, t.date),
+		check(
+			'attendance_days_status_ck',
+			sql`${t.status} in ('present','late','half_day','absent','on_leave','holiday','weekend','wfh')`
+		),
+		check(
+			'attendance_days_minutes_ck',
+			sql`${t.workedMinutes} between 0 and 1440 and ${t.lateMinutes} between 0 and 1440`
+		)
 	]
 );

@@ -41,6 +41,8 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('designations', 'plain', '{id,tenant_id,name}'),
 	('grades', 'plain', '{id,tenant_id,name,rank}'),
 	('holidays', 'plain', '{id,tenant_id,date,name}'),
+	('attendance_punches', 'excluded', '{}'),
+	('attendance_days', 'excluded', '{}'),
 	('counters', 'excluded', '{}'),
 	('audit_log', 'excluded', '{}'),
 	('audit_sensitive', 'excluded', '{}'),

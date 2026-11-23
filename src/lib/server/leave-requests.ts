@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { recomputeAttendance } from './attendance';
 import { addDays } from './dates';
 import {
 	departments,
@@ -322,7 +323,10 @@ export async function decideLeave(m: Member, requestId: string, raw: Record<stri
 			.set({ status })
 			.where(and(eq(leaveRequestDays.requestId, r.id), eq(leaveRequestDays.status, 'pending')))
 			.returning({ fiscalYear: leaveRequestDays.fiscalYear, session: leaveRequestDays.session });
-		if (status === 'approved') await tx.insert(leaveLedger).values(ledgerRows(r, days, -1, m.user.userId));
+		if (status === 'approved') {
+			await tx.insert(leaveLedger).values(ledgerRows(r, days, -1, m.user.userId));
+			await recomputeAttendance(tx, m.tenant.id, r.startDate, r.endDate, [r.employeeId]);
+		}
 		return tellOwner(
 			tx,
 			m,

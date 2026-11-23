@@ -34,3 +34,40 @@ test('HR adds a night shift and assigns it to an employee', async ({ page, reque
 	await shift.getByRole('button', { name: 'Remove shift from 2026-01-05' }).click();
 	await expect(shift.getByTestId('current-shift')).toHaveText('General · 09:00–18:00');
 });
+
+test('an employee punches in and their manager sees it on the team view', async ({ page, browser, request }) => {
+	const f = await fixture(request, {
+		tenant: {},
+		users: [
+			{ key: 'boss', roles: ['line_manager'], employee: true },
+			{ key: 'ela', roles: ['employee'], employee: true, manager: 'boss' }
+		]
+	});
+	const slug = f.tenant!.slug;
+	await signIn(page, f.users.ela.email);
+	await page.goto(`/t/${slug}`);
+	await page.getByRole('link', { name: 'Attendance', exact: true }).click();
+	const today = page.getByRole('region', { name: 'Today' });
+	await expect(today.getByTestId('today-status')).toHaveText('Not in yet');
+	await expect(page.getByRole('region', { name: 'Team' })).toHaveCount(0);
+	await today.getByRole('button', { name: 'Punch in' }).click();
+	await expect(page.getByRole('status')).toHaveText('Punch recorded.');
+	await expect(today.getByTestId('today-status')).toHaveText(/^(Present|Late|Absent)$/);
+	await expect(today.getByTestId('punch')).toHaveCount(1);
+	await today.getByRole('button', { name: 'Punch out' }).click();
+	await expect(page.getByRole('alert')).toHaveText('You punched less than a minute ago.');
+	await expect(today.getByTestId('punch')).toHaveCount(1);
+	const day = (await today.getByRole('heading').textContent())!.match(/\d{4}-\d{2}-\d{2}/)![0];
+	await expect(page.getByRole('region', { name: 'My month' }).getByTestId('attendance-day')).toContainText([
+		new RegExp(`${day}\\s*(Present|Late|Absent)`)
+	]);
+
+	const ctx = await browser.newContext();
+	const boss = await ctx.newPage();
+	await signIn(boss, f.users.boss.email);
+	await boss.goto(`/t/${slug}/attendance?date=${day}`);
+	const team = boss.getByRole('region', { name: 'Team' });
+	await expect(team.getByTestId('team-day').filter({ hasText: /^ela / })).toContainText(/Present|Late|Absent/);
+	await expect(team.getByRole('button', { name: 'Add punch' })).toHaveCount(0);
+	await ctx.close();
+});

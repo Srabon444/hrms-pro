@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { branches, departments, designations, grades, holidays } from './db/schema';
 import { FK_VIOLATION, pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { AppError } from './errors';
+import { recomputeAttendance } from './attendance';
 import { dropHolidayFromLeave } from './leave-requests';
 import { advisoryLock, LOCK } from './locks';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
@@ -145,6 +146,7 @@ export async function addHoliday(ctx: TenantCtx, raw: { date: string; name: stri
 		await withTenant(ctx, async (tx) => {
 			await tx.insert(holidays).values({ tenantId: ctx.tenantId, ...input });
 			await dropHolidayFromLeave(tx, input.date);
+			await recomputeAttendance(tx, ctx.tenantId, input.date, input.date);
 		});
 	} catch (err) {
 		if (pgCode(err) === UNIQUE_VIOLATION) throw new AppError('duplicate', 'That date is already a holiday.', 409);
@@ -154,7 +156,10 @@ export async function addHoliday(ctx: TenantCtx, raw: { date: string; name: stri
 
 export async function removeHoliday(ctx: TenantCtx, id: string): Promise<void> {
 	const holidayId = z.uuid().parse(id);
-	await withTenant(ctx, (tx) => tx.delete(holidays).where(eq(holidays.id, holidayId)));
+	await withTenant(ctx, async (tx) => {
+		const [gone] = await tx.delete(holidays).where(eq(holidays.id, holidayId)).returning({ date: holidays.date });
+		if (gone) await recomputeAttendance(tx, ctx.tenantId, gone.date, gone.date);
+	});
 }
 
 export const holidaysOf = (tx: Tx, year: number) =>
