@@ -38,7 +38,7 @@ test('HR adds an employee, moves them and finds them in the list', async ({ page
 	await expect(page.getByRole('link', { name: 'Rahim Uddin' })).toBeVisible();
 });
 
-test('an employee sees only their own record and cannot edit it', async ({ page, request }) => {
+test('an employee sees only their own record and cannot edit its HR fields', async ({ page, request }) => {
 	const f = await fixture(request, {
 		tenant: {},
 		users: [
@@ -54,6 +54,26 @@ test('an employee sees only their own record and cannot edit it', async ({ page,
 	await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
 	expect((await page.goto(`/t/${f.tenant!.slug}/employees/${f.users.peer.employeeId}`))!.status()).toBe(404);
 	expect((await page.goto(`/t/${f.tenant!.slug}/employees/new`))!.status()).toBe(403);
+});
+
+test('an employee keeps their own contact details and emergency contacts', async ({ page, request }) => {
+	const f = await fixture(request, { tenant: {}, users: [{ key: 'staff', employee: true }] });
+	await signIn(page, f.users.staff.email);
+	await page.goto(`/t/${f.tenant!.slug}/employees/${f.users.staff.employeeId}`);
+	await page.getByLabel('My phone').fill('01711222333');
+	await page.getByRole('button', { name: 'Save my details' }).click();
+	await expect(page.getByRole('status')).toHaveText('Contact details saved.');
+	await expect(page.getByTestId('fact-Phone')).toHaveText('01711222333');
+
+	const contacts = page.getByRole('region', { name: 'Emergency contacts' });
+	await contacts.getByLabel('Contact name').fill('Rina Akter');
+	await contacts.getByLabel('Relation').fill('Sister');
+	await contacts.getByLabel('Contact phone').fill('01811000000');
+	await contacts.getByRole('button', { name: 'Add to emergency contacts' }).click();
+	await expect(page.getByRole('status')).toHaveText('Entry added.');
+	await expect(contacts.getByTestId('entry-contact')).toHaveText(/Rina Akter \(Sister\)/);
+	await contacts.getByRole('button', { name: /^Remove Rina Akter/ }).click();
+	await expect(contacts.getByTestId('entry-contact')).toHaveCount(0);
 });
 
 test('HR links a member to an employee record and the member then sees it', async ({ page, request }) => {

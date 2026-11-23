@@ -5,7 +5,8 @@ import { deleteDocument, listDocuments, uploadDocument } from '#lib/server/docum
 import { employeeChoices, getEmployee, updateEmployee } from '#lib/server/employees.ts';
 import { employeeActionError, formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
-import { requirePerm, userCtx } from '#lib/server/rbac/access.ts';
+import { addListEntry, profileLists, removeListEntry, updateOwnDetails } from '#lib/server/profile.ts';
+import { requireMember, requirePerm, userCtx } from '#lib/server/rbac/access.ts';
 import { withTenant } from '#lib/server/tenancy/index.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -18,12 +19,48 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			...record,
 			choices: record.canUpdate ? await employeeChoices(tx) : null,
 			documents: await listDocuments(tx, m.access, record.employee.id),
+			lists: await profileLists(tx, m.access, record.employee.id, record.employee.status),
 			documentCategories: DOCUMENT_CATEGORIES
 		};
 	});
 };
 
+const profileError = (err: unknown, requestId: string) => {
+	if (err instanceof z.ZodError) return fail(400, { profileMessage: err.issues[0].message });
+	const failed = actionError(err, requestId);
+	return fail(failed.status, { profileMessage: failed.data.message });
+};
+
 export const actions: Actions = {
+	saveOwn: async ({ request, locals, params }) => {
+		const m = requireMember(locals);
+		try {
+			await updateOwnDetails(userCtx(m), m.access, params.employeeId, formFields(await request.formData()));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { ownSaved: true };
+	},
+	addEntry: async ({ request, locals, params }) => {
+		const m = requireMember(locals);
+		const form = await request.formData();
+		try {
+			await addListEntry(userCtx(m), m.access, params.employeeId, field(form, 'kind'), formFields(form));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { entryAdded: true };
+	},
+	removeEntry: async ({ request, locals, params }) => {
+		const m = requireMember(locals);
+		const form = await request.formData();
+		try {
+			await removeListEntry(userCtx(m), m.access, params.employeeId, field(form, 'kind'), field(form, 'entryId'));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { entryRemoved: true };
+	},
 	save: async ({ request, locals, params }) => {
 		const m = requirePerm(locals, 'employee.update');
 		const values = formFields(await request.formData());

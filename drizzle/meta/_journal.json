@@ -29,6 +29,13 @@
       "when": 1795428389337,
       "tag": "0003_employee_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795429228071,
+      "tag": "0004_employee_profile_lists",
+      "breakpoints": true
     }
   ]
 }

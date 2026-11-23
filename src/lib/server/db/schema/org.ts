@@ -163,3 +163,64 @@ export const employeeDocuments = pgTable(
 		check('employee_documents_size_ck', sql`${t.sizeBytes} between 1 and ${sql.raw(String(MAX_DOCUMENT_BYTES))}`)
 	]
 );
+
+const textCheck = (name: string, col: unknown, max: number) =>
+	check(name, sql`length(trim(${col})) between 1 and ${sql.raw(String(max))}`);
+
+export const employeeContacts = pgTable(
+	'employee_contacts',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		name: text().notNull(),
+		relation: text().notNull(),
+		phone: text().notNull()
+	},
+	(t) => [
+		tenantKey('employee_contacts', t),
+		tfk('employee_contacts_employee_fk', t, t.employeeId, employees, 'cascade'),
+		index('employee_contacts_employee_idx').on(t.tenantId, t.employeeId),
+		textCheck('employee_contacts_name_ck', t.name, 160),
+		textCheck('employee_contacts_relation_ck', t.relation, 60),
+		textCheck('employee_contacts_phone_ck', t.phone, 30)
+	]
+);
+
+export const employeeEducation = pgTable(
+	'employee_education',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		degree: text().notNull(),
+		institution: text().notNull(),
+		passingYear: smallint()
+	},
+	(t) => [
+		tenantKey('employee_education', t),
+		tfk('employee_education_employee_fk', t, t.employeeId, employees, 'cascade'),
+		index('employee_education_employee_idx').on(t.tenantId, t.employeeId),
+		textCheck('employee_education_degree_ck', t.degree, 160),
+		textCheck('employee_education_institution_ck', t.institution, 160),
+		check('employee_education_year_ck', sql`${t.passingYear} between 1950 and 2100`)
+	]
+);
+
+export const employeeExperience = pgTable(
+	'employee_experience',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		company: text().notNull(),
+		title: text().notNull(),
+		startDate: date().notNull(),
+		endDate: date()
+	},
+	(t) => [
+		tenantKey('employee_experience', t),
+		tfk('employee_experience_employee_fk', t, t.employeeId, employees, 'cascade'),
+		index('employee_experience_employee_idx').on(t.tenantId, t.employeeId),
+		textCheck('employee_experience_company_ck', t.company, 160),
+		textCheck('employee_experience_title_ck', t.title, 160),
+		check('employee_experience_dates_ck', sql`${t.endDate} is null or ${t.endDate} >= ${t.startDate}`)
+	]
+);

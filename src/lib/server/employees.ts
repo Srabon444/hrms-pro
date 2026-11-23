@@ -22,15 +22,15 @@ import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import type { TenantCtx, Tx } from './tenancy';
 import { withTenant } from './tenancy';
 
-const blank = <T extends z.ZodType>(schema: T) =>
+export const blank = <T extends z.ZodType>(schema: T) =>
 	z.union([z.literal(''), schema]).transform((v) => (v === '' ? null : v));
-const text = (max: number) =>
+export const text = (max: number) =>
 	z
 		.string()
 		.trim()
 		.max(max, `Keep it under ${max} characters.`)
 		.transform((v) => v || null);
-const date = blank(z.iso.date('Enter a valid date.'));
+export const date = blank(z.iso.date('Enter a valid date.'));
 const id = blank(z.uuid());
 
 export const PROFILE_FIELDS = {
