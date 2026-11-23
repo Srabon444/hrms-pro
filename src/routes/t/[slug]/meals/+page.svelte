@@ -81,6 +81,9 @@
 {#if data.bills.length}
 	<section class={card} aria-label="My bills">
 		<h2 class="font-semibold text-slate-900">My bills</h2>
+		{#if data.due}
+			<p class="mt-1 text-sm text-amber-700" data-testid="meal-due">You owe ৳{taka(data.due)} for meals.</p>
+		{/if}
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each data.bills as bill (bill.id)}
 				<li class="py-2">

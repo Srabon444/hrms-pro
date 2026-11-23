@@ -18,9 +18,12 @@ import {
 	generateBills,
 	issueBills,
 	lastPeriod,
+	mealDue,
+	mealStatement,
 	myBills,
 	periodBills,
 	periodRange,
+	recordPayment,
 	voidBill
 } from '../../src/lib/server/meal-bills';
 import { adjustMeal, lockMealDay, prepareMealDay } from '../../src/lib/server/meal-orders';
@@ -258,6 +261,64 @@ describe('meal bills', () => {
 		expect(await code(voidBill(who.mm, { billId: again[2][4] as string }))).toBe('not_voidable');
 	});
 
+	it('records cash payments against direct bills and reports what the caterer and company pay', async () => {
+		const [, , cat] = await bills('2026-02');
+		const catBill = cat[4] as string;
+		await withTenant(sys(), (tx) => tx.update(mealBills).set({ status: 'issued' }).where(eq(mealBills.id, catBill)));
+		const pay = (billId: string, amount: string, paidOn = '2026-03-05', method = 'cash') =>
+			code(recordPayment(who.mm, { billId, amount, paidOn, method, note: '' }));
+		const total = 8 * 4026;
+		expect(await pay(catBill, '0')).toBe('invalid');
+		expect(await pay(catBill, '1.234')).toBe('invalid');
+		expect(await pay(catBill, '10', '2026-03-05', 'card')).toBe('invalid');
+		expect(await pay(catBill, '10', '2999-01-01')).toBe('future_payment');
+		expect(await pay(catBill, ((total + 1) / 100).toFixed(2))).toBe('overpaid');
+		expect(await pay(catBill, '100.50')).toBe('ok');
+		const [, , afterOne] = await bills('2026-02');
+		expect(afterOne[1]).toBe('partially_paid');
+		expect(await pay(catBill, (total / 100).toFixed(2))).toBe('overpaid');
+		expect(await code(voidBill(who.mm, { billId: catBill }))).toBe('not_voidable');
+		await withTenant(sys(), (tx) =>
+			tx.update(memberships).set({ employeeId: ids.cat }).where(eq(memberships.userId, who.ana.user.userId))
+		);
+		const catAccess = { ...who.ana.access, employeeId: ids.cat };
+		expect(await withTenant(sys(), (tx) => mealDue(tx, catAccess))).toBe(total - 10050);
+		expect(await pay(catBill, ((total - 10050) / 100).toFixed(2), '2026-03-06', 'mobile')).toBe('ok');
+		expect((await bills('2026-02'))[2][1]).toBe('paid');
+		expect(await withTenant(sys(), (tx) => mealDue(tx, catAccess))).toBe(0);
+		expect(await pay(catBill, '1')).toBe('not_payable');
+		await withTenant(sys(), (tx) =>
+			tx.update(memberships).set({ employeeId: ids.ana }).where(eq(memberships.userId, who.ana.user.userId))
+		);
+		const [anaFeb] = await bills('2026-02');
+		expect(await pay(anaFeb[4] as string, '1')).toBe('not_payable');
+		await withTenant(sys(), (tx) =>
+			tx
+				.update(mealBills)
+				.set({ billingMode: 'direct' })
+				.where(and(eq(mealBills.employeeId, ids.ana), eq(mealBills.status, 'draft')))
+		);
+		expect(await withTenant(sys(), (tx) => mealDue(tx, who.ana.access))).toBe(0);
+
+		const feb = await withTenant(sys(), (tx) => mealStatement(tx, '2026-02'));
+		const plates = 18 + 1 + 19 - 1 + 8;
+		const guests = 2 + 1;
+		expect(feb.rows.map((r) => [r.vendor, r.meal, r.unitCost, r.plates, r.guests])).toEqual([
+			['Rice Bowl', 'Lunch', 8051, plates, guests]
+		]);
+		expect(feb).toMatchObject({
+			cost: (plates + guests) * 8051,
+			staff: plates * 4026 + guests * 8051,
+			company: plates * (8051 - 4026)
+		});
+		expect(await withTenant(sys(), (tx) => mealStatement(tx, '2026-04'))).toEqual({
+			rows: [],
+			cost: 0,
+			staff: 0,
+			company: 0
+		});
+	});
+
 	it('keeps tenant-wide billing to people who bill everyone', async () => {
 		const narrow = {
 			...who.mm,
@@ -267,6 +328,17 @@ describe('meal bills', () => {
 		expect(await code(issueBills(narrow, { period: '2026-02' }))).toBe('forbidden');
 		const feb = await bills('2026-02');
 		expect(await code(voidBill(narrow, { billId: feb[0][4] as string }))).toBe('not_found');
+		expect(
+			await code(
+				recordPayment(narrow, {
+					billId: feb[2][4] as string,
+					amount: '1',
+					paidOn: '2026-03-05',
+					method: 'cash',
+					note: ''
+				})
+			)
+		).toBe('not_found');
 		const view = await withTenant(sys(), (tx) => periodBills(tx, narrow.access, '2026-02'));
 		expect(view).toMatchObject({ canRun: false, bills: [] });
 		expect((await withTenant(sys(), (tx) => periodBills(tx, who.mm.access, '2026-02'))).bills).toHaveLength(3);

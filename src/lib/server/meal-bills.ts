@@ -1,11 +1,23 @@
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { mealCharge } from '../money';
+import { mealCharge, poishaOf, taka } from '../money';
 import { now } from './clock';
 import { addDays } from './dates';
-import { employees, mealBillLines, mealBills, mealDays, mealOrders, mealTypes, tenantSettings } from './db/schema';
+import {
+	employees,
+	MEAL_PAYMENT_METHODS,
+	mealBillLines,
+	mealBills,
+	mealDays,
+	mealOrders,
+	mealPayments,
+	mealTypes,
+	mealVendors,
+	tenantSettings
+} from './db/schema';
 import { AppError } from './errors';
 import { advisoryLock, LOCK } from './locks';
+import { tenantToday } from './lifecycle';
 import { unlockedDays } from './meal-orders';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
@@ -241,4 +253,84 @@ export async function myBills(tx: Tx, access: Access) {
 				.orderBy(asc(mealBillLines.date), asc(mealBillLines.meal), asc(mealBillLines.kind))
 		: [];
 	return bills.map((b) => ({ ...b, lines: lines.filter((l) => l.billId === b.id) }));
+}
+
+export async function mealDue(tx: Tx, access: Access) {
+	if (!access.employeeId) return 0;
+	const [due] = await tx
+		.select({ amount: sql<number>`coalesce(sum(${mealBills.total} - ${mealBills.paid}), 0)::int` })
+		.from(mealBills)
+		.where(
+			and(
+				eq(mealBills.employeeId, access.employeeId),
+				eq(mealBills.billingMode, 'direct'),
+				inArray(mealBills.status, ['issued', 'partially_paid'])
+			)
+		);
+	return due.amount;
+}
+
+const paymentInput = z.object({
+	billId: z.uuid({ error: 'Choose a bill.' }),
+	amount: z
+		.string()
+		.trim()
+		.regex(/^\d{1,7}(\.\d{1,2})?$/, 'Enter the amount in taka, up to 2 decimals.')
+		.transform(poishaOf)
+		.refine((p) => p >= 1, 'The amount must be more than zero.'),
+	paidOn: z.iso.date('Enter the payment date.'),
+	method: z.enum(MEAL_PAYMENT_METHODS, 'Choose how it was paid.'),
+	note: z
+		.string()
+		.trim()
+		.max(200, 'Keep the note under 200 characters.')
+		.transform((v) => v || null)
+});
+
+export async function recordPayment(m: Member, raw: Record<string, string>) {
+	const input = paymentInput.parse(raw);
+	await withTenant(userCtx(m), async (tx) => {
+		await advisoryLock(tx, LOCK.mealBilling, m.tenant.id);
+		const [bill] = await tx.select().from(mealBills).where(eq(mealBills.id, input.billId));
+		if (!bill || !inScope(await resolveScope(tx, m.access, 'meal.billing'), bill.employeeId))
+			throw new AppError('not_found', 'That bill does not exist.', 404);
+		if (bill.billingMode !== 'direct' || !['issued', 'partially_paid'].includes(bill.status))
+			throw new AppError('not_payable', 'Only an issued bill paid in cash can take a payment.', 409);
+		if (input.amount > bill.total - bill.paid)
+			throw new AppError('overpaid', `Only ৳${taka(bill.total - bill.paid)} is due on this bill.`, 409);
+		if (input.paidOn > (await tenantToday(tx)))
+			throw new AppError('future_payment', 'The payment date cannot be in the future.', 400);
+		await tx.insert(mealPayments).values({ tenantId: m.tenant.id, ...input, recordedByUserId: m.user.userId });
+		const paid = bill.paid + input.amount;
+		await tx
+			.update(mealBills)
+			.set({ paid, status: paid === bill.total ? 'paid' : 'partially_paid' })
+			.where(eq(mealBills.id, bill.id));
+	});
+}
+
+export async function mealStatement(tx: Tx, raw: string) {
+	const { from, to } = periodRange(periodSchema.parse(raw));
+	const groups = await tx
+		.select({
+			vendor: mealVendors.name,
+			meal: mealTypes.name,
+			unitCost: sql<number>`${mealOrders.unitCost}`,
+			subsidyPct: sql<number>`${mealOrders.subsidyPct}`,
+			plates: sql<number>`(count(*) filter (where ${mealOrders.status} = 'ordered'))::int`,
+			guests: sql<number>`sum(${mealOrders.guestQty})::int`
+		})
+		.from(mealOrders)
+		.innerJoin(mealTypes, eq(mealTypes.id, mealOrders.mealTypeId))
+		.innerJoin(mealVendors, eq(mealVendors.id, mealTypes.vendorId))
+		.where(and(gte(mealOrders.date, from), lte(mealOrders.date, to), isNotNull(mealOrders.unitCost)))
+		.groupBy(mealVendors.name, mealTypes.name, mealOrders.unitCost, mealOrders.subsidyPct)
+		.orderBy(asc(mealVendors.name), asc(mealTypes.name), asc(mealOrders.unitCost));
+	const rows = groups.map((g) => {
+		const cost = (g.plates + g.guests) * g.unitCost;
+		const staff = g.plates * mealCharge(true, 0, g.unitCost, g.subsidyPct) + g.guests * g.unitCost;
+		return { ...g, cost, staff, company: cost - staff };
+	});
+	const sum = (k: 'cost' | 'staff' | 'company') => rows.reduce((n, r) => n + r[k], 0);
+	return { rows, cost: sum('cost'), staff: sum('staff'), company: sum('company') };
 }

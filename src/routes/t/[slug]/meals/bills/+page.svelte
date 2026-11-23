@@ -58,6 +58,35 @@
 						<td>৳{taka(bill.total)}</td>
 						<td>৳{taka(bill.paid)}</td>
 						<td>
+							{#if bill.billingMode === 'direct' && (bill.status === 'issued' || bill.status === 'partially_paid')}
+								<form method="POST" action="?/pay" class="flex flex-wrap items-center gap-1">
+									<input type="hidden" name="billId" value={bill.id} />
+									<input
+										name="amount"
+										inputmode="decimal"
+										required
+										pattern={'\\d{1,7}(\\.\\d{1,2})?'}
+										aria-label={`Amount from ${bill.name}`}
+										class={`${input} w-24`}
+									/>
+									<input
+										name="paidOn"
+										type="date"
+										required
+										max={data.today}
+										value={data.today}
+										aria-label={`Paid on by ${bill.name}`}
+										class={input}
+									/>
+									<select name="method" aria-label={`Paid by ${bill.name} in`} class={input}>
+										<option value="cash">Cash</option>
+										<option value="bank">Bank</option>
+										<option value="mobile">Mobile banking</option>
+									</select>
+									<input type="hidden" name="note" value="" />
+									<Button type="submit">Record payment from {bill.name}</Button>
+								</form>
+							{/if}
 							{#if bill.status === 'issued' && !bill.paid}
 								<form method="POST" action="?/void">
 									<input type="hidden" name="billId" value={bill.id} />
@@ -71,5 +100,47 @@
 		</table>
 	{:else}
 		<p class="mt-4 text-sm text-slate-500">No bills for {b.period}.</p>
+	{/if}
+</section>
+
+<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Caterer statement">
+	<h2 class="font-semibold text-slate-900">Caterer statement for {b.period}</h2>
+	{#if data.statement.rows.length}
+		<table class="mt-3 w-full text-left text-sm">
+			<thead class="text-slate-500">
+				<tr>
+					<th class="py-1">Caterer</th>
+					<th>Meal</th>
+					<th>Price</th>
+					<th>Plates</th>
+					<th>Guests</th>
+					<th>Caterer cost</th>
+					<th>Staff pay</th>
+					<th>Company pays</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each data.statement.rows as r (`${r.vendor}${r.meal}${r.unitCost}${r.subsidyPct}`)}
+					<tr class="border-t border-slate-100" data-testid="statement-row">
+						<td class="py-1">{r.vendor}</td>
+						<td>{r.meal}</td>
+						<td>৳{taka(r.unitCost)}</td>
+						<td>{r.plates}</td>
+						<td>{r.guests}</td>
+						<td>৳{taka(r.cost)}</td>
+						<td>৳{taka(r.staff)}</td>
+						<td>৳{taka(r.company)}</td>
+					</tr>
+				{/each}
+				<tr class="border-t border-slate-300 font-medium" data-testid="statement-total">
+					<td class="py-1" colspan="5">Total</td>
+					<td>৳{taka(data.statement.cost)}</td>
+					<td>৳{taka(data.statement.staff)}</td>
+					<td>৳{taka(data.statement.company)}</td>
+				</tr>
+			</tbody>
+		</table>
+	{:else}
+		<p class="mt-3 text-sm text-slate-500">No meals served in {b.period}.</p>
 	{/if}
 </section>

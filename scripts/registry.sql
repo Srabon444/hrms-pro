@@ -49,6 +49,7 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('meal_orders', 'excluded', '{}'),
 	('meal_bills', 'plain', '{id,tenant_id,employee_id,period,status,billing_mode,total,paid,issued_at,issued_by_user_id,payroll_run_id,pdf_key}'),
 	('meal_bill_lines', 'excluded', '{}'),
+	('meal_payments', 'plain', '{id,tenant_id,bill_id,amount,paid_on,method,note,recorded_by_user_id}'),
 	('attendance_punches', 'excluded', '{}'),
 	('attendance_days', 'excluded', '{}'),
 	('counters', 'excluded', '{}'),

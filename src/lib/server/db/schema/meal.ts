@@ -18,6 +18,7 @@ import { employees } from './org';
 export const MEAL_MODES = ['opt_out', 'opt_in'] as const;
 export const MEAL_BILLING_MODES = ['payroll', 'direct'] as const;
 export const MEAL_ORDER_STATUSES = ['ordered', 'opted_out', 'auto_off'] as const;
+export const MEAL_PAYMENT_METHODS = ['cash', 'bank', 'mobile'] as const;
 export const MEAL_BILL_STATUSES = ['draft', 'issued', 'partially_paid', 'paid', 'deducted', 'void'] as const;
 
 export const mealVendors = pgTable(
@@ -156,5 +157,26 @@ export const mealBillLines = pgTable(
 		index('meal_bill_lines_bill_ix').on(t.tenantId, t.billId),
 		index('meal_bill_lines_order_ix').on(t.tenantId, t.orderId),
 		check('meal_bill_lines_kind_ck', sql`${t.kind} in ('meal','adjustment')`)
+	]
+);
+
+export const mealPayments = pgTable(
+	'meal_payments',
+	{
+		...tenantBase(),
+		billId: uuid().notNull(),
+		amount: integer().notNull(),
+		paidOn: date({ mode: 'string' }).notNull(),
+		method: text().notNull(),
+		note: text(),
+		recordedByUserId: uuid()
+	},
+	(t) => [
+		tenantKey('meal_payments', t),
+		tfk('meal_payments_bill_fk', t, t.billId, mealBills, 'restrict'),
+		index('meal_payments_bill_ix').on(t.tenantId, t.billId),
+		check('meal_payments_amount_ck', sql`${t.amount} > 0`),
+		check('meal_payments_method_ck', sql`${t.method} in ('cash','bank','mobile')`),
+		check('meal_payments_note_ck', sql`${t.note} is null or length(${t.note}) <= 200`)
 	]
 );

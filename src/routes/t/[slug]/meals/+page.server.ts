@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { tenantToday } from '#lib/server/lifecycle.ts';
-import { myBills } from '#lib/server/meal-bills.ts';
+import { mealDue, myBills } from '#lib/server/meal-bills.ts';
 import {
 	adjustMeal,
 	chooseMeal,
@@ -26,6 +26,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		return {
 			mine: await myMeals(tx, m.access),
 			bills: await myBills(tx, m.access),
+			due: await mealDue(tx, m.access),
 			day: canManage ? await mealDay(tx, m.access, date) : null
 		};
 	});

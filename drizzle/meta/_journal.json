@@ -162,6 +162,13 @@
       "when": 1795446568038,
       "tag": "0022_meal_bill_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795447187360,
+      "tag": "0023_meal_payments",
+      "breakpoints": true
     }
   ]
 }
