@@ -20,7 +20,8 @@
 		"db:migrate": "tsx src/cli.ts migrate",
 		"cli": "tsx src/cli.ts",
 		"infra:up": "docker compose up -d postgres redis minio mailpit",
-		"infra:down": "docker compose down"
+		"infra:down": "docker compose down",
+		"worker": "node --import tsx src/worker.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.39.5",

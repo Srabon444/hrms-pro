@@ -103,7 +103,7 @@ services:
   worker:
     profiles: [app]
     build: .
-    command: ['npx', 'tsx', 'src/worker.ts']
+    command: ['node', '--import', 'tsx', 'src/worker.ts']
     environment: *app-env
     depends_on:
       migrate: { condition: service_completed_successfully }
