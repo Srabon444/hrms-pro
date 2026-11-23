@@ -6,6 +6,8 @@
 
 	let { data, form }: PageProps = $props();
 	const e = $derived(data.employee);
+	const size = (n: number) => (n < 1024 * 1024 ? `${Math.ceil(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+	const field = 'rounded-md border border-slate-300 px-3 py-2 text-sm';
 	const values = $derived(form && 'values' in form ? form.values : { ...e, ...(data.sensitive ?? {}) });
 	const facts = $derived([
 		['Code', e.code],
@@ -46,7 +48,7 @@
 </dl>
 
 {#if data.canUpdate && data.choices}
-	<form method="POST" class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
+	<form method="POST" action="?/save" class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
 		<h2 class="mb-4 font-semibold text-slate-900">Edit record</h2>
 		<div class="mb-4 space-y-2">
 			<Alert message={form?.message} />
@@ -55,6 +57,56 @@
 		<EmployeeForm {values} choices={data.choices} sensitive={data.canUpdateSensitive} selfId={e.id} />
 		<div class="mt-6"><Button type="submit">Save changes</Button></div>
 	</form>
+{/if}
+
+{#if data.documents}
+	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Documents">
+		<h2 class="font-semibold text-slate-900">Documents</h2>
+		<div class="mt-3 space-y-2">
+			<Alert message={form && 'docMessage' in form ? form.docMessage : null} />
+			{#if form && 'uploaded' in form}<Alert tone="info" message="Document uploaded." />{/if}
+		</div>
+		<ul class="mt-3 divide-y divide-slate-100 text-sm">
+			{#each data.documents.rows as d (d.id)}
+				<li class="flex items-center gap-3 py-2" data-testid="document">
+					<a href="/t/{data.tenant.slug}/employees/{e.id}/documents/{d.id}" class="text-indigo-700 hover:underline">
+						{d.title}
+					</a>
+					<span class="text-slate-500">{d.category} · {size(d.sizeBytes)}</span>
+					{#if d.expiresOn}<span class="text-slate-500">expires {d.expiresOn}</span>{/if}
+					{#if data.documents.canManage}
+						<form method="POST" action="?/removeDocument" class="ml-auto">
+							<input type="hidden" name="documentId" value={d.id} />
+							<button type="submit" class="text-red-600 hover:underline" aria-label="Delete {d.title}">Delete</button>
+						</form>
+					{/if}
+				</li>
+			{:else}
+				<li class="py-2 text-slate-500">No documents yet.</li>
+			{/each}
+		</ul>
+		{#if data.documents.canManage}
+			<form method="POST" action="?/upload" enctype="multipart/form-data" class="mt-4 grid gap-3 sm:grid-cols-2">
+				<select name="category" aria-label="Document type" required class={field}>
+					{#each data.documentCategories as c (c)}<option value={c}>{c}</option>{/each}
+				</select>
+				<input name="title" aria-label="Document title" placeholder="Title" required maxlength={160} class={field} />
+				<label class="text-sm text-slate-700">
+					Expires on
+					<input name="expiresOn" type="date" class="{field} mt-1 block w-full" />
+				</label>
+				<input
+					name="file"
+					type="file"
+					aria-label="File"
+					required
+					accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx"
+					class="text-sm"
+				/>
+				<div class="sm:col-span-2"><Button type="submit">Upload document</Button></div>
+			</form>
+		{/if}
+	</section>
 {/if}
 
 {#if data.history.length}

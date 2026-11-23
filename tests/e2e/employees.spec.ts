@@ -83,3 +83,52 @@ test('HR links a member to an employee record and the member then sees it', asyn
 	await expect(page.getByTestId('employee-total')).toHaveText('1');
 	await expect(page.getByRole('link', { name: 'Karim Staff' })).toBeVisible();
 });
+
+test('HR uploads a document that only its owner and HR can download', async ({ page, request, browser }) => {
+	const f = await fixture(request, {
+		tenant: {},
+		users: [
+			{ key: 'hr', roles: ['hr_admin'] },
+			{ key: 'staff', employee: true },
+			{ key: 'peer', employee: true }
+		]
+	});
+	await signIn(page, f.users.hr.email);
+	const profile = `/t/${f.tenant!.slug}/employees/${f.users.staff.employeeId}`;
+	await page.goto(profile);
+	const docs = page.getByRole('region', { name: 'Documents' });
+	await docs.getByLabel('Document type').selectOption('contract');
+	await docs.getByLabel('Document title').fill('Signed contract');
+	await docs.getByLabel('File').setInputFiles({
+		name: 'contract.pdf',
+		mimeType: 'application/pdf',
+		buffer: Buffer.from('%PDF-1.7 e2e')
+	});
+	await docs.getByRole('button', { name: 'Upload document' }).click();
+	await expect(page.getByRole('status')).toHaveText('Document uploaded.');
+	const href = await docs.getByRole('link', { name: 'Signed contract' }).getAttribute('href');
+
+	await docs
+		.getByLabel('File')
+		.setInputFiles({ name: 'evil.pdf', mimeType: 'application/pdf', buffer: Buffer.from('MZ') });
+	await docs.getByLabel('Document title').fill('Fake');
+	await docs.getByRole('button', { name: 'Upload document' }).click();
+	await expect(docs.getByRole('alert')).toHaveText('Upload a PDF, image, Word or Excel file.');
+
+	for (const [key, status] of [
+		['staff', 200],
+		['peer', 404]
+	] as const) {
+		const ctx = await browser.newContext();
+		const p = await ctx.newPage();
+		await signIn(p, f.users[key].email);
+		await expect(p.getByRole('link', { name: 'Employees' })).toBeVisible();
+		const res = await p.request.get(href!);
+		expect(res.status()).toBe(status);
+		if (status === 200) {
+			expect(res.headers()['content-disposition']).toContain('attachment');
+			expect(await res.text()).toBe('%PDF-1.7 e2e');
+		}
+		await ctx.close();
+	}
+});

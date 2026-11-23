@@ -3,6 +3,7 @@ import {
 	check,
 	date,
 	index,
+	integer,
 	pgTable,
 	smallint,
 	text,
@@ -128,5 +129,37 @@ export const employeeHistory = pgTable(
 		tenantKey('employee_history', t),
 		tfk('employee_history_employee_fk', t, t.employeeId, employees, 'cascade'),
 		index('employee_history_employee_idx').on(t.tenantId, t.employeeId, t.createdAt)
+	]
+);
+
+export const DOCUMENT_CATEGORIES = ['identity', 'contract', 'certificate', 'letter', 'other'] as const;
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+export const employeeDocuments = pgTable(
+	'employee_documents',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		category: text().notNull(),
+		title: text().notNull(),
+		fileName: text().notNull(),
+		contentType: text().notNull(),
+		sizeBytes: integer().notNull(),
+		sha256: text().notNull(),
+		storageKey: text().notNull(),
+		expiresOn: date(),
+		uploadedByUserId: uuid()
+	},
+	(t) => [
+		tenantKey('employee_documents', t),
+		tfk('employee_documents_employee_fk', t, t.employeeId, employees, 'restrict'),
+		unique('employee_documents_key_uq').on(t.storageKey),
+		index('employee_documents_employee_idx').on(t.tenantId, t.employeeId),
+		check(
+			'employee_documents_category_ck',
+			sql`${t.category} in ('identity','contract','certificate','letter','other')`
+		),
+		check('employee_documents_title_ck', sql`length(trim(${t.title})) between 1 and 160`),
+		check('employee_documents_size_ck', sql`${t.sizeBytes} between 1 and ${sql.raw(String(MAX_DOCUMENT_BYTES))}`)
 	]
 );

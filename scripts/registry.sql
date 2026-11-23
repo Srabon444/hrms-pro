@@ -21,6 +21,7 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('departments', 'plain', '{id,tenant_id,name,parent_id,head_employee_id}'),
 	('employees', 'plain', '{id,tenant_id,code,full_name,work_email,personal_email,phone,gender,blood_group,department_id,designation_id,grade_id,branch_id,manager_id,employment_type,join_date,probation_end_date,confirmation_date,status,exit_date,exit_reason}'),
 	('employee_history', 'plain', '{id,tenant_id,employee_id,field,old_value,new_value,changed_by_user_id}'),
+	('employee_documents', 'plain', '{id,tenant_id,employee_id,category,title,file_name,content_type,size_bytes,sha256,storage_key,expires_on,uploaded_by_user_id}'),
 	('designations', 'plain', '{id,tenant_id,name}'),
 	('grades', 'plain', '{id,tenant_id,name,rank}'),
 	('holidays', 'plain', '{id,tenant_id,date,name}'),
