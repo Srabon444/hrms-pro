@@ -302,6 +302,13 @@
       "when": 1795474432566,
       "tag": "0042_helpdesk_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795474585186,
+      "tag": "0043_announcements",
+      "breakpoints": true
     }
   ]
 }

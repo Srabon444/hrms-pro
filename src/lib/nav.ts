@@ -1,10 +1,11 @@
 import type { Permission } from './rbac/permissions';
 
-export type NavItem = { href: string; label: string; perm?: Permission | Permission[]; self?: true };
+export type NavItem = { href: string; label: string; perm?: Permission | Permission[]; self?: true; active?: true };
 
 export const NAV: NavItem[] = [
 	{ href: '', label: 'Home' },
 	{ href: 'notifications', label: 'Notifications' },
+	{ href: 'announcements', label: 'Announcements', active: true },
 	{ href: 'approvals', label: 'Approvals' },
 	{ href: 'tasks', label: 'Tasks' },
 	{ href: 'leave', label: 'Leave', perm: 'leave.request' },

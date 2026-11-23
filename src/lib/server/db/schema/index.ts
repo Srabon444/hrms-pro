@@ -12,3 +12,4 @@ export * from './performance';
 export * from './projects';
 export * from './assets';
 export * from './helpdesk';
+export * from './announcements';
