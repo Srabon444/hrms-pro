@@ -82,7 +82,11 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('review_cycles', 'plain', '{id,tenant_id,name,period_start,period_end,status,created_by_user_id}'),
 	('reviews', 'plain', '{id,tenant_id,cycle_id,employee_id,stage,shared,self_submitted_at,manager_submitted_at,manager_user_id,finalised_at,finalised_by_user_id}'),
 	('goals', 'plain', '{id,tenant_id,review_id,weight}'),
-	('work_plan_items', 'plain', '{id,tenant_id,employee_id,week_start,description,target,status,carried_over_from_id,created_by_user_id}')
+	('work_plan_items', 'plain', '{id,tenant_id,employee_id,week_start,description,target,status,carried_over_from_id,created_by_user_id}'),
+	('projects', 'plain', '{id,tenant_id,code,name,client,status,billable,created_by_user_id}'),
+	('project_members', 'plain', '{id,tenant_id,project_id,employee_id,role,allocation}'),
+	('timesheets', 'plain', '{id,tenant_id,employee_id,week_start,status,submitted_at,decided_by_user_id,decided_at,decision_note}'),
+	('timesheet_entries', 'excluded', '{}')
 on conflict (table_name) do update set mode = excluded.mode, plain_columns = excluded.plain_columns;
 
 insert into owner_row_tables (table_name, flag) values

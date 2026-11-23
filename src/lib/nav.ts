@@ -21,6 +21,8 @@ export const NAV: NavItem[] = [
 	{ href: 'recruitment', label: 'Recruitment', perm: 'recruitment.read' },
 	{ href: 'recruitment/interviews', label: 'My interviews', perm: 'interview.feedback' },
 	{ href: 'performance', label: 'Performance', perm: 'performance.read' },
+	{ href: 'projects', label: 'Projects', perm: 'project.read' },
+	{ href: 'timesheets', label: 'Timesheets', perm: ['timesheet.submit', 'timesheet.approve'] },
 	{ href: 'work-plan', label: 'Work plan', perm: 'report.weekly' },
 	{ href: 'org', label: 'Organisation', perm: 'org.manage' },
 	{ href: 'settings/users', label: 'Users', perm: 'user.manage' },

@@ -9,3 +9,4 @@ export * from './loan';
 export * from './tax';
 export * from './recruitment';
 export * from './performance';
+export * from './projects';
