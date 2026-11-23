@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { employeeShare, poishaOf, taka } from './money';
+import { employeeShare, mealCharge, poishaOf, taka } from './money';
 
 it('converts taka text to whole poisha and back', () => {
 	expect(['0.29', '12', '12.5', '12.05', '99999.99'].map(poishaOf)).toEqual([29, 1200, 1250, 1205, 9999999]);
@@ -11,4 +11,12 @@ it('rounds the employee share of a plate to the nearest poisha', () => {
 		4025, 4026, 4027, 999
 	]);
 	expect(employeeShare(8000, 100)).toBe(0);
+});
+
+it('charges the employee share for their plate and the full price per guest', () => {
+	expect(mealCharge(true, 0, 8051, 50)).toBe(4026);
+	expect(mealCharge(true, 2, 8051, 50)).toBe(4026 + 16102);
+	expect(mealCharge(false, 1, 8051, 50)).toBe(8051);
+	expect(mealCharge(false, 0, 8051, 50)).toBe(0);
+	expect(mealCharge(true, 1, 8000, 100)).toBe(8000);
 });

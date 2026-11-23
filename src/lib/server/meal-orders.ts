@@ -302,6 +302,23 @@ export async function prepareMealDay(tx: Tx, tenantId: string, date: string) {
 	return true;
 }
 
+export async function unlockedDays(tx: Tx, from: string, to: string) {
+	const r = await rules(tx);
+	const served = await menu(tx, to);
+	const off = await holidaySet(tx, from, to);
+	const days = new Map(
+		(
+			await tx
+				.select({ date: mealDays.date, locked: mealDays.locked })
+				.from(mealDays)
+				.where(and(gte(mealDays.date, from), lte(mealDays.date, to)))
+		).map((d) => [d.date, d.locked])
+	);
+	return datesBetween(from, to).filter((d) =>
+		days.has(d) ? !days.get(d) : served(d).length > 0 && (!r.workingDaysOnly || (!weekend(r, d) && !off.has(d)))
+	);
+}
+
 export async function runMealDays(tenantId: string) {
 	await withTenant(systemCtx(tenantId), async (tx) => {
 		const r = await rules(tx);

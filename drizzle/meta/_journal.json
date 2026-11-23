@@ -148,6 +148,20 @@
       "when": 1795445562601,
       "tag": "0020_meal_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795446555499,
+      "tag": "0021_meal_bills",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795446568038,
+      "tag": "0022_meal_bill_indexes",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
+	import { BILL_STATUS } from '#lib/meal-bill-status.ts';
 	import { employeeShare, taka } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
@@ -74,6 +75,37 @@
 			</label>
 			<Button type="submit">Skip these days</Button>
 		</form>
+	</section>
+{/if}
+
+{#if data.bills.length}
+	<section class={card} aria-label="My bills">
+		<h2 class="font-semibold text-slate-900">My bills</h2>
+		<ul class="mt-3 divide-y divide-slate-100 text-sm">
+			{#each data.bills as bill (bill.id)}
+				<li class="py-2">
+					<details>
+						<summary class="cursor-pointer text-slate-800" data-testid="my-meal-bill">
+							{bill.period} · {BILL_STATUS[bill.status]} · ৳{taka(bill.total)}{bill.paid
+								? ` · paid ৳${taka(bill.paid)}`
+								: ''}
+						</summary>
+						<table class="mt-2 w-full text-left text-slate-600">
+							<tbody>
+								{#each bill.lines as l (l.id)}
+									<tr>
+										<td class="py-0.5">{l.date}</td>
+										<td>{l.meal}{l.kind === 'adjustment' ? ' (correction)' : ''}</td>
+										<td>{l.plates ? 'ate' : 'skipped'}{l.guests ? ` + ${l.guests} guests` : ''}</td>
+										<td class="text-right">৳{taka(l.amount)}</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</details>
+				</li>
+			{/each}
+		</ul>
 	</section>
 {/if}
 

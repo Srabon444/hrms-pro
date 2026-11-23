@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { tenantToday } from '#lib/server/lifecycle.ts';
+import { myBills } from '#lib/server/meal-bills.ts';
 import {
 	adjustMeal,
 	chooseMeal,
@@ -24,6 +25,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const date = z.iso.date().safeParse(picked).success ? picked : await tenantToday(tx);
 		return {
 			mine: await myMeals(tx, m.access),
+			bills: await myBills(tx, m.access),
 			day: canManage ? await mealDay(tx, m.access, date) : null
 		};
 	});

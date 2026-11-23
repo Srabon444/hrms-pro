@@ -7,3 +7,6 @@ export const poishaOf = (amount: string) => {
 
 export const employeeShare = (unitCost: number, subsidyPct: number) =>
 	Math.round((unitCost * (100 - subsidyPct)) / 100);
+
+export const mealCharge = (ate: boolean, guests: number, unitCost: number, subsidyPct: number) =>
+	(ate ? employeeShare(unitCost, subsidyPct) : 0) + guests * unitCost;

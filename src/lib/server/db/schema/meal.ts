@@ -1,11 +1,24 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, integer, pgTable, smallint, text, unique, uuid } from 'drizzle-orm/pg-core';
+import {
+	boolean,
+	check,
+	date,
+	index,
+	integer,
+	pgTable,
+	smallint,
+	text,
+	unique,
+	uniqueIndex,
+	uuid
+} from 'drizzle-orm/pg-core';
 import { tenantBase, tenantKey, tfk, tstz } from './_helpers';
 import { employees } from './org';
 
 export const MEAL_MODES = ['opt_out', 'opt_in'] as const;
 export const MEAL_BILLING_MODES = ['payroll', 'direct'] as const;
 export const MEAL_ORDER_STATUSES = ['ordered', 'opted_out', 'auto_off'] as const;
+export const MEAL_BILL_STATUSES = ['draft', 'issued', 'partially_paid', 'paid', 'deducted', 'void'] as const;
 
 export const mealVendors = pgTable(
 	'meal_vendors',
@@ -91,4 +104,57 @@ export const mealDays = pgTable(
 		lockedByUserId: uuid()
 	},
 	(t) => [tenantKey('meal_days', t), unique('meal_days_date_uq').on(t.tenantId, t.date)]
+);
+
+export const mealBills = pgTable(
+	'meal_bills',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		period: text().notNull(),
+		status: text().notNull().default('draft'),
+		billingMode: text().notNull(),
+		total: integer().notNull(),
+		paid: integer().notNull().default(0),
+		issuedAt: tstz(),
+		issuedByUserId: uuid(),
+		payrollRunId: uuid(),
+		pdfKey: text()
+	},
+	(t) => [
+		tenantKey('meal_bills', t),
+		tfk('meal_bills_employee_fk', t, t.employeeId, employees, 'restrict'),
+		uniqueIndex('meal_bills_period_uq')
+			.on(t.tenantId, t.employeeId, t.period)
+			.where(sql`${t.status} <> 'void'`),
+		check('meal_bills_period_ck', sql`${t.period} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+		check('meal_bills_status_ck', sql`${t.status} in ('draft','issued','partially_paid','paid','deducted','void')`),
+		check('meal_bills_mode_ck', sql`${t.billingMode} in ('payroll','direct')`),
+		check('meal_bills_paid_ck', sql`${t.paid} >= 0 and ${t.paid} <= greatest(${t.total}, 0)`)
+	]
+);
+
+export const mealBillLines = pgTable(
+	'meal_bill_lines',
+	{
+		...tenantBase(),
+		billId: uuid().notNull(),
+		orderId: uuid().notNull(),
+		kind: text().notNull(),
+		date: date({ mode: 'string' }).notNull(),
+		meal: text().notNull(),
+		plates: smallint().notNull(),
+		guests: smallint().notNull(),
+		unitCost: integer().notNull(),
+		subsidyPct: smallint().notNull(),
+		amount: integer().notNull()
+	},
+	(t) => [
+		tenantKey('meal_bill_lines', t),
+		tfk('meal_bill_lines_bill_fk', t, t.billId, mealBills, 'cascade'),
+		tfk('meal_bill_lines_order_fk', t, t.orderId, mealOrders, 'restrict'),
+		index('meal_bill_lines_bill_ix').on(t.tenantId, t.billId),
+		index('meal_bill_lines_order_ix').on(t.tenantId, t.orderId),
+		check('meal_bill_lines_kind_ck', sql`${t.kind} in ('meal','adjustment')`)
+	]
 );
