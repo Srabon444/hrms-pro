@@ -200,7 +200,11 @@ export const tenantSettings = pgTable(
 		mealCutoffTime: time().notNull().default('10:00'),
 		mealMode: text().notNull().default('opt_out'),
 		mealWorkingDaysOnly: boolean().notNull().default(true),
-		mealBillingMode: text().notNull().default('payroll')
+		mealBillingMode: text().notNull().default('payroll'),
+		pfEmployeeRateBp: smallint().notNull().default(0),
+		pfEmployerRateBp: smallint().notNull().default(0),
+		overtimeRateBp: integer().notNull().default(0),
+		overtimeMonthlyHours: smallint().notNull().default(208)
 	},
 	(t) => [
 		tenantKey('tenant_settings', t),
@@ -214,7 +218,16 @@ export const tenantSettings = pgTable(
 		check('tenant_settings_overtime_ck', sql`${t.overtimeDailyCapMinutes} between 15 and 720`),
 		check('tenant_settings_comp_off_ck', sql`${t.compOffExpiryDays} between 1 and 365`),
 		check('tenant_settings_meal_mode_ck', sql`${t.mealMode} in ('opt_out','opt_in')`),
-		check('tenant_settings_meal_billing_ck', sql`${t.mealBillingMode} in ('payroll','direct')`)
+		check('tenant_settings_meal_billing_ck', sql`${t.mealBillingMode} in ('payroll','direct')`),
+		check(
+			'tenant_settings_pf_ck',
+			sql`${t.pfEmployeeRateBp} between 0 and 5000 and ${t.pfEmployerRateBp} between 0 and 5000`
+		),
+		check(
+			'tenant_settings_ot_pay_ck',
+			sql`${t.overtimeRateBp} between 0 and 50000 and ${t.overtimeMonthlyHours} between 1 and 744`
+		),
+		check('tenant_settings_late_count_ck', sql`${t.latePolicyCount} between 0 and 31`)
 	]
 );
 

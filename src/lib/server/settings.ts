@@ -1,7 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { poishaOf } from '../money';
 import { tenantSettings } from './db/schema';
 import { AppError } from './errors';
+import { advisoryLock, LOCK } from './locks';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
 
 const TIMEZONES = new Set(Intl.supportedValuesOf('timeZone'));
@@ -60,5 +62,43 @@ export async function saveSettings(ctx: TenantCtx, isOwner: boolean, raw: Settin
 			.update(tenantSettings)
 			.set({ ...input, legalName: input.legalName || null, address: input.address || null })
 			.where(eq(tenantSettings.id, current.id));
+	});
+}
+
+const percent = (max: number, message: string) =>
+	z
+		.string()
+		.trim()
+		.regex(/^\d{1,3}(\.\d{1,2})?$/, message)
+		.transform(poishaOf)
+		.refine((bp) => bp <= max, message);
+
+export const payrollSettingsSchema = z.object({
+	payrollProrationBasis: z.enum(['calendar', 'working'], 'Choose how a part month is paid.'),
+	latePolicyCount: z.coerce
+		.number()
+		.int('Enter a whole number of late days.')
+		.min(0, 'Late days per unpaid day must be 0 to 31.')
+		.max(31, 'Late days per unpaid day must be 0 to 31.'),
+	mealPayrollLagMonths: z.coerce
+		.number()
+		.int('Enter a whole number of months.')
+		.min(0, 'Meal bills are deducted 0 to 3 months later.')
+		.max(3, 'Meal bills are deducted 0 to 3 months later.'),
+	pfEmployeeRateBp: percent(5000, 'The employee provident fund rate is 0 to 50%, up to 2 decimals.'),
+	pfEmployerRateBp: percent(5000, 'The employer provident fund rate is 0 to 50%, up to 2 decimals.'),
+	overtimeRateBp: percent(50000, 'The overtime rate is 0 to 500% of the hourly basic, up to 2 decimals.'),
+	overtimeMonthlyHours: z.coerce
+		.number()
+		.int('Enter whole hours.')
+		.min(1, 'Hours in a month must be 1 to 744.')
+		.max(744, 'Hours in a month must be 1 to 744.')
+});
+
+export async function savePayrollSettings(ctx: TenantCtx, raw: Record<string, string>) {
+	const input = payrollSettingsSchema.parse(raw);
+	await withTenant(ctx, async (tx) => {
+		await advisoryLock(tx, LOCK.payroll, ctx.tenantId);
+		await tx.update(tenantSettings).set(input);
 	});
 }
