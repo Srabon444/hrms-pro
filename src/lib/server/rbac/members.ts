@@ -23,7 +23,15 @@ export const toActor = (m: ReturnType<typeof requireMember>): Actor => ({
 	access: m.access
 });
 
-export type RoleSummary = { id: string; key: string; name: string; locked: boolean; grants: [Permission, Scope][] };
+export type RoleSummary = {
+	id: string;
+	key: string;
+	name: string;
+	description: string | null;
+	locked: boolean;
+	isSystem: boolean;
+	grants: [Permission, Scope][];
+};
 
 export async function rolesWithGrants(tx: Tx, roleIds?: string[]): Promise<RoleSummary[]> {
 	const rows = await tx
@@ -31,7 +39,9 @@ export async function rolesWithGrants(tx: Tx, roleIds?: string[]): Promise<RoleS
 			id: roles.id,
 			key: roles.key,
 			name: roles.name,
+			description: roles.description,
 			locked: roles.locked,
+			isSystem: roles.isSystem,
 			permission: rolePermissions.permission,
 			scope: rolePermissions.scope
 		})
@@ -41,7 +51,15 @@ export async function rolesWithGrants(tx: Tx, roleIds?: string[]): Promise<RoleS
 		.orderBy(roles.name);
 	const byId = new Map<string, RoleSummary>();
 	for (const r of rows) {
-		const role = byId.get(r.id) ?? { id: r.id, key: r.key, name: r.name, locked: r.locked, grants: [] };
+		const role = byId.get(r.id) ?? {
+			id: r.id,
+			key: r.key,
+			name: r.name,
+			description: r.description,
+			locked: r.locked,
+			isSystem: r.isSystem,
+			grants: []
+		};
 		byId.set(r.id, role);
 		if (r.permission && isPermission(r.permission) && r.scope && isScopeValue(r.scope))
 			role.grants.push([r.permission, r.scope]);
