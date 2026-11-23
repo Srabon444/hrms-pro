@@ -6,6 +6,7 @@
 	let { data, form }: PageProps = $props();
 	const field = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
 	let kind = $state('regularization');
+	const rowErrors = $derived(form && 'rows' in form ? (form.rows as { line: number; message: string }[]) : []);
 	const tz = $derived(data.now?.timeZone ?? data.month?.timeZone ?? 'UTC');
 	const time = (d: Date | null) =>
 		d
@@ -50,6 +51,19 @@
 	{#if form && 'added' in form}<Alert tone="info" message="Punch added." />{/if}
 	{#if form && 'requested' in form}<Alert tone="info" message="Request sent." />{/if}
 	{#if form && 'cancelledRequest' in form}<Alert tone="info" message="Request cancelled." />{/if}
+	{#if form && 'imported' in form && form.imported}
+		<Alert
+			tone="info"
+			message="{form.imported.added} punches imported, {form.imported.skipped} already recorded or repeated."
+		/>
+	{/if}
+	{#if rowErrors.length}
+		<ul class="rounded-xl bg-white p-4 text-sm ring-1 ring-slate-200" aria-label="Import errors">
+			{#each rowErrors as r (r.line)}
+				<li data-testid="import-error"><span class="font-medium">Line {r.line}:</span> {r.message}</li>
+			{/each}
+		</ul>
+	{/if}
 </div>
 
 {#if data.now}
@@ -201,6 +215,18 @@
 					<input name="at" type="datetime-local" required class={field} />
 				</label>
 				<div class="flex items-end"><Button type="submit" variant="secondary">Add punch</Button></div>
+			</form>
+			<form
+				method="POST"
+				action="?/importPunches"
+				enctype="multipart/form-data"
+				class="mt-4 flex flex-wrap items-end gap-3"
+			>
+				<label class="text-sm text-slate-700">
+					Device punches (CSV with employee_code,timestamp)
+					<input name="file" type="file" accept=".csv,text/csv" required class="mt-1 block text-sm" />
+				</label>
+				<Button type="submit" variant="secondary">Import punches</Button>
 			</form>
 		{/if}
 	</section>

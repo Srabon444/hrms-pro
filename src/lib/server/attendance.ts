@@ -17,8 +17,9 @@ import {
 	tenantSettings
 } from './db/schema';
 import { AppError } from './errors';
-import { lockEmployee } from './employees';
+import { ImportFailed, lockEmployee, type ImportRowError } from './employees';
 import { log } from './log';
+import { singleAdmin } from './approval-chain';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { systemCtx, withTenant, type Tx } from './tenancy';
@@ -238,6 +239,94 @@ export async function addManualPunch(m: Member, employeeId: string, raw: Record<
 		const when = zonedInstant(input.at, (await calendar(tx)).timeZone);
 		if (when > now()) throw new AppError('future', 'A punch cannot be in the future.', 400);
 		await savePunch(tx, m, e, when, 'manual', null);
+	});
+}
+
+export const MAX_PUNCH_ROWS = 20000;
+const LOCAL_STAMP = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2}))?$/;
+const OFFSET_STAMP = z.iso.datetime({ offset: true });
+
+function readStamp(raw: string, timeZone: string) {
+	const local = LOCAL_STAMP.exec(raw);
+	if (local) {
+		const at = zonedInstant(`${local[1]}T${local[2]}`, timeZone);
+		return new Date(at.getTime() + Number(local[3] ?? 0) * 1000);
+	}
+	return OFFSET_STAMP.safeParse(raw).success ? new Date(raw) : null;
+}
+
+export async function importPunches(m: Member, table: string[][]) {
+	const [header, ...body] = table;
+	const cols = (header ?? []).map((h) => h.trim().toLowerCase());
+	if (cols.length !== 2 || !cols.includes('employee_code') || !cols.includes('timestamp'))
+		throw new ImportFailed([{ line: 1, message: 'Header must be employee_code,timestamp.' }]);
+	if (!body.length) throw new ImportFailed([{ line: 2, message: 'The file has no rows to import.' }]);
+	if (body.length > MAX_PUNCH_ROWS)
+		throw new ImportFailed([{ line: 1, message: `Import at most ${MAX_PUNCH_ROWS} rows at a time.` }]);
+	const codeAt = cols.indexOf('employee_code');
+	const stampAt = cols.indexOf('timestamp');
+	return withTenant(userCtx(m), async (tx) => {
+		const { timeZone } = await calendar(tx);
+		const scope = await resolveScope(tx, m.access, 'attendance.manage');
+		const selfAllowed = await singleAdmin(tx);
+		const people = new Map(
+			(
+				await tx
+					.select({
+						id: employees.id,
+						code: employees.code,
+						joinDate: employees.joinDate,
+						exitDate: employees.exitDate
+					})
+					.from(employees)
+					.where(scopeWhere(scope, employees.id))
+			).map((e) => [e.code.toLowerCase(), e])
+		);
+		const at = now();
+		const errors: ImportRowError[] = [];
+		const list: { employeeId: string; at: Date }[] = [];
+		for (const [i, cells] of body.entries()) {
+			const line = i + 2;
+			const e = people.get((cells[codeAt] ?? '').trim().toLowerCase());
+			const when = readStamp((cells[stampAt] ?? '').trim(), timeZone);
+			const day = when && dateIn(when, timeZone);
+			const problem = !e
+				? 'Unknown employee code.'
+				: e.id === m.access.employeeId && !selfAllowed
+					? 'Someone else has to import your own punches.'
+					: !when || !day
+						? 'Use a timestamp like 2026-03-10 09:05 or 2026-03-10T09:05:00+06:00.'
+						: when > at
+							? 'A punch cannot be in the future.'
+							: day < e.joinDate || (e.exitDate && day > addDays(e.exitDate, 1))
+								? "The punch falls outside this person's employment."
+								: null;
+			if (problem) errors.push({ line, message: problem });
+			else list.push({ employeeId: e!.id, at: when! });
+		}
+		if (errors.length) throw new ImportFailed(errors.slice(0, 50));
+		let added = 0;
+		for (let i = 0; i < list.length; i += 1000)
+			added += (
+				await tx
+					.insert(attendancePunches)
+					.values(
+						list.slice(i, i + 1000).map((r) => ({
+							tenantId: m.tenant.id,
+							employeeId: r.employeeId,
+							at: r.at,
+							source: 'device',
+							createdByUserId: m.user.userId
+						}))
+					)
+					.onConflictDoNothing()
+					.returning({ id: attendancePunches.id })
+			).length;
+		const days = list.map((r) => dateIn(r.at, timeZone)).sort();
+		await recomputeAttendance(tx, m.tenant.id, addDays(days[0], -1), days[days.length - 1], [
+			...new Set(list.map((r) => r.employeeId))
+		]);
+		return { added, skipped: body.length - added };
 	});
 }
 

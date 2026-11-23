@@ -119,3 +119,28 @@ test('an employee asks to work from home, the manager approves and the employee 
 	await expect(page.getByRole('status')).toHaveText('Request cancelled.');
 	await expect(mine).toHaveText([`Work from home on ${date} · cancelled`]);
 });
+
+test('HR imports device punches from a CSV file', async ({ page, request }) => {
+	const f = await fixture(request, {
+		tenant: {},
+		users: [
+			{ key: 'hr', roles: ['hr_admin'], employee: true },
+			{ key: 'ela', roles: ['employee'], employee: true }
+		]
+	});
+	await signIn(page, f.users.hr.email);
+	await page.goto(`/t/${f.tenant!.slug}/attendance?date=2026-02-02`);
+	const team = page.getByRole('region', { name: 'Team' });
+	const upload = (body: string) =>
+		team
+			.getByLabel(/Device punches/)
+			.setInputFiles({ name: 'device.csv', mimeType: 'text/csv', buffer: Buffer.from(body) });
+	await upload('employee_code,timestamp\nE2E-ELA,2026-02-02 09:00\nE2E-NOBODY,2026-02-02 09:00\n');
+	await team.getByRole('button', { name: 'Import punches' }).click();
+	await expect(page.getByTestId('import-error')).toHaveText(['Line 3: Unknown employee code.']);
+	await upload('employee_code,timestamp\nE2E-ELA,2026-02-02 09:00\nE2E-ELA,2026-02-02 18:00\n');
+	await team.getByRole('button', { name: 'Import punches' }).click();
+	await expect(page.getByRole('status')).toHaveText('2 punches imported, 0 already recorded or repeated.');
+	await page.goto(`/t/${f.tenant!.slug}/attendance?date=2026-02-02`);
+	await expect(team.getByTestId('team-day').filter({ hasText: 'ela' })).toContainText('Present · 09:00–18:00 · 9h 00m');
+});

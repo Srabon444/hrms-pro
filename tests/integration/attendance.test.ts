@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	addManualPunch,
 	attendanceMonth,
+	importPunches,
 	punch,
 	recomputeAttendance,
 	recomputeTenantAttendance,
@@ -296,5 +297,103 @@ describe('attendance', () => {
 			['Peer', 'absent'],
 			['Staff', 'present']
 		]);
+	});
+});
+
+describe('device punch import', () => {
+	const codes = () =>
+		withTenant(sys(), async (tx) =>
+			Object.fromEntries(
+				(await tx.select({ id: employees.id, code: employees.code }).from(employees)).map((e) => [e.id, e.code])
+			)
+		);
+	const run = (key: string, rows: string[][]) =>
+		at('2026-03-25T10:00:00', () => importPunches(who[key], rows)).catch(
+			(e: { code?: string; rows?: { line: number; message: string }[] }) => ({ code: e.code, rows: e.rows })
+		);
+	const count = () => withTenant(sys(), async (tx) => (await tx.select().from(attendancePunches)).length);
+
+	it('adds device punches once and recomputes the days they touch', async () => {
+		const c = await codes();
+		const file = [
+			['Employee_Code', 'timestamp'],
+			[c[ids.staff].toLowerCase(), '2026-03-23 09:00'],
+			[c[ids.staff], '2026-03-23T18:00:30'],
+			[c[ids.staff], '2026-03-23 09:00'],
+			[c[ids.owl], '2026-03-23T22:00:00+06:00'],
+			[c[ids.owl], '2026-03-24 06:00']
+		];
+		expect(await run('hr', file)).toEqual({ added: 4, skipped: 1 });
+		expect(await day(ids.staff, '2026-03-23')).toBe('present:540:0');
+		expect(await day(ids.owl, '2026-03-23')).toBe('present:480:0');
+		const [p] = await withTenant(sys(), (tx) =>
+			tx
+				.select()
+				.from(attendancePunches)
+				.where(and(eq(attendancePunches.employeeId, ids.staff), eq(attendancePunches.source, 'device')))
+				.orderBy(asc(attendancePunches.at))
+				.offset(1)
+		);
+		expect(p.at.toISOString()).toBe('2026-03-23T12:00:30.000Z');
+		expect(await run('hr', file)).toEqual({ added: 0, skipped: 5 });
+		const header = ['employee_code', 'timestamp'];
+		expect(await run('hr', [header, [c[ids.owl], '2026-03-24 22:00']])).toEqual({ added: 1, skipped: 0 });
+		expect(await day(ids.owl, '2026-03-24')).toBe('absent:0:0');
+		expect(await run('hr', [header, [c[ids.owl], '2026-03-25 06:00']])).toEqual({ added: 1, skipped: 0 });
+		expect(await day(ids.owl, '2026-03-24')).toBe('present:480:0');
+	});
+
+	it('imports nothing when any row is wrong', async () => {
+		const c = await codes();
+		const before = await count();
+		expect(await run('hr', [['code', 'when']])).toMatchObject({ code: 'import_failed', rows: [{ line: 1 }] });
+		expect(await run('hr', [['employee_code', 'timestamp', 'device']])).toMatchObject({
+			code: 'import_failed',
+			rows: [{ line: 1 }]
+		});
+		expect(await run('hr', [['employee_code', 'timestamp']])).toMatchObject({
+			code: 'import_failed',
+			rows: [{ line: 2 }]
+		});
+		const bad = await run('hr', [
+			['timestamp', 'employee_code'],
+			['2026-03-24 09:00', c[ids.peer]],
+			['2026-03-24 09:00', 'NOPE-1'],
+			['24/03/2026 09:00', c[ids.peer]],
+			['2026-03-26 09:00', c[ids.peer]],
+			['2026-03-11 09:00', c[ids.fresh]],
+			['2026-03-12 09:00', c[ids.leaver]],
+			['2026-03-24 09:00', c[ids.hr]]
+		]);
+		expect(bad).toEqual({
+			code: 'import_failed',
+			rows: [
+				{ line: 3, message: 'Unknown employee code.' },
+				{ line: 4, message: 'Use a timestamp like 2026-03-10 09:05 or 2026-03-10T09:05:00+06:00.' },
+				{ line: 5, message: 'A punch cannot be in the future.' },
+				{ line: 6, message: "The punch falls outside this person's employment." },
+				{ line: 7, message: "The punch falls outside this person's employment." },
+				{ line: 8, message: 'Someone else has to import your own punches.' }
+			]
+		});
+		expect(
+			await run('boss', [
+				['employee_code', 'timestamp'],
+				[c[ids.staff], '2026-03-24 09:00']
+			])
+		).toMatchObject({
+			code: 'import_failed',
+			rows: [{ line: 2, message: 'Unknown employee code.' }]
+		});
+		expect(await count()).toBe(before);
+		expect(
+			await run('hr', [
+				['employee_code', 'timestamp'],
+				[c[ids.leaver], '2026-03-11 05:00']
+			])
+		).toEqual({
+			added: 1,
+			skipped: 0
+		});
 	});
 });
