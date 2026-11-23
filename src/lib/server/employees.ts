@@ -105,7 +105,8 @@ const TRACKED = {
 	branchId: 'Branch',
 	managerId: 'Manager',
 	employmentType: 'Employment type',
-	status: 'Status'
+	status: 'Status',
+	probationEndDate: 'Probation end'
 } as const;
 
 const manager = alias(employees, 'manager');
@@ -169,7 +170,8 @@ async function labels(tx: Tx, values: Record<string, unknown>): Promise<Record<s
 		branchId: await name(branches, 'branchId'),
 		managerId: await managerLabel(),
 		employmentType: (values.employmentType as string) ?? null,
-		status: (values.status as string) ?? null
+		status: (values.status as string) ?? null,
+		probationEndDate: (values.probationEndDate as string) ?? null
 	};
 }
 

@@ -7,6 +7,7 @@ export const NAV: NavItem[] = [
 	{ href: 'notifications', label: 'Notifications' },
 	{ href: 'approvals', label: 'Approvals' },
 	{ href: 'employees', label: 'Employees', perm: 'employee.read' },
+	{ href: 'lifecycle', label: 'Lifecycle', perm: 'employee.update' },
 	{ href: 'org', label: 'Organisation', perm: 'org.manage' },
 	{ href: 'settings/users', label: 'Users', perm: 'user.manage' },
 	{ href: 'settings/roles', label: 'Roles', perm: 'role.manage' },
