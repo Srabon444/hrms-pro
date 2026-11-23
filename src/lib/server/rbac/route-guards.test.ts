@@ -17,3 +17,13 @@ describe('tenant routes check access in every handler', () => {
 		expect(src.match(guard)?.length ?? 0).toBeGreaterThanOrEqual(handlers);
 	});
 });
+
+describe('browser code never imports server modules', () => {
+	const clientFiles = globSync('src/{routes,lib}/**/*.{svelte,svelte.ts}').concat(
+		globSync('src/routes/**/{+page,+layout}.ts')
+	);
+
+	it.each(clientFiles)('%s', (file) => {
+		expect(readFileSync(file, 'utf8')).not.toMatch(/from\s+['"][^'"]*\/server\//);
+	});
+});
