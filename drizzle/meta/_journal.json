@@ -78,6 +78,13 @@
       "when": 1795431937411,
       "tag": "0010_checklists",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795439145022,
+      "tag": "0011_leave_types",
+      "breakpoints": true
     }
   ]
 }

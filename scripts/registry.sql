@@ -25,6 +25,7 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('employee_education', 'plain', '{id,tenant_id,employee_id,degree,institution,passing_year}'),
 	('employee_experience', 'plain', '{id,tenant_id,employee_id,company,title,start_date,end_date}'),
 	('change_requests', 'plain', '{id,tenant_id,employee_id,requested_by_user_id,status,decided_by_user_id,decided_at,decision_note}'),
+	('leave_types', 'plain', '{id,tenant_id,code,name,paid,quota,accrual,pro_rata,carry_cap,encashable,max_consecutive,min_notice_days,half_day_allowed,gender,during_probation,sandwich,active}'),
 	('checklist_templates', 'plain', '{id,tenant_id,kind,name,active}'),
 	('checklist_template_items', 'plain', '{id,tenant_id,template_id,title,assignee_role,due_offset_days}'),
 	('checklists', 'plain', '{id,tenant_id,employee_id,template_id,kind,name,anchor_date}'),
