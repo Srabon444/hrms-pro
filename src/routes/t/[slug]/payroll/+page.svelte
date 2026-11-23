@@ -16,6 +16,12 @@
 		void: 'Void'
 	};
 	let runType = $state('regular');
+	const exports = [
+		['register', 'Payroll register (CSV)'],
+		['bank', 'Bank salary sheet (CSV)'],
+		['pf', 'Provident fund report (CSV)'],
+		['tax', 'Tax deduction report (CSV)']
+	] as const;
 	const problems = $derived(r ? r.slips.filter((s) => s.error).length : 0);
 </script>
 
@@ -141,6 +147,15 @@
 				{@render act('reopen', 'Reopen')}
 			{/if}
 		</div>
+		<nav class="mt-3 flex flex-wrap gap-3 text-sm" aria-label="Download reports">
+			{#each exports as [kind, label] (kind)}
+				{#if kind !== 'bank' || (b.canApprove && (r.status === 'approved' || r.status === 'paid'))}
+					<a class="text-indigo-700 underline" href={`/t/${data.tenant.slug}/payroll/export?run=${r.id}&kind=${kind}`}>
+						{label}
+					</a>
+				{/if}
+			{/each}
+		</nav>
 		<table class="mt-4 w-full text-left text-sm">
 			<thead class="text-slate-500">
 				<tr>

@@ -712,7 +712,7 @@ const canonical = (slips: SlipShape[]) =>
 
 const asStored = (slips: Slip[]) => canonical(slips.map((s) => ({ ...s, notes: s.skipped })));
 
-async function storedSlips(tx: Tx, runId: string) {
+export async function storedSlips(tx: Tx, runId: string) {
 	const slips = await tx.select().from(payslips).where(eq(payslips.runId, runId));
 	const lines = slips.length
 		? await tx

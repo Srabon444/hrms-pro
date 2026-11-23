@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { roundTaka } from '../../src/lib/payroll';
 import { closePools } from '../../src/lib/server/db';
 import {
+	auditLog,
 	attendanceDays,
 	attendanceRequests,
 	employees,
@@ -43,6 +44,7 @@ import {
 	startRun,
 	voidRun
 } from '../../src/lib/server/payroll';
+import { exportPayroll } from '../../src/lib/server/payroll-exports';
 import { closeQueues, queue } from '../../src/lib/server/queue';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
@@ -1161,5 +1163,119 @@ describe('final settlement', () => {
 			{ id: sam.id, period: '2024-08', name: 'Final settlement', net: sam.net }
 		]);
 		expect((await openPayslipPdf(who.sam, sam.id)).fileName).toBe('final-2024-08.pdf');
+	});
+});
+
+describe('payroll exports', () => {
+	const rows = async (m: Member, runId: string, kind: string) => (await exportPayroll(m, { runId, kind })).rows;
+
+	beforeAll(async () => {
+		tenant = await createTenant('payroll-export');
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await member('po', ['payroll_officer'], null);
+		await member('fin', ['finance'], null);
+		await member('adm', ['hr_admin'], null);
+		await member('cfo', ['finance', 'hr_admin'], null);
+		await db(async (tx) => {
+			for (const c of await tx.select().from(payComponents)) comp[c.code] = c.id;
+		});
+		ids.amy = await hire('Amy', '2024-01-01');
+		ids.ben = await hire('Ben', '2024-01-01');
+		await pay(ids.amy, '2024-01-01', '50000');
+		await pay(ids.ben, '2024-01-01', '20000');
+		await db(async (tx) => {
+			await tx.update(tenantSettings).set({ pfEmployeeRateBp: 1_000, pfEmployerRateBp: 500 });
+			await tx
+				.update(employees)
+				.set({ bankName: 'City Bank', bankAccountName: 'Amy', bankAccountNumber: '=0012345', taxId: '123456789012' })
+				.where(eq(employees.id, ids.amy));
+		});
+		const taxYearId = await startTaxYear(who.adm, { fy: '2024-25' });
+		await confirmTaxYear(who.adm, { taxYearId });
+	});
+
+	it('downloads the register, PF and tax reports, and the bank sheet once finance approves', async () => {
+		const runId = await startRun(who.po, { period: '2024-07' });
+		const [amy, ben] = [await slipOf(runId, ids.amy), await slipOf(runId, ids.ben)];
+		const codes = await db((tx) =>
+			tx.select({ id: employees.id, code: employees.code }).from(employees).orderBy(employees.code)
+		);
+		const [a, b] = [ids.amy, ids.ben].map((id) => codes.find((c) => c.id === id)!.code);
+		expect(a < b).toBe(true);
+		const t = (p: number) => (p / 100).toFixed(2);
+
+		expect(await rows(who.po, runId, 'register')).toEqual([
+			['Code', 'Name', 'Paid days', 'Unpaid days', 'BASIC', 'Gross', 'PF', 'TAX', 'Deductions', 'Net', 'PF_EMPLOYER'],
+			[a, 'Amy', 31, 0, '50000.00', t(amy.gross), '5000.00', t(amy.tax), t(amy.deductions), t(amy.net), '2500.00'],
+			[b, 'Ben', 31, 0, '20000.00', t(ben.gross), '2000.00', '0.00', t(ben.deductions), t(ben.net), '1000.00'],
+			[
+				'Total',
+				'',
+				'',
+				'',
+				'70000.00',
+				t(amy.gross + ben.gross),
+				'7000.00',
+				t(amy.tax),
+				t(amy.deductions + ben.deductions),
+				t(amy.net + ben.net),
+				'3500.00'
+			]
+		]);
+		expect(amy.tax).toBeGreaterThan(0);
+		expect(ben.tax).toBe(0);
+		expect(await rows(who.po, runId, 'pf')).toEqual([
+			['Code', 'Name', 'Employee share', 'Employer share', 'Total'],
+			[a, 'Amy', '5000.00', '2500.00', '7500.00'],
+			[b, 'Ben', '2000.00', '1000.00', '3000.00'],
+			['Total', '', '7000.00', '3500.00', '10500.00']
+		]);
+		expect(await rows(who.fin, runId, 'tax')).toEqual([
+			['Code', 'Name', 'Taxable income', 'Tax deducted'],
+			[a, 'Amy', t(amy.taxable), t(amy.tax)],
+			[b, 'Ben', t(ben.taxable), '0.00'],
+			['Total', '', t(amy.taxable + ben.taxable), t(amy.tax)]
+		]);
+		expect((await rows(who.cfo, runId, 'tax'))[1]).toEqual([a, 'Amy', '123456789012', t(amy.taxable), t(amy.tax)]);
+
+		expect(await code(rows(who.po, runId, 'bank'))).toBe('forbidden');
+		expect(await code(rows(who.fin, runId, 'bank'))).toBe('not_approved');
+		expect(await code(rows(who.adm, runId, 'register'))).toBe('forbidden');
+		expect(await code(rows(who.fin, runId, 'payslips'))).toBe('invalid: Choose a payroll report.');
+		expect(await code(rows(who.fin, 'nope', 'pf'))).toBe('invalid: Choose a payroll run.');
+
+		await approveRun(who.fin, { runId });
+		expect(await exportPayroll(who.fin, { runId, kind: 'bank' })).toEqual({
+			fileName: 'regular-2024-07-bank.csv',
+			rows: [
+				['Code', 'Name', 'Bank', 'Account name', 'Account number', 'Amount'],
+				[a, 'Amy', 'City Bank', 'Amy', '=0012345', t(amy.net)],
+				[b, 'Ben', null, null, null, t(ben.net)],
+				['Total', '', '', '', '', t(amy.net + ben.net)]
+			]
+		});
+		const events = await db((tx) =>
+			tx.select({ event: auditLog.event, rowId: auditLog.rowId }).from(auditLog).where(eq(auditLog.rowId, runId))
+		);
+		expect(
+			events
+				.filter((e) => e.event?.startsWith('payroll.export.'))
+				.map((e) => e.event)
+				.sort()
+		).toEqual([
+			'payroll.export.bank',
+			'payroll.export.pf',
+			'payroll.export.register',
+			'payroll.export.tax',
+			'payroll.export.tax'
+		]);
+
+		await db((tx) => tx.update(payrollRuns).set({ status: 'void' }).where(eq(payrollRuns.id, runId)));
+		expect(await code(rows(who.fin, runId, 'register'))).toBe('not_found');
+
+		ids.cid = await hire('Cid', '2024-08-01');
+		const august = await startRun(who.po, { period: '2024-08' });
+		expect((await slipOf(august, ids.cid)).error).toBeTruthy();
+		expect(await code(rows(who.po, august, 'register'))).toBe('has_errors');
 	});
 });

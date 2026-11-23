@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { mailLink, waitForMail } from '../mailpit';
 import { fixture, signIn } from './fixtures';
@@ -43,6 +44,8 @@ test('payroll computes a month and a festival bonus that finance approves and pa
 	await expect(status(page)).toHaveText('Payroll computed. Review it and send it for approval.');
 	const run = page.getByRole('region', { name: 'Payroll run' });
 	await expect(run.getByRole('heading')).toContainText('Waiting for approval');
+	await expect(run.getByRole('link', { name: 'Payroll register (CSV)' })).toBeVisible();
+	await expect(run.getByRole('link', { name: 'Bank salary sheet (CSV)' })).toHaveCount(0);
 	await expect(run.getByTestId('run-totals')).toContainText('1 payslip(s) · Gross ৳30000.00');
 	await expect(run.getByTestId('payslip-row')).toContainText(/ana .* \(E2E-ANA\)/);
 	await expect(run.getByRole('button', { name: 'Approve payroll' })).toHaveCount(0);
@@ -64,6 +67,13 @@ test('payroll computes a month and a festival bonus that finance approves and pa
 	await expect(status(page)).toHaveText('Payroll marked paid.');
 	await expect(run.getByRole('heading')).toContainText('· Paid');
 	await expect(run.getByRole('button')).toHaveCount(0);
+	const sheet = page.waitForEvent('download');
+	await run.getByRole('link', { name: 'Bank salary sheet (CSV)' }).click();
+	const bankSheet = await sheet;
+	expect(bankSheet.suggestedFilename()).toMatch(/^regular-\d{4}-\d{2}-bank\.csv$/);
+	expect(readFileSync((await bankSheet.path())!, 'utf8')).toContain(
+		'Code,Name,Bank,Account name,Account number,Amount'
+	);
 
 	await expect(page.getByRole('link', { name: 'My payslips' })).toHaveCount(0);
 
