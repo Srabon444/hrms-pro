@@ -1,5 +1,6 @@
 import { and, asc, eq, lte } from 'drizzle-orm';
 import { z } from 'zod';
+import { weekStartOf } from '../domain/workplan/rollover';
 import { now } from './clock';
 import { addDays, dateIn } from './dates';
 import { employeeHistory, employees, memberships, tenantSettings } from './db/schema';
@@ -16,6 +17,16 @@ export const PROBATION_WINDOW_DAYS = 30;
 export async function tenantToday(tx: Tx): Promise<string> {
 	const [s] = await tx.select({ tz: tenantSettings.timezone }).from(tenantSettings);
 	return dateIn(now(), s?.tz ?? 'UTC');
+}
+
+export async function tenantWeeks(tx: Tx) {
+	const [s] = await tx
+		.select({ tz: tenantSettings.timezone, weekend: tenantSettings.weekendDays })
+		.from(tenantSettings);
+	const weekend = s?.weekend ?? [5, 6];
+	const today = dateIn(now(), s?.tz ?? 'UTC');
+	const of = (d: string) => weekStartOf(d, weekend);
+	return { of, today, current: of(today) };
 }
 
 export async function probationDue(tx: Tx, access: Access) {

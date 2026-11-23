@@ -1,10 +1,10 @@
 import { and, asc, eq, ne } from 'drizzle-orm';
 import { z } from 'zod';
-import { rolloverIncomplete, weekStartOf } from '../domain/workplan/rollover';
+import { rolloverIncomplete } from '../domain/workplan/rollover';
 import { addDays } from './dates';
-import { employees, tenantSettings, WORK_PLAN_STATUSES, workPlanItems } from './db/schema';
+import { employees, WORK_PLAN_STATUSES, workPlanItems } from './db/schema';
 import { AppError } from './errors';
-import { tenantToday } from './lifecycle';
+import { tenantWeeks } from './lifecycle';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { withTenant, type Tx } from './tenancy';
@@ -22,21 +22,14 @@ const itemSchema = z.object({
 });
 const notFound = () => new AppError('not_found', 'That item does not exist.', 404);
 
-async function weeks(tx: Tx) {
-	const [s] = await tx.select({ weekend: tenantSettings.weekendDays }).from(tenantSettings);
-	const weekend = s?.weekend ?? [5, 6];
-	const of = (d: string) => weekStartOf(d, weekend);
-	return { of, current: of(await tenantToday(tx)) };
-}
-
 async function startOf(tx: Tx, week: string, message: string) {
-	const w = await weeks(tx);
+	const w = await tenantWeeks(tx);
 	if (w.of(week) !== week) throw new AppError('not_week_start', 'Choose a week.', 400);
 	if (week < w.current) throw new AppError('past_week', message, 409);
 }
 
 export async function workPlan(tx: Tx, access: Access, requested: string | null) {
-	const w = await weeks(tx);
+	const w = await tenantWeeks(tx);
 	const week = requested && weekStart.safeParse(requested).success ? w.of(requested) : w.current;
 	const scope = await scopeOf(tx, access);
 	const items = await tx

@@ -2,9 +2,9 @@ import { and, asc, count, desc, eq, inArray, ne, sql, type SQL } from 'drizzle-o
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { weightedScore } from '../domain/performance/score';
-import { activeMemberships } from './approval-chain';
+import { activeMemberships, activeMembershipsOf } from './approval-chain';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
-import { employees, goals, MAX_GOALS, memberships, reviewCycles, reviews } from './db/schema';
+import { employees, goals, MAX_GOALS, reviewCycles, reviews } from './db/schema';
 import { AppError } from './errors';
 import { notify } from './notifications';
 import { can, scopesOf, userCtx, type Access, type requireMember } from './rbac/access';
@@ -75,14 +75,10 @@ export async function createCycle(m: Member, raw: Record<string, string>) {
 		await tx
 			.insert(reviews)
 			.values(ids.map((employeeId) => ({ tenantId: m.tenant.id, cycleId: cycle.id, employeeId })));
-		const members = await tx
-			.select({ id: memberships.id })
-			.from(memberships)
-			.where(and(inArray(memberships.employeeId, ids), eq(memberships.status, 'active')));
 		const mails = await notify(
 			tx,
 			m.tenant.id,
-			members.map((r) => r.id),
+			await activeMembershipsOf(tx, ids),
 			{
 				category: 'performance',
 				title: `Performance review: ${input.name}`,

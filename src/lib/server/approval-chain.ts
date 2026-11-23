@@ -7,6 +7,15 @@ import type { Tx } from './tenancy';
 type Employee = typeof employees.$inferSelect;
 export type ApprovalModule = 'leave' | 'attendance';
 
+export async function activeMembershipsOf(tx: Tx, employeeIds: string[]) {
+	if (!employeeIds.length) return [];
+	const rows = await tx
+		.select({ id: memberships.id })
+		.from(memberships)
+		.where(and(inArray(memberships.employeeId, employeeIds), eq(memberships.status, 'active')));
+	return rows.map((r) => r.id);
+}
+
 export async function activeMemberships(tx: Tx, employeeId: string | null) {
 	if (!employeeId) return [];
 	const rows = await tx
