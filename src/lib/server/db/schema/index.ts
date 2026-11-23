@@ -4,3 +4,4 @@ export * from './leave';
 export * from './attendance';
 export * from './meal';
 export * from './payroll';
+export * from './expense';

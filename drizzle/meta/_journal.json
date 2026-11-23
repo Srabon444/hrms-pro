@@ -176,6 +176,13 @@
       "when": 1795448634449,
       "tag": "0024_salaries",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795449359986,
+      "tag": "0025_expenses",
+      "breakpoints": true
     }
   ]
 }

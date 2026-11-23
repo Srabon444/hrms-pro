@@ -60,7 +60,10 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('pay_components', 'plain', '{id,tenant_id,code,name,kind,calc,taxable,system,active}'),
 	('salary_changes', 'row_only', '{}'),
 	('employee_salaries', 'row_only', '{}'),
-	('employee_salary_lines', 'row_only', '{}')
+	('employee_salary_lines', 'row_only', '{}'),
+	('expense_categories', 'plain', '{id,tenant_id,name,claim_limit,active}'),
+	('expense_claims', 'plain', '{id,tenant_id,employee_id,title,status,total,pay_via,submitted_by_user_id,decided_by_user_id,decided_at,decision_note,paid_at,paid_by_user_id,payroll_run_id}'),
+	('expense_items', 'plain', '{id,tenant_id,claim_id,category_id,spent_on,description,amount,receipt_key,receipt_name,receipt_type,receipt_size}')
 on conflict (table_name) do update set mode = excluded.mode, plain_columns = excluded.plain_columns;
 
 insert into owner_row_tables (table_name, flag) values

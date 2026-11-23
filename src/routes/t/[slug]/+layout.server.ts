@@ -17,7 +17,9 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		tenant: { id: m.tenant.id, slug: m.tenant.slug, name: m.tenant.name },
 		membership: { status: locals.membership!.status },
 		user: { name: m.user.name, email: m.user.email },
-		nav: NAV.filter((item) => !item.perm || can(m.access, item.perm)).map(({ href, label }) => ({ href, label })),
+		nav: NAV.filter((item) => !item.perm || [item.perm].flat().some((p) => can(m.access, p))).map(
+			({ href, label }) => ({ href, label })
+		),
 		unread
 	};
 };

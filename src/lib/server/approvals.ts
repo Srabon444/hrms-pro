@@ -1,5 +1,6 @@
 import { attendanceApprovals } from './attendance-requests';
 import { changeApprovals } from './change-requests';
+import { expenseApprovals } from './expenses';
 import { leaveApprovals } from './leave-requests';
 import { resignationApprovals } from './resignations';
 import { salaryApprovals } from './salaries';
@@ -11,6 +12,7 @@ export type ApprovalItem = { id: string; kind: string; title: string; requestedB
 type ApprovalSource = (tx: Tx, access: Access) => Promise<ApprovalItem[]>;
 
 const SOURCES: ApprovalSource[] = [
+	expenseApprovals,
 	changeApprovals,
 	leaveApprovals,
 	attendanceApprovals,

@@ -1,6 +1,6 @@
 import type { Permission } from './rbac/permissions';
 
-export type NavItem = { href: string; label: string; perm?: Permission };
+export type NavItem = { href: string; label: string; perm?: Permission | Permission[] };
 
 export const NAV: NavItem[] = [
 	{ href: '', label: 'Home' },
@@ -12,6 +12,7 @@ export const NAV: NavItem[] = [
 	{ href: 'meals', label: 'Meals', perm: 'meal.order' },
 	{ href: 'meals/bills', label: 'Meal bills', perm: 'meal.billing' },
 	{ href: 'employees', label: 'Employees', perm: 'employee.read' },
+	{ href: 'expenses', label: 'Expenses', perm: ['expense.submit', 'expense.approve', 'expense.pay'] },
 	{ href: 'payroll/salaries', label: 'Salaries', perm: 'salary.read' },
 	{ href: 'lifecycle', label: 'Lifecycle', perm: 'employee.update' },
 	{ href: 'org', label: 'Organisation', perm: 'org.manage' },
