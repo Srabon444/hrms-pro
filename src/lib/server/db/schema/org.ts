@@ -328,3 +328,39 @@ export const exitInterviews = pgTable(
 		check('exit_interviews_comments_ck', sql`${t.comments} is null or length(${t.comments}) <= 2000`)
 	]
 );
+
+export const CHECKLIST_KINDS = ['onboarding', 'offboarding'] as const;
+
+export const checklistTemplates = pgTable(
+	'checklist_templates',
+	{
+		...tenantBase(),
+		kind: text().notNull(),
+		name: text().notNull(),
+		active: boolean().notNull().default(true)
+	},
+	(t) => [
+		tenantKey('checklist_templates', t),
+		unique('checklist_templates_name_uq').on(t.tenantId, t.kind, t.name),
+		check('checklist_templates_kind_ck', inList(t.kind, CHECKLIST_KINDS)),
+		check('checklist_templates_name_ck', sql`length(${t.name}) between 1 and 120`)
+	]
+);
+
+export const checklistTemplateItems = pgTable(
+	'checklist_template_items',
+	{
+		...tenantBase(),
+		templateId: uuid().notNull(),
+		title: text().notNull(),
+		assigneeRole: text().notNull(),
+		dueOffsetDays: smallint().notNull()
+	},
+	(t) => [
+		tenantKey('checklist_template_items', t),
+		tfk('checklist_template_items_template_fk', t, t.templateId, checklistTemplates, 'cascade'),
+		index('checklist_template_items_template_idx').on(t.tenantId, t.templateId),
+		check('checklist_template_items_title_ck', sql`length(${t.title}) between 1 and 200`),
+		check('checklist_template_items_offset_ck', sql`${t.dueOffsetDays} between -90 and 365`)
+	]
+);
