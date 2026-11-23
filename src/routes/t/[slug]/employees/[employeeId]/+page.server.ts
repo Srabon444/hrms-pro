@@ -9,6 +9,7 @@ import { deleteDocument, listDocuments, uploadDocument } from '#lib/server/docum
 import { employeeChoices, getEmployee, updateEmployee } from '#lib/server/employees.ts';
 import { employeeActionError, formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
+import { adjustLeave, leaveBalances } from '#lib/server/leave.ts';
 import { addListEntry, profileLists, removeListEntry, updateOwnDetails } from '#lib/server/profile.ts';
 import { requireMember, requirePerm, userCtx } from '#lib/server/rbac/access.ts';
 import { noticeTerms, ownResignation, submitResignation, withdrawResignation } from '#lib/server/resignations.ts';
@@ -34,6 +35,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				m.access.employeeId === record.employee.id
 					? { pending: await ownResignation(tx, m.access, record.employee.id), terms: await noticeTerms(tx) }
 					: null,
+			leave: await leaveBalances(tx, m.access, record.employee),
 			checklists: await employeeChecklists(tx, m.access, record.employee),
 			roleNames: await roleNames(tx),
 			documentCategories: DOCUMENT_CATEGORIES
@@ -92,6 +94,15 @@ export const actions: Actions = {
 			return profileError(err, locals.requestId);
 		}
 		return { rehired: true };
+	},
+	adjustLeave: async ({ request, locals, params }) => {
+		const m = requirePerm(locals, 'leave.manage');
+		try {
+			await adjustLeave(m, params.employeeId, formFields(await request.formData()));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { leaveAdjusted: true };
 	},
 	task: async ({ request, locals }) => {
 		const m = requireMember(locals);

@@ -4,7 +4,7 @@ import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { EXIT_REASONS, exitInterviews } from './db/schema';
 import { text } from './employees';
 import { AppError } from './errors';
-import { lockEmployee } from './exits';
+import { lockEmployee } from './employees';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope } from './rbac/scope';
 import { withTenant, type Tx } from './tenancy';

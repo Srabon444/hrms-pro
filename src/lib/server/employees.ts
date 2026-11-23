@@ -17,6 +17,7 @@ import {
 } from './db/schema';
 import { FK_VIOLATION, pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { startChecklists } from './checklists';
+import { accrue } from './leave';
 import { AppError } from './errors';
 import { advisoryLock, LOCK } from './locks';
 import { notify, sendAll } from './notifications';
@@ -123,6 +124,14 @@ function friendly(err: unknown): never {
 
 const hasSensitive = (form: EmployeeForm) => SENSITIVE_KEYS.some((k) => k in form);
 
+export async function lockEmployee(tx: Tx, access: Access, employeeId: string) {
+	const id = z.uuid().safeParse(employeeId);
+	const [e] = id.success ? await tx.select().from(employees).where(eq(employees.id, id.data)).for('update') : [];
+	if (!e || !inScope(await resolveScope(tx, access, 'employee.read'), e.id))
+		throw new AppError('not_found', 'That employee does not exist.', 404);
+	return e;
+}
+
 async function nextCode(tx: Tx, tenantId: string): Promise<string> {
 	const [{ value }] = await tx
 		.insert(counters)
@@ -192,6 +201,7 @@ async function insertEmployee(tx: Tx, tenantId: string, access: Access, form: Em
 	if (hasSensitive(form) && !inScope(await resolveScope(tx, access, 'employee.sensitive.update'), row.id))
 		throw new AppError('sensitive_denied', 'You cannot set identity or bank details.', 403);
 	if (input.status === 'onboarding') await startChecklists(tx, tenantId, row.id, 'onboarding', input.joinDate);
+	await accrue(tx, tenantId, [row.id]);
 	return row.id;
 }
 

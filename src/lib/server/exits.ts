@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { dropOffboarding, moveOffboarding, startChecklists } from './checklists';
+import { accrue } from './leave';
 import { now } from './clock';
 import { authPool } from './db';
 import {
@@ -14,7 +15,7 @@ import {
 	tenants,
 	tenantSettings
 } from './db/schema';
-import { text } from './employees';
+import { lockEmployee, text } from './employees';
 import { AppError } from './errors';
 import { tenantToday } from './lifecycle';
 import { log } from './log';
@@ -28,15 +29,7 @@ import type { Mail } from './mail';
 type Member = ReturnType<typeof requireMember>;
 type Employee = typeof employees.$inferSelect;
 
-const notFound = () => new AppError('not_found', 'That employee does not exist.', 404);
 const label = (e: { fullName: string; code: string }) => `${e.fullName} (${e.code})`;
-
-export async function lockEmployee(tx: Tx, access: Access, employeeId: string): Promise<Employee> {
-	const id = z.uuid().safeParse(employeeId);
-	const [e] = id.success ? await tx.select().from(employees).where(eq(employees.id, id.data)).for('update') : [];
-	if (!e || !inScope(await resolveScope(tx, access, 'employee.read'), e.id)) throw notFound();
-	return e;
-}
 
 export async function hrMemberships(tx: Tx): Promise<string[]> {
 	const rows = await tx
@@ -236,6 +229,7 @@ export async function rehire(m: Member, employeeId: string, raw: Record<string, 
 			})
 			.where(eq(employees.id, e.id));
 		await startChecklists(tx, m.tenant.id, e.id, 'onboarding', joinDate);
+		await accrue(tx, m.tenant.id, [e.id]);
 		await tx.insert(employeeHistory).values({
 			tenantId: m.tenant.id,
 			employeeId: e.id,

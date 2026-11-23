@@ -353,6 +353,43 @@
 	</section>
 {/if}
 
+{#if data.leave}
+	{@const lv = data.leave}
+	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Leave balance">
+		<h2 class="font-semibold text-slate-900">
+			Leave balance <span class="text-sm font-normal text-slate-500">FY {lv.fy}</span>
+		</h2>
+		{#if form && 'leaveAdjusted' in form}<Alert tone="info" message="Leave balance adjusted." />{/if}
+		<dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+			{#each lv.rows as b (b.id)}
+				<div class="flex justify-between gap-3 rounded-md bg-slate-50 px-3 py-2" data-testid="leave-balance">
+					<dt class="text-slate-600">{b.name}</dt>
+					<dd class="font-medium text-slate-900">{b.unlimited ? 'no limit' : `${b.balance} days`}</dd>
+				</div>
+			{/each}
+		</dl>
+		{#if lv.canAdjust}
+			<form method="POST" action="?/adjustLeave" class="mt-4 grid gap-3 sm:grid-cols-3">
+				<label class="text-sm text-slate-700">
+					Leave type
+					<select name="leaveTypeId" required class="{field} mt-1 block w-full">
+						{#each lv.rows.filter((b) => !b.unlimited) as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
+					</select>
+				</label>
+				<label class="text-sm text-slate-700">
+					Days to add (negative to remove)
+					<input name="days" type="number" step="0.5" min="-366" max="366" required class="{field} mt-1 block w-full" />
+				</label>
+				<label class="text-sm text-slate-700">
+					Reason
+					<input name="note" required maxlength={500} class="{field} mt-1 block w-full" />
+				</label>
+				<div class="sm:col-span-3"><Button type="submit" variant="secondary">Adjust balance</Button></div>
+			</form>
+		{/if}
+	</section>
+{/if}
+
 {#if data.checklists.length}
 	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Checklists">
 		<h2 class="font-semibold text-slate-900">Checklists</h2>

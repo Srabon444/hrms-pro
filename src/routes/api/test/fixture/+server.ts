@@ -7,6 +7,7 @@ import { createUser } from '#lib/server/auth/users.ts';
 import { config } from '#lib/server/config.ts';
 import { authPool } from '#lib/server/db/index.ts';
 import { employees, memberships, tenantSettings, tenants, users } from '#lib/server/db/schema/index.ts';
+import { accrue } from '#lib/server/leave.ts';
 import { addMember, seedTenant } from '#lib/server/platform/tenants.ts';
 import { systemCtx, withTenant } from '#lib/server/tenancy/index.ts';
 import type { RequestHandler } from './$types';
@@ -77,6 +78,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					})
 					.returning({ id: employees.id });
 				employeeId = e.id;
+				await accrue(tx, tenantId, [e.id]);
 				await tx.update(memberships).set({ employeeId }).where(eq(memberships.id, membershipId));
 			});
 		}
