@@ -71,6 +71,14 @@
 			max={3650}
 			value={s.retentionAuditDays}
 		/>
+		<Field
+			label="Overtime cap per working day (minutes)"
+			name="overtimeDailyCapMinutes"
+			type="number"
+			min={15}
+			max={720}
+			value={s.overtimeDailyCapMinutes}
+		/>
 	</div>
 	<div class="space-y-2">
 		<label class="flex items-center gap-2 text-sm">

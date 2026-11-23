@@ -112,3 +112,50 @@ export const attendanceDays = pgTable(
 		)
 	]
 );
+
+export const ATTENDANCE_REQUEST_KINDS = ['regularization', 'wfh', 'overtime'] as const;
+
+export const attendanceRequests = pgTable(
+	'attendance_requests',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		kind: text().notNull(),
+		date: date({ mode: 'string' }).notNull(),
+		punchAt: tstz(),
+		minutes: smallint(),
+		approvedMinutes: smallint(),
+		reason: text().notNull(),
+		status: text().notNull().default('pending'),
+		requestedByUserId: uuid().notNull(),
+		decidedByUserId: uuid(),
+		decidedAt: tstz(),
+		decisionNote: text()
+	},
+	(t) => [
+		tenantKey('attendance_requests', t),
+		tfk('attendance_requests_employee_fk', t, t.employeeId, employees, 'restrict'),
+		index('attendance_requests_employee_ix').on(t.tenantId, t.employeeId, t.date),
+		index('attendance_requests_status_ix').on(t.tenantId, t.status),
+		uniqueIndex('attendance_requests_day_uq')
+			.on(t.tenantId, t.employeeId, t.kind, t.date)
+			.where(sql`${t.kind} in ('wfh','overtime') and ${t.status} in ('pending','approved')`),
+		uniqueIndex('attendance_requests_punch_uq')
+			.on(t.tenantId, t.employeeId, t.punchAt)
+			.where(sql`${t.kind} = 'regularization' and ${t.status} in ('pending','approved')`),
+		check('attendance_requests_kind_ck', sql`${t.kind} in ('regularization','wfh','overtime')`),
+		check('attendance_requests_status_ck', sql`${t.status} in ('pending','approved','rejected','cancelled')`),
+		check(
+			'attendance_requests_shape_ck',
+			sql`(${t.kind} = 'regularization') = (${t.punchAt} is not null) and (${t.kind} = 'overtime') = (${t.minutes} is not null) and (${t.approvedMinutes} is null or ${t.kind} = 'overtime')`
+		),
+		check(
+			'attendance_requests_minutes_ck',
+			sql`(${t.minutes} is null or ${t.minutes} between 15 and 1440) and (${t.approvedMinutes} is null or ${t.approvedMinutes} between 15 and ${t.minutes})`
+		),
+		check(
+			'attendance_requests_notes_ck',
+			sql`length(trim(${t.reason})) between 1 and 500 and coalesce(length(${t.decisionNote}), 0) <= 500`
+		)
+	]
+);

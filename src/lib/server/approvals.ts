@@ -1,3 +1,4 @@
+import { attendanceApprovals } from './attendance-requests';
 import { changeApprovals } from './change-requests';
 import { leaveApprovals } from './leave-requests';
 import { resignationApprovals } from './resignations';
@@ -8,7 +9,7 @@ export type ApprovalItem = { id: string; kind: string; title: string; requestedB
 
 type ApprovalSource = (tx: Tx, access: Access) => Promise<ApprovalItem[]>;
 
-const SOURCES: ApprovalSource[] = [changeApprovals, leaveApprovals, resignationApprovals];
+const SOURCES: ApprovalSource[] = [changeApprovals, leaveApprovals, attendanceApprovals, resignationApprovals];
 
 export async function pendingApprovals(tx: Tx, access: Access): Promise<ApprovalItem[]> {
 	const lists = await Promise.all(SOURCES.map((source) => source(tx, access)));

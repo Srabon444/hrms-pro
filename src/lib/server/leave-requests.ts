@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { recomputeAttendance } from './attendance';
 import { addDays } from './dates';
@@ -11,13 +11,11 @@ import {
 	leaveRequestDays,
 	leaveRequests,
 	leaveTypes,
-	membershipRoles,
-	memberships,
-	rolePermissions,
 	tenantSettings
 } from './db/schema';
 import { AppError } from './errors';
 import { lockEmployee } from './employees';
+import { activeMemberships, approvers, deciderWhere, rightsOver, singleAdmin } from './approval-chain';
 import { appliesTo, balanceRows, fiscalStartMonth } from './leave';
 import { dayValue, fiscalYearOf, fiscalYearRange, leaveDays, type Calendar, type Session } from './leave-days';
 import { tenantToday } from './lifecycle';
@@ -28,7 +26,6 @@ import { withTenant, type Tx } from './tenancy';
 import type { ApprovalItem } from './approvals';
 
 type Member = ReturnType<typeof requireMember>;
-type Employee = typeof employees.$inferSelect;
 type Request = typeof leaveRequests.$inferSelect;
 
 const ACTIVE = ['pending', 'approved'];
@@ -54,65 +51,6 @@ const byYear = (days: { fiscalYear: number; session: string }[]) => {
 	for (const d of days) out.set(d.fiscalYear, (out.get(d.fiscalYear) ?? 0) + dayValue(d as { session: Session }));
 	return [...out];
 };
-
-async function activeMemberships(tx: Tx, employeeId: string | null) {
-	if (!employeeId) return [];
-	const rows = await tx
-		.select({ id: memberships.id })
-		.from(memberships)
-		.where(and(eq(memberships.employeeId, employeeId), eq(memberships.status, 'active')));
-	return rows.map((r) => r.id);
-}
-
-async function headOf(tx: Tx, e: Pick<Employee, 'departmentId'>) {
-	if (!e.departmentId) return null;
-	const [d] = await tx
-		.select({ head: departments.headEmployeeId })
-		.from(departments)
-		.where(eq(departments.id, e.departmentId));
-	return d?.head ?? null;
-}
-
-async function approvers(tx: Tx, e: Employee): Promise<string[]> {
-	const manager = await activeMemberships(tx, e.managerId);
-	if (manager.length) return manager;
-	const head = await headOf(tx, e);
-	const heads = head === e.id ? [] : await activeMemberships(tx, head);
-	if (heads.length) return heads;
-	const rows = await tx
-		.selectDistinct({ id: memberships.id })
-		.from(membershipRoles)
-		.innerJoin(memberships, eq(memberships.id, membershipRoles.membershipId))
-		.innerJoin(rolePermissions, eq(rolePermissions.roleId, membershipRoles.roleId))
-		.where(
-			and(
-				inArray(rolePermissions.permission, ['leave.approve', 'leave.manage']),
-				eq(rolePermissions.scope, 'all'),
-				eq(memberships.status, 'active'),
-				or(isNull(memberships.employeeId), ne(memberships.employeeId, e.id))
-			)
-		);
-	return rows.map((r) => r.id);
-}
-
-const singleAdmin = async (tx: Tx) =>
-	!!(await tx.select({ on: tenantSettings.allowSingleAdminApproval }).from(tenantSettings))[0]?.on;
-
-async function rightsOver(tx: Tx, access: Access, e: Employee) {
-	const me = access.employeeId;
-	const own = me === e.id;
-	const [approve, manage, read] = await Promise.all(
-		(['leave.approve', 'leave.manage', 'leave.read'] as const).map((p) => resolveScope(tx, access, p))
-	);
-	const decider =
-		inScope(approve, e.id) || inScope(manage, e.id) || (!!me && (e.managerId === me || (await headOf(tx, e)) === me));
-	return {
-		own,
-		canDecide: decider && (!own || (await singleAdmin(tx))),
-		canCancel: own || inScope(manage, e.id),
-		canView: decider || inScope(read, e.id)
-	};
-}
 
 const requestSchema = z
 	.object({
@@ -216,7 +154,7 @@ export async function requestLeave(m: Member, raw: Record<string, string>) {
 		return notify(
 			tx,
 			m.tenant.id,
-			await approvers(tx, e),
+			await approvers(tx, e, 'leave'),
 			{
 				category: 'approvals',
 				title: `${e.fullName} asked for ${t.name}`,
@@ -236,7 +174,7 @@ async function load(tx: Tx, access: Access, requestId: string, lock: boolean) {
 	const [r] = lock ? await q.for('update') : await q;
 	if (!r) return null;
 	const [e] = await tx.select().from(employees).where(eq(employees.id, r.employeeId));
-	const rights = await rightsOver(tx, access, e);
+	const rights = await rightsOver(tx, access, e, 'leave');
 	return rights.canView ? { r, e, rights } : null;
 }
 
@@ -475,11 +413,8 @@ export async function whoIsOut(tx: Tx, access: Access, from: string, to: string)
 }
 
 export async function leaveApprovals(tx: Tx, access: Access): Promise<ApprovalItem[]> {
-	const [approve, manage] = await Promise.all([
-		resolveScope(tx, access, 'leave.approve'),
-		resolveScope(tx, access, 'leave.manage')
-	]);
 	const me = access.employeeId;
+	const where = await deciderWhere(tx, access, 'leave');
 	const rows = await tx
 		.select({
 			id: leaveRequests.id,
@@ -493,16 +428,7 @@ export async function leaveApprovals(tx: Tx, access: Access): Promise<ApprovalIt
 		.innerJoin(employees, eq(employees.id, leaveRequests.employeeId))
 		.innerJoin(leaveTypes, eq(leaveTypes.id, leaveRequests.leaveTypeId))
 		.leftJoin(departments, eq(departments.id, employees.departmentId))
-		.where(
-			and(
-				eq(leaveRequests.status, 'pending'),
-				or(
-					scopeWhere(approve, employees.id),
-					scopeWhere(manage, employees.id),
-					me ? or(eq(employees.managerId, me), eq(departments.headEmployeeId, me)) : undefined
-				)
-			)
-		)
+		.where(and(eq(leaveRequests.status, 'pending'), where))
 		.orderBy(asc(leaveRequests.createdAt))
 		.limit(200);
 	const single = rows.some((r) => r.employeeId === me) && (await singleAdmin(tx));

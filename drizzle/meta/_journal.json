@@ -120,6 +120,13 @@
       "when": 1795442203521,
       "tag": "0016_attendance",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795443199308,
+      "tag": "0017_attendance_requests",
+      "breakpoints": true
     }
   ]
 }

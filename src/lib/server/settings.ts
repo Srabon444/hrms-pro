@@ -29,7 +29,12 @@ export const settingsSchema = z.object({
 		.int()
 		.min(0, 'Notice period must be 0 to 365 days.')
 		.max(365, 'Notice period must be 0 to 365 days.'),
-	retentionAuditDays: days(365, 'Keep audit history for 365 to 3650 days.')
+	retentionAuditDays: days(365, 'Keep audit history for 365 to 3650 days.'),
+	overtimeDailyCapMinutes: z.coerce
+		.number()
+		.int()
+		.min(15, 'Daily overtime cap must be 15 to 720 minutes.')
+		.max(720, 'Daily overtime cap must be 15 to 720 minutes.')
 });
 
 export type SettingsInput = z.input<typeof settingsSchema>;

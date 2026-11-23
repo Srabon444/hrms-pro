@@ -5,6 +5,7 @@
 
 	let { data, form }: PageProps = $props();
 	const field = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	let kind = $state('regularization');
 	const tz = $derived(data.now?.timeZone ?? data.month?.timeZone ?? 'UTC');
 	const time = (d: Date | null) =>
 		d
@@ -47,6 +48,8 @@
 	<Alert message={form?.message} />
 	{#if form && 'punched' in form}<Alert tone="info" message="Punch recorded." />{/if}
 	{#if form && 'added' in form}<Alert tone="info" message="Punch added." />{/if}
+	{#if form && 'requested' in form}<Alert tone="info" message="Request sent." />{/if}
+	{#if form && 'cancelledRequest' in form}<Alert tone="info" message="Request cancelled." />{/if}
 </div>
 
 {#if data.now}
@@ -78,6 +81,61 @@
 			<form method="POST" action="?/punch" class="mt-4">
 				<Button type="submit">{n.punches.length % 2 ? 'Punch out' : 'Punch in'}</Button>
 			</form>
+		{/if}
+	</section>
+{/if}
+
+{#if data.canPunch}
+	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Ask for a change">
+		<h2 class="font-semibold text-slate-900">Ask for a change</h2>
+		<form method="POST" action="?/request" class="mt-3 grid gap-3 sm:grid-cols-2">
+			<label class="text-sm text-slate-700">
+				Request
+				<select name="kind" bind:value={kind} class={field}>
+					<option value="regularization">Missed punch</option>
+					<option value="wfh">Work from home</option>
+					<option value="overtime">Overtime</option>
+				</select>
+			</label>
+			{#if kind === 'regularization'}
+				<label class="text-sm text-slate-700">
+					When you were in or out
+					<input name="at" type="datetime-local" required class={field} />
+				</label>
+			{:else}
+				<label class="text-sm text-slate-700">
+					Day
+					<input name="date" type="date" required max={kind === 'overtime' ? data.today : undefined} class={field} />
+				</label>
+			{/if}
+			{#if kind === 'overtime'}
+				<label class="text-sm text-slate-700">
+					Minutes
+					<input name="minutes" type="number" min={15} max={1440} step={15} required class={field} />
+				</label>
+			{/if}
+			<label class="text-sm text-slate-700 sm:col-span-2">
+				Reason
+				<textarea name="reason" required maxlength={500} class={field}></textarea>
+			</label>
+			<div><Button type="submit">Send request</Button></div>
+		</form>
+		{#if data.requests.length}
+			<ul class="mt-4 divide-y divide-slate-100 text-sm">
+				{#each data.requests as r (r.id)}
+					<li class="flex items-center gap-3 py-2">
+						<span class="flex-1 text-slate-800" data-testid="attendance-request">
+							{r.title} · {r.status}{r.approvedMinutes !== null ? ` · ${r.approvedMinutes} min approved` : ''}
+						</span>
+						{#if r.cancellable}
+							<form method="POST" action="?/cancelRequest">
+								<input type="hidden" name="requestId" value={r.id} />
+								<Button type="submit" variant="secondary" aria-label="Cancel {r.title}">Cancel</Button>
+							</form>
+						{/if}
+					</li>
+				{/each}
+			</ul>
 		{/if}
 	</section>
 {/if}

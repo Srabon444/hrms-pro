@@ -71,3 +71,51 @@ test('an employee punches in and their manager sees it on the team view', async 
 	await expect(team.getByRole('button', { name: 'Add punch' })).toHaveCount(0);
 	await ctx.close();
 });
+
+const workday = (offset: number) => {
+	const d = new Date(Date.now() + offset * 86_400_000);
+	while ([5, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
+	return d.toISOString().slice(0, 10);
+};
+
+test('an employee asks to work from home, the manager approves and the employee cancels', async ({
+	page,
+	browser,
+	request
+}) => {
+	const f = await fixture(request, {
+		tenant: {},
+		users: [
+			{ key: 'boss', roles: ['line_manager'], employee: true },
+			{ key: 'ela', roles: ['employee'], employee: true, manager: 'boss' }
+		]
+	});
+	const slug = f.tenant!.slug;
+	const date = workday(7);
+	await signIn(page, f.users.ela.email);
+	await page.goto(`/t/${slug}/attendance`);
+	const ask = page.getByRole('region', { name: 'Ask for a change' });
+	await ask.getByRole('combobox').selectOption({ label: 'Work from home' });
+	await ask.getByLabel('Day', { exact: true }).fill(date);
+	await ask.getByLabel('Reason').fill('Plumber visit');
+	await ask.getByRole('button', { name: 'Send request' }).click();
+	await expect(page.getByRole('status')).toHaveText('Request sent.');
+	const mine = ask.getByTestId('attendance-request');
+	await expect(mine).toHaveText([`Work from home on ${date} · pending`]);
+
+	const ctx = await browser.newContext();
+	const boss = await ctx.newPage();
+	await signIn(boss, f.users.boss.email);
+	await boss.goto(`/t/${slug}/approvals`);
+	await boss.getByRole('link', { name: new RegExp(`Work from home on ${date}`) }).click();
+	await expect(boss.getByRole('heading', { level: 1 })).toHaveText(/Work from home for ela/);
+	await boss.getByRole('button', { name: 'Approve' }).click();
+	await expect(boss.getByRole('status')).toHaveText('Decision saved.');
+	await ctx.close();
+
+	await page.reload();
+	await expect(mine).toHaveText([`Work from home on ${date} · approved`]);
+	await page.getByRole('button', { name: `Cancel Work from home on ${date}` }).click();
+	await expect(page.getByRole('status')).toHaveText('Request cancelled.');
+	await expect(mine).toHaveText([`Work from home on ${date} · cancelled`]);
+});

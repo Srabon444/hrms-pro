@@ -7,6 +7,7 @@ import { authPool } from './db';
 import {
 	attendanceDays,
 	attendancePunches,
+	attendanceRequests,
 	employees,
 	holidays,
 	leaveRequestDays,
@@ -26,7 +27,7 @@ import type { Shift } from './shifts';
 type Member = ReturnType<typeof requireMember>;
 type DayRow = typeof attendanceDays.$inferInsert;
 
-async function calendar(tx: Tx) {
+export async function calendar(tx: Tx) {
 	const [s] = await tx
 		.select({ tz: tenantSettings.timezone, weekendDays: tenantSettings.weekendDays })
 		.from(tenantSettings);
@@ -90,6 +91,22 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 				)
 		).map((l) => [`${l.employeeId}:${l.date}`, l.session as 'full' | 'am' | 'pm'])
 	);
+	const wfh = new Set(
+		(
+			await tx
+				.select({ employeeId: attendanceRequests.employeeId, date: attendanceRequests.date })
+				.from(attendanceRequests)
+				.where(
+					and(
+						inArray(attendanceRequests.employeeId, ids),
+						eq(attendanceRequests.kind, 'wfh'),
+						eq(attendanceRequests.status, 'approved'),
+						gte(attendanceRequests.date, from),
+						lte(attendanceRequests.date, last)
+					)
+				)
+		).map((w) => `${w.employeeId}:${w.date}`)
+	);
 	const punches = await tx
 		.select({ employeeId: attendancePunches.employeeId, at: attendancePunches.at })
 		.from(attendancePunches)
@@ -120,7 +137,7 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 							weekend: weekendDays.includes(new Date(`${date}T00:00:00Z`).getUTCDay()),
 							holiday: off.has(date),
 							leave: leave.get(`${p.id}:${date}`) ?? null,
-							wfh: false,
+							wfh: wfh.has(`${p.id}:${date}`),
 							now: at
 						})
 					: null;
@@ -152,7 +169,7 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 		);
 }
 
-async function shiftOn(tx: Tx, employeeId: string, date: string) {
+export async function shiftOn(tx: Tx, employeeId: string, date: string) {
 	const [a] = await tx
 		.select({ shift: shifts })
 		.from(shiftAssignments)

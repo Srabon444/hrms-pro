@@ -21,7 +21,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			allowSingleAdminApproval: s.allowSingleAdminApproval,
 			exEmployeeAccessDays: s.exEmployeeAccessDays,
 			noticePeriodDays: s.noticePeriodDays,
-			retentionAuditDays: s.retentionAuditDays
+			retentionAuditDays: s.retentionAuditDays,
+			overtimeDailyCapMinutes: s.overtimeDailyCapMinutes
 		},
 		timezones: Intl.supportedValuesOf('timeZone'),
 		isOwner: m.access.isOwner
@@ -44,7 +45,8 @@ export const actions: Actions = {
 				allowSingleAdminApproval: field(form, 'allowSingleAdminApproval'),
 				exEmployeeAccessDays: field(form, 'exEmployeeAccessDays'),
 				noticePeriodDays: field(form, 'noticePeriodDays'),
-				retentionAuditDays: field(form, 'retentionAuditDays')
+				retentionAuditDays: field(form, 'retentionAuditDays'),
+				overtimeDailyCapMinutes: field(form, 'overtimeDailyCapMinutes')
 			});
 		} catch (err) {
 			if (err instanceof z.ZodError) return fail(400, { message: err.issues[0].message });

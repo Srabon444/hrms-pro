@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import { z } from 'zod';
+import { cancelAttendanceRequest, myAttendanceRequests, requestAttendance } from '#lib/server/attendance-requests.ts';
 import { addManualPunch, attendanceMonth, punch, teamDay, todayPunches } from '#lib/server/attendance.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
@@ -24,7 +25,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			month: m.access.employeeId
 				? await attendanceMonth(tx, m.access, m.access.employeeId, url.searchParams.get('month') ?? undefined)
 				: null,
-			team: seesTeam ? await teamDay(tx, m.access, date) : null
+			team: seesTeam ? await teamDay(tx, m.access, date) : null,
+			requests: await myAttendanceRequests(tx, m.access)
 		};
 	});
 };
@@ -49,5 +51,24 @@ export const actions: Actions = {
 			return actionError(err, locals.requestId);
 		}
 		return { added: true };
+	},
+	request: async ({ request, locals }) => {
+		const m = requirePerm(locals, 'attendance.punch');
+		try {
+			await requestAttendance(m, formFields(await request.formData()));
+		} catch (err) {
+			if (err instanceof z.ZodError) return fail(400, { message: err.issues[0].message });
+			return actionError(err, locals.requestId);
+		}
+		return { requested: true };
+	},
+	cancelRequest: async ({ request, locals }) => {
+		const m = requirePerm(locals, 'attendance.read');
+		try {
+			await cancelAttendanceRequest(m, field(await request.formData(), 'requestId'));
+		} catch (err) {
+			return actionError(err, locals.requestId);
+		}
+		return { cancelledRequest: true };
 	}
 };
