@@ -37,6 +37,7 @@ test('HR invites a recruiter who joins, then changes their roles and the member 
 	const row = page.getByRole('row', { name: /Rita Recruiter/ });
 	await expect(row).toContainText('Recruiter');
 	await row.getByRole('link', { name: 'Rita Recruiter' }).click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Rita Recruiter');
 	await page.getByLabel('Recruiter').uncheck();
 	await page.getByLabel('HR Officer').check();
 	await page.getByRole('button', { name: 'Save roles' }).click();
