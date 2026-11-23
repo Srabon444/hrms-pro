@@ -75,6 +75,23 @@
 			required
 			value={s.pfEmployerRate}
 		/>
+		<Field
+			label="Festival bonus (% of basic)"
+			name="bonusRate"
+			inputmode="decimal"
+			pattern={pct}
+			required
+			value={s.bonusRate}
+		/>
+		<Field
+			label="Months of service before a festival bonus"
+			name="bonusMinServiceMonths"
+			type="number"
+			min={0}
+			max={120}
+			required
+			value={s.bonusMinServiceMonths}
+		/>
 	</div>
 	<Button type="submit">Save payroll settings</Button>
 </form>

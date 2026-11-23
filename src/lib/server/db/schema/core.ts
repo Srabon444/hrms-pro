@@ -204,7 +204,9 @@ export const tenantSettings = pgTable(
 		pfEmployeeRateBp: smallint().notNull().default(0),
 		pfEmployerRateBp: smallint().notNull().default(0),
 		overtimeRateBp: integer().notNull().default(0),
-		overtimeMonthlyHours: smallint().notNull().default(208)
+		overtimeMonthlyHours: smallint().notNull().default(208),
+		bonusRateBp: integer().notNull().default(10_000),
+		bonusMinServiceMonths: smallint().notNull().default(0)
 	},
 	(t) => [
 		tenantKey('tenant_settings', t),
@@ -227,7 +229,11 @@ export const tenantSettings = pgTable(
 			'tenant_settings_ot_pay_ck',
 			sql`${t.overtimeRateBp} between 0 and 50000 and ${t.overtimeMonthlyHours} between 1 and 744`
 		),
-		check('tenant_settings_late_count_ck', sql`${t.latePolicyCount} between 0 and 31`)
+		check('tenant_settings_late_count_ck', sql`${t.latePolicyCount} between 0 and 31`),
+		check(
+			'tenant_settings_bonus_ck',
+			sql`${t.bonusRateBp} between 0 and 50000 and ${t.bonusMinServiceMonths} between 0 and 120`
+		)
 	]
 );
 

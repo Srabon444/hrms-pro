@@ -14,6 +14,7 @@
 		paid: 'Paid',
 		void: 'Void'
 	};
+	let runType = $state('regular');
 	const problems = $derived(r ? r.slips.filter((s) => s.error).length : 0);
 </script>
 
@@ -39,6 +40,19 @@
 			Month
 			<input name="period" type="month" required max={b.thisMonth} value={b.thisMonth} class={`${input} block`} />
 		</label>
+		<label class="text-slate-700">
+			What to pay
+			<select name="runType" bind:value={runType} class={`${input} block`}>
+				<option value="regular">Monthly pay</option>
+				<option value="bonus">Festival bonus</option>
+			</select>
+		</label>
+		{#if runType === 'bonus'}
+			<label class="text-slate-700">
+				Bonus name
+				<input name="title" required maxlength="60" placeholder="Eid-ul-Fitr bonus" class={`${input} block`} />
+			</label>
+		{/if}
 		<Button type="submit">Run payroll</Button>
 	</form>
 {/if}
@@ -50,7 +64,7 @@
 				href={`/t/${data.tenant.slug}/payroll?run=${x.id}`}
 				class={x.id === r?.id ? 'font-semibold text-slate-900' : 'text-indigo-700 underline'}
 			>
-				{x.period} · {statusLabel[x.status]}
+				{x.period}{x.title ? ` · ${x.title}` : ''} · {statusLabel[x.status]}
 			</a>
 		{/each}
 	</nav>
@@ -58,7 +72,7 @@
 
 {#if r}
 	<section class="mt-6 max-w-5xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Payroll run">
-		<h2 class="font-semibold text-slate-900">Payroll for {r.period} · {statusLabel[r.status]}</h2>
+		<h2 class="font-semibold text-slate-900">{r.title ?? 'Payroll'} for {r.period} · {statusLabel[r.status]}</h2>
 		<p class="mt-1 text-sm text-slate-600" data-testid="run-totals">
 			{r.slips.length} payslip(s) · Gross ৳{taka(r.totals.gross)} · Deductions ৳{taka(r.totals.deductions)} · Net ৳{taka(
 				r.totals.net

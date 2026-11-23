@@ -2,10 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { mailLink, waitForMail } from '../mailpit';
 import { fixture, signIn } from './fixtures';
 
-test('payroll computes a month, waits for confirmed tax rules, and finance approves and pays it', async ({
-	page,
-	request
-}) => {
+test('payroll computes a month and a festival bonus that finance approves and pays', async ({ page, request }) => {
 	const f = await fixture(request, {
 		tenant: {},
 		users: [
@@ -82,4 +79,27 @@ test('payroll computes a month, waits for confirmed tax rules, and finance appro
 	const download = page.waitForEvent('download');
 	await slip.getByRole('link', { name: `Download PDF of ${period}` }).click();
 	expect((await download).suggestedFilename()).toBe(`payslip-${period}.pdf`);
+
+	await as('po', 'payroll');
+	await page.getByLabel('What to pay').selectOption('bonus');
+	await page.getByLabel('Bonus name').fill('Eid-ul-Adha bonus');
+	await page.getByRole('button', { name: 'Run payroll' }).click();
+	await expect(status(page)).toHaveText('Payroll computed. Review it and send it for approval.');
+	await expect(run.getByRole('heading')).toHaveText(`Eid-ul-Adha bonus for ${period} · Waiting for approval`);
+	await expect(run.getByTestId('run-totals')).toContainText('1 payslip(s) · Gross ৳30000.00 · Deductions ৳0.00');
+	await as('fin', 'approvals');
+	await page.getByRole('link', { name: `Eid-ul-Adha bonus for ${period}` }).click();
+	await page.getByRole('button', { name: 'Approve payroll' }).click();
+	await expect(status(page)).toHaveText('Payroll approved.');
+	await page.getByRole('button', { name: 'Mark paid' }).click();
+	await expect(status(page)).toHaveText('Payroll marked paid.');
+
+	await waitForMail(f.users.ana.email, 20_000, `Your Eid-ul-Adha bonus payslip for ${period}`);
+	await as('ana', 'payslips');
+	await expect(slip).toHaveCount(2);
+	const bonus = slip.filter({ hasText: 'Eid-ul-Adha bonus' });
+	await expect(bonus).toContainText(`${period} · Eid-ul-Adha bonus · Net ৳30000.00`);
+	const bonusPdf = page.waitForEvent('download');
+	await bonus.getByRole('link', { name: `Download PDF of ${period} Eid-ul-Adha bonus` }).click();
+	expect((await bonusPdf).suggestedFilename()).toBe(`bonus-${period}.pdf`);
 });

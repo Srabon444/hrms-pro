@@ -274,7 +274,7 @@ describe('payroll runs', () => {
 		expect([mail.to, mail.subject]).toEqual([emails.ana, `Your payslip for ${P}`]);
 		expect(mail.text).toContain(`/t/${tenant.slug}/payslips`);
 		expect(mail.text).not.toContain('৳');
-		expect(await myPayslips(who.ana)).toEqual([{ id: ana.id, period: P, runType: 'regular', net: 4_500_000 }]);
+		expect(await myPayslips(who.ana)).toEqual([{ id: ana.id, period: P, title: null, net: 4_500_000 }]);
 		expect(await myPayslips(who.fin)).toEqual([]);
 		const pdf = await openPayslipPdf(who.ana, ana.id);
 		expect([pdf.fileName, Buffer.from(pdf.body).toString('latin1').slice(0, 5)]).toEqual([`payslip-${P}.pdf`, '%PDF-']);
@@ -684,5 +684,139 @@ describe('payroll inputs', () => {
 		});
 		expect([dee.paidDays, dee.unpaidDays, dee.taxable]).toEqual([20, 3.5, taxable]);
 		await approveRun(who.fin, { runId: august });
+	});
+});
+
+describe('bonus runs', () => {
+	const FY = '2024-25';
+
+	beforeAll(async () => {
+		tenant = await createTenant('payroll-bonus');
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await member('po', ['payroll_officer'], null);
+		await member('fin', ['finance'], null);
+		await member('adm', ['hr_admin'], null);
+		await db(async (tx) => {
+			for (const c of await tx.select().from(payComponents)) comp[c.code] = c.id;
+		});
+		ids.ivy = await hire('Ivy', '2024-01-01');
+		ids.jon = await hire('Jon', '2024-03-15');
+		ids.kai = await hire('Kai', '2024-02-29');
+		ids.kim = await hire('Kim', '2024-01-01');
+		ids.lee = await hire('Lee', '2024-01-01');
+		ids.max = await hire('Max', '2024-01-01');
+		ids.ned = await hire('Ned', '2024-09-01');
+		await member('ivy', ['employee'], ids.ivy);
+		await pay(ids.ivy, '2024-01-01', '200000');
+		await pay(ids.ivy, '2024-08-31', '300000', { [`c_${comp.HOUSE_RENT}`]: '10' });
+		for (const k of ['kim', 'lee']) await pay(ids[k], '2024-01-01', '20000');
+		await pay(ids.jon, '2024-03-15', '20000');
+		await pay(ids.kai, '2024-02-29', '20000');
+		await pay(ids.ned, '2024-09-01', '20000');
+		await pay(ids.kai, '2024-09-01', '90000');
+		await db(async (tx) => {
+			await tx.update(employees).set({ exitDate: '2024-08-30' }).where(eq(employees.id, ids.kim));
+			await tx.update(tenantSettings).set({ bonusRateBp: 5_000, bonusMinServiceMonths: 6 });
+			const [final] = await tx
+				.insert(payrollRuns)
+				.values({
+					tenantId: tenant.id,
+					runType: 'final',
+					period: '2024-08',
+					status: 'approved',
+					inputsHash: '',
+					outputHash: '',
+					computedByUserId: who.po.user.userId,
+					computedAt: new Date()
+				})
+				.returning({ id: payrollRuns.id });
+			await tx.insert(payslips).values({
+				tenantId: tenant.id,
+				runId: final.id,
+				employeeId: ids.lee,
+				paidDays: 0,
+				unpaidDays: 0,
+				gross: 0,
+				deductions: 0,
+				rounding: 0,
+				net: 0,
+				taxable: 0,
+				tax: 0
+			});
+		});
+		const taxYearId = await startTaxYear(who.adm, { fy: FY });
+		await confirmTaxYear(who.adm, { taxYearId });
+	});
+
+	it('pays a percent of basic to people with enough service and withholds its tax in later months', async () => {
+		expect(await code(startRun(who.po, { period: '2024-08', runType: 'bonus', title: '  ' }))).toBe(
+			'invalid: Name the bonus, like Eid-ul-Fitr bonus.'
+		);
+		expect(await code(startRun(who.po, { period: '2024-08', runType: 'bonus', title: 'Eid\nbonus' }))).toBe(
+			'invalid: The bonus name cannot have line breaks.'
+		);
+		expect(await code(startRun(who.po, { period: '2024-08', runType: 'final', title: 'x' }))).toBe(
+			'invalid: Choose what to pay.'
+		);
+		const regular = await startRun(who.po, { period: '2024-08', title: 'ignored' });
+		const eid = await startRun(who.po, { period: '2024-08', runType: 'bonus', title: ' Eid-ul-Adha bonus ' });
+		const other = await startRun(who.po, { period: '2024-08', runType: 'bonus', title: 'Puja bonus' });
+		const [run] = await db((tx) => tx.select().from(payrollRuns).where(eq(payrollRuns.id, eid)));
+		expect([run.runType, run.title]).toEqual(['bonus', 'Eid-ul-Adha bonus']);
+		expect((await db((tx) => tx.select().from(payrollRuns).where(eq(payrollRuns.id, regular))))[0].title).toBeNull();
+
+		const slips = await db((tx) => tx.select().from(payslips).where(eq(payslips.runId, eid)));
+		expect(slips.map((s) => s.employeeId).sort()).toEqual([ids.ivy, ids.kai, ids.max].sort());
+		expect((await slipOf(eid, ids.max)).error).toBe('No approved salary on 2024-08-31.');
+		expect(await code(approveRun(who.fin, { runId: eid }))).toBe('has_errors');
+
+		await pay(ids.max, '2024-01-01', '10001');
+		await recomputeRun(who.po, { runId: eid });
+		const ivy = await slipOf(eid, ids.ivy);
+		expect(ivy.amounts).toEqual({ BONUS: 15_000_000 });
+		expect([ivy.gross, ivy.taxable, ivy.tax, ivy.net, ivy.deductions, ivy.error]).toEqual([
+			15_000_000,
+			15_000_000,
+			0,
+			15_000_000,
+			0,
+			null
+		]);
+		const max = await slipOf(eid, ids.max);
+		expect([max.amounts, max.net, max.rounding]).toEqual([{ BONUS: 500_050 }, 500_100, 50]);
+		expect((await slipOf(eid, ids.kai)).amounts).toEqual({ BONUS: 1_000_000 });
+		const [line] = await db((tx) => tx.select().from(payslipLines).where(eq(payslipLines.payslipId, ivy.id)));
+		expect([line.name, line.kind, line.taxable]).toEqual(['Eid-ul-Adha bonus', 'earning', true]);
+
+		await db((tx) => tx.update(tenantSettings).set({ bonusRateBp: 6_000 }));
+		expect(await code(approveRun(who.fin, { runId: eid }))).toBe('inputs_changed');
+		await db((tx) => tx.update(tenantSettings).set({ bonusRateBp: 5_000 }));
+		await approveRun(who.fin, { runId: eid });
+		await payRun(who.fin, { runId: eid });
+		expect(
+			(await withTenant(systemCtx(tenant.id), (tx) => payrollApprovals(tx, who.fin.access))).map((a) => a.title).sort()
+		).toEqual(['Payroll for 2024-08', 'Puja bonus for 2024-08']);
+		await db((tx) => tx.update(tenantSettings).set({ bonusRateBp: 0 }));
+		const zero = await startRun(who.po, { period: '2024-08', runType: 'bonus', title: 'Zero bonus' });
+		expect(await db((tx) => tx.select().from(payslips).where(eq(payslips.runId, zero)))).toEqual([]);
+		await voidRun(who.po, { runId: zero });
+		await voidRun(who.po, { runId: other });
+		await voidRun(who.po, { runId: regular });
+
+		const mail = (await queue('mail').getJob(`payslip-mail-${ivy.id}`))!.data;
+		expect([mail.to, mail.subject]).toEqual([emails.ivy, 'Your Eid-ul-Adha bonus payslip for 2024-08']);
+		expect(await myPayslips(who.ivy)).toEqual([
+			{ id: ivy.id, period: '2024-08', title: 'Eid-ul-Adha bonus', net: 15_000_000 }
+		]);
+		const pdf = await openPayslipPdf(who.ivy, ivy.id);
+		expect(pdf.fileName).toBe('bonus-2024-08.pdf');
+
+		const sep = await startRun(who.po, { period: '2024-09' });
+		const sepIvy = await slipOf(sep, ids.ivy);
+		const rule = (await db((tx) => taxRule(tx, FY, 'general')))!;
+		expect(sepIvy.taxable).toBeGreaterThanOrEqual(30_000_000);
+		const tax = Math.round(annualTax(15_000_000 + sepIvy.taxable * 10, 0, rule) / 10);
+		expect(tax).toBeGreaterThan(Math.round(annualTax(sepIvy.taxable * 10, 0, rule) / 10));
+		expect(sepIvy.amounts.TAX).toBe(tax);
 	});
 });

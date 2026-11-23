@@ -92,7 +92,13 @@ export const payrollSettingsSchema = z.object({
 		.number()
 		.int('Enter whole hours.')
 		.min(1, 'Hours in a month must be 1 to 744.')
-		.max(744, 'Hours in a month must be 1 to 744.')
+		.max(744, 'Hours in a month must be 1 to 744.'),
+	bonusRateBp: percent(50000, 'The festival bonus is 0 to 500% of basic, up to 2 decimals.'),
+	bonusMinServiceMonths: z.coerce
+		.number()
+		.int('Enter whole months.')
+		.min(0, 'Months of service for a bonus must be 0 to 120.')
+		.max(120, 'Months of service for a bonus must be 0 to 120.')
 });
 
 export async function savePayrollSettings(ctx: TenantCtx, raw: Record<string, string>) {

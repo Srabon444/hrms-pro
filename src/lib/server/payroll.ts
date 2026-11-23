@@ -2,7 +2,15 @@ import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
-import { computePay, type PayLine, type PayResult, type Segment } from '../payroll';
+import {
+	computeBonus,
+	computePay,
+	failed,
+	serviceMonths,
+	type PayLine,
+	type PayResult,
+	type Segment
+} from '../payroll';
 import { fiscalMonths, fiscalYearOf, type TaxCategory } from '../tax';
 import type { ApprovalItem } from './approvals';
 import { singleAdmin } from './approval-chain';
@@ -44,9 +52,23 @@ import { scopesOf, userCtx, type Access, type requireMember } from './rbac/acces
 import { withTenant, type Tx } from './tenancy';
 
 type Member = ReturnType<typeof requireMember>;
-type Run = { id: string; period: string };
+type Run = { id: string; period: string; runType: string; title: string | null };
 
 const periodSchema = z.object({ period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Choose a month.') });
+const startSchema = periodSchema
+	.extend({
+		runType: z.enum(['regular', 'bonus'], 'Choose what to pay.').default('regular'),
+		title: z
+			.string()
+			.trim()
+			.max(60, 'The bonus name is up to 60 characters.')
+			.regex(/^[^\p{Cc}]*$/u, 'The bonus name cannot have line breaks.')
+			.default('')
+	})
+	.refine((v) => v.runType !== 'bonus' || v.title, {
+		message: 'Name the bonus, like Eid-ul-Fitr bonus.',
+		path: ['title']
+	});
 const runSchema = z.object({ runId: z.uuid({ error: 'Choose a payroll run.' }) });
 
 const LINE_NAMES: Record<string, string> = {
@@ -65,6 +87,61 @@ function payrollCtx(m: Member, perm: 'payroll.run' | 'payroll.approve') {
 const notFound = () => new AppError('not_found', 'That payroll run does not exist.', 404);
 const sha = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
+const finalsIn = (tx: Tx, period: string) =>
+	tx
+		.select({ id: payslips.employeeId })
+		.from(payslips)
+		.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
+		.where(and(eq(payrollRuns.runType, 'final'), ne(payrollRuns.status, 'void'), eq(payrollRuns.period, period)));
+
+const among = (ids: string[]) => (col: PgColumn) => (ids.length ? inArray(col, ids) : sql`false`);
+
+export async function loadBonusInputs(tx: Tx, run: Run) {
+	const { to } = periodRange(run.period);
+	const [settings] = await tx
+		.select({ rateBp: tenantSettings.bonusRateBp, minMonths: tenantSettings.bonusMinServiceMonths })
+		.from(tenantSettings);
+	const people = await tx
+		.select({ id: employees.id, join: employees.joinDate })
+		.from(employees)
+		.where(
+			and(
+				lte(employees.joinDate, to),
+				or(isNull(employees.exitDate), gte(employees.exitDate, to)),
+				notInArray(employees.id, finalsIn(tx, run.period))
+			)
+		)
+		.orderBy(asc(employees.id));
+	const basics = await tx
+		.select({ employeeId: employeeSalaries.employeeId, amount: employeeSalaryLines.amount })
+		.from(employeeSalaries)
+		.innerJoin(employeeSalaryLines, eq(employeeSalaryLines.salaryId, employeeSalaries.id))
+		.innerJoin(payComponents, eq(payComponents.id, employeeSalaryLines.componentId))
+		.where(
+			and(
+				among(people.map((p) => p.id))(employeeSalaries.employeeId),
+				eq(payComponents.code, 'BASIC'),
+				lte(employeeSalaries.effectiveFrom, to),
+				or(isNull(employeeSalaries.effectiveTo), gte(employeeSalaries.effectiveTo, to))
+			)
+		)
+		.orderBy(asc(employeeSalaries.employeeId), desc(employeeSalaries.effectiveFrom));
+	return { period: run.period, to, fy: fiscalYearOf(to), title: run.title ?? '', settings, people, basics };
+}
+
+export function computeBonusRun(inputs: Awaited<ReturnType<typeof loadBonusInputs>>) {
+	return inputs.people
+		.filter((p) => serviceMonths(p.join, inputs.to) >= inputs.settings.minMonths)
+		.map((p) => {
+			const basic = inputs.basics.find((b) => b.employeeId === p.id);
+			const result = basic
+				? computeBonus(basic.amount, inputs.settings.rateBp, inputs.title)
+				: failed(`No approved salary on ${inputs.to}.`);
+			return { employeeId: p.id, ...result };
+		})
+		.filter((s) => s.error || s.gross);
+}
+
 export async function loadPayrollInputs(tx: Tx, run: Run) {
 	const { from, to } = periodRange(run.period);
 	const fy = fiscalYearOf(from);
@@ -81,11 +158,6 @@ export async function loadPayrollInputs(tx: Tx, run: Run) {
 			overtimeMonthlyHours: tenantSettings.overtimeMonthlyHours
 		})
 		.from(tenantSettings);
-	const finals = tx
-		.select({ id: payslips.employeeId })
-		.from(payslips)
-		.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
-		.where(and(eq(payrollRuns.runType, 'final'), ne(payrollRuns.status, 'void'), eq(payrollRuns.period, run.period)));
 	const people = await tx
 		.select({
 			id: employees.id,
@@ -98,12 +170,11 @@ export async function loadPayrollInputs(tx: Tx, run: Run) {
 			and(
 				lte(employees.joinDate, to),
 				or(isNull(employees.exitDate), gte(employees.exitDate, from)),
-				notInArray(employees.id, finals)
+				notInArray(employees.id, finalsIn(tx, run.period))
 			)
 		)
 		.orderBy(asc(employees.id));
-	const ids = people.map((p) => p.id);
-	const mine = (col: PgColumn) => (ids.length ? inArray(col, ids) : sql`false`);
+	const mine = among(people.map((p) => p.id));
 	const salaries = await tx
 		.select({
 			id: employeeSalaries.id,
@@ -444,9 +515,17 @@ async function storedSlips(tx: Tx, runId: string) {
 	}));
 }
 
-async function computeInto(tx: Tx, m: Member, run: Run) {
+async function compute(tx: Tx, run: Run) {
+	if (run.runType === 'bonus') {
+		const inputs = await loadBonusInputs(tx, run);
+		return { inputs, slips: computeBonusRun(inputs) };
+	}
 	const inputs = await loadPayrollInputs(tx, run);
-	const slips = computeRun(inputs);
+	return { inputs, slips: computeRun(inputs) };
+}
+
+async function computeInto(tx: Tx, m: Member, run: Run) {
+	const { inputs, slips } = await compute(tx, run);
 	await tx.delete(payslips).where(eq(payslips.runId, run.id));
 	const rows = slips.length
 		? await tx
@@ -494,7 +573,7 @@ async function lockedRun(tx: Tx, m: Member, runId: string) {
 }
 
 export async function startRun(m: Member, form: Record<string, string>) {
-	const { period } = periodSchema.parse(form);
+	const { period, runType, title } = startSchema.parse(form);
 	return withTenant(payrollCtx(m, 'payroll.run'), async (tx) => {
 		await advisoryLock(tx, LOCK.payroll, m.tenant.id);
 		if (period > (await tenantToday(tx)).slice(0, 7))
@@ -503,6 +582,8 @@ export async function startRun(m: Member, form: Record<string, string>) {
 			.insert(payrollRuns)
 			.values({
 				tenantId: m.tenant.id,
+				runType,
+				title: runType === 'bonus' ? title : null,
 				period,
 				inputsHash: '',
 				outputHash: '',
@@ -510,7 +591,12 @@ export async function startRun(m: Member, form: Record<string, string>) {
 				computedAt: new Date()
 			})
 			.onConflictDoNothing()
-			.returning({ id: payrollRuns.id, period: payrollRuns.period });
+			.returning({
+				id: payrollRuns.id,
+				period: payrollRuns.period,
+				runType: payrollRuns.runType,
+				title: payrollRuns.title
+			});
 		if (!run) throw new AppError('exists', `Payroll for ${period} is already started.`, 409);
 		await computeInto(tx, m, run);
 		return run.id;
@@ -543,14 +629,13 @@ export async function approveRun(m: Member, form: Record<string, string>) {
 		if (run.status !== 'computed') throw new AppError('locked', 'That run is not waiting for approval.', 409);
 		if (run.computedByUserId === m.user.userId && !(await singleAdmin(tx)))
 			throw new AppError('own_run', 'Someone other than the person who computed the run must approve it.', 403);
-		const inputs = await loadPayrollInputs(tx, run);
+		const { inputs, slips } = await compute(tx, run);
 		const [year] = await tx
 			.select({ confirmedAt: taxYears.confirmedAt })
 			.from(taxYears)
 			.where(eq(taxYears.fy, inputs.fy));
 		if (!year?.confirmedAt)
 			throw new AppError('tax_unconfirmed', `Confirm the ${inputs.fy} tax rules before approving payroll.`, 409);
-		const slips = computeRun(inputs);
 		if (sha(inputs) !== run.inputsHash)
 			throw new AppError('inputs_changed', 'Payroll inputs changed since this run was computed. Recompute it.', 409);
 		const stored = await storedSlips(tx, run.id);
@@ -597,7 +682,7 @@ export async function reopenRun(m: Member, form: Record<string, string>) {
 
 export async function payRun(m: Member, form: Record<string, string>) {
 	const { runId } = runSchema.parse(form);
-	const { period, recipients } = await withTenant(payrollCtx(m, 'payroll.approve'), async (tx) => {
+	const { period, title, recipients } = await withTenant(payrollCtx(m, 'payroll.approve'), async (tx) => {
 		const run = await lockedRun(tx, m, runId);
 		if (run.status !== 'approved') throw new AppError('locked', 'Only an approved run can be marked paid.', 409);
 		const now = new Date();
@@ -637,7 +722,7 @@ export async function payRun(m: Member, form: Record<string, string>) {
 			.from(payslips)
 			.innerJoin(employees, eq(employees.id, payslips.employeeId))
 			.where(eq(payslips.runId, run.id));
-		return { period: run.period, recipients };
+		return { period: run.period, title: run.title, recipients };
 	});
 	const link = `${config().APP_URL}/t/${m.tenant.slug}/payslips`;
 	await Promise.all(
@@ -647,11 +732,11 @@ export async function payRun(m: Member, form: Record<string, string>) {
 						sendMail(
 							{
 								to: r.email,
-								subject: `Your payslip for ${period}`,
+								subject: `Your ${title ? `${title} ` : ''}payslip for ${period}`,
 								text: [
 									`Hello ${r.name},`,
 									'',
-									`Your payslip for ${period} from ${m.tenant.name} is ready.`,
+									`Your ${title ? `${title} ` : ''}payslip for ${period} from ${m.tenant.name} is ready.`,
 									`Open it here: ${link}`
 								].join('\n')
 							},
@@ -696,7 +781,7 @@ export async function payrollBoard(m: Member, runId?: string) {
 			canReopen: m.access.isOwner && allScope(m.access, 'payroll.approve'),
 			selfApprove: lone,
 			me: m.user.userId,
-			runs: runs.map((r) => ({ id: r.id, period: r.period, runType: r.runType, status: r.status })),
+			runs: runs.map((r) => ({ id: r.id, period: r.period, title: r.title, status: r.status })),
 			run: run && {
 				...run,
 				totals: {
@@ -715,14 +800,14 @@ export async function payrollBoard(m: Member, runId?: string) {
 export async function payrollApprovals(tx: Tx, access: Access): Promise<ApprovalItem[]> {
 	if (!allScope(access, 'payroll.approve')) return [];
 	const rows = await tx
-		.select({ id: payrollRuns.id, period: payrollRuns.period, at: payrollRuns.computedAt })
+		.select({ id: payrollRuns.id, period: payrollRuns.period, title: payrollRuns.title, at: payrollRuns.computedAt })
 		.from(payrollRuns)
 		.where(eq(payrollRuns.status, 'computed'))
 		.orderBy(asc(payrollRuns.computedAt));
 	return rows.map((r) => ({
 		id: r.id,
 		kind: 'Payroll',
-		title: `Payroll for ${r.period}`,
+		title: `${r.title ?? 'Payroll'} for ${r.period}`,
 		requestedBy: 'Payroll',
 		at: r.at,
 		link: `payroll?run=${r.id}`
@@ -735,7 +820,7 @@ const paidSlip = (m: Member) =>
 export async function myPayslips(m: Member) {
 	return withTenant(userCtx(m), (tx) =>
 		tx
-			.select({ id: payslips.id, period: payrollRuns.period, runType: payrollRuns.runType, net: payslips.net })
+			.select({ id: payslips.id, period: payrollRuns.period, title: payrollRuns.title, net: payslips.net })
 			.from(payslips)
 			.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
 			.where(paidSlip(m))
@@ -750,6 +835,7 @@ export async function openPayslipPdf(m: Member, payslipId: string) {
 			? await tx
 					.select({
 						period: payrollRuns.period,
+						title: payrollRuns.title,
 						employee: employees.fullName,
 						code: employees.code,
 						paidDays: payslips.paidDays,
@@ -773,7 +859,7 @@ export async function openPayslipPdf(m: Member, payslipId: string) {
 			.orderBy(asc(payslipLines.seq));
 		const [settings] = await tx.select({ legalName: tenantSettings.legalName }).from(tenantSettings);
 		return {
-			fileName: `payslip-${slip.period}.pdf`,
+			fileName: `${slip.title ? 'bonus' : 'payslip'}-${slip.period}.pdf`,
 			body: await renderPayslipPdf({
 				...slip,
 				company: settings?.legalName ?? m.tenant.name,

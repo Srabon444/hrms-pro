@@ -121,6 +121,7 @@ export const payrollRuns = pgTable(
 	{
 		...tenantBase(),
 		runType: text().notNull().default('regular'),
+		title: text(),
 		period: text().notNull(),
 		status: text().notNull().default('computed'),
 		inputsHash: text().notNull(),
@@ -139,7 +140,11 @@ export const payrollRuns = pgTable(
 			.where(sql`${t.runType} = 'regular' and ${t.status} <> 'void'`),
 		check('payroll_runs_period_ck', sql`${t.period} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
 		check('payroll_runs_type_ck', sql`${t.runType} in ('regular','bonus','arrears','final')`),
-		check('payroll_runs_status_ck', sql`${t.status} in ('computed','approved','paid','void')`)
+		check('payroll_runs_status_ck', sql`${t.status} in ('computed','approved','paid','void')`),
+		check(
+			'payroll_runs_title_ck',
+			sql`(${t.runType} = 'bonus') = (${t.title} is not null) and (${t.title} is null or length(trim(${t.title})) between 1 and 60)`
+		)
 	]
 );
 

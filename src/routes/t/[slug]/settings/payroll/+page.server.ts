@@ -19,7 +19,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			pfEmployeeRate: taka(s.pfEmployeeRateBp),
 			pfEmployerRate: taka(s.pfEmployerRateBp),
 			overtimeRate: taka(s.overtimeRateBp),
-			overtimeMonthlyHours: s.overtimeMonthlyHours
+			overtimeMonthlyHours: s.overtimeMonthlyHours,
+			bonusRate: taka(s.bonusRateBp),
+			bonusMinServiceMonths: s.bonusMinServiceMonths
 		}
 	};
 };
@@ -33,7 +35,8 @@ export const actions: Actions = {
 				...form,
 				pfEmployeeRateBp: form.pfEmployeeRate ?? '',
 				pfEmployerRateBp: form.pfEmployerRate ?? '',
-				overtimeRateBp: form.overtimeRate ?? ''
+				overtimeRateBp: form.overtimeRate ?? '',
+				bonusRateBp: form.bonusRate ?? ''
 			});
 		} catch (err) {
 			if (err instanceof z.ZodError) return fail(400, { message: err.issues[0].message });

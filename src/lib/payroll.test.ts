@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computePay, roundTaka, type PayInput, type Segment } from './payroll';
+import { computeBonus, computePay, roundTaka, serviceMonths, type PayInput, type Segment } from './payroll';
 
 const days = Array.from({ length: 30 }, (_, i) => `2026-11-${String(i + 1).padStart(2, '0')}`);
 const part = (code: string, amount: number) => ({ code, name: code, kind: 'earning' as const, taxable: true, amount });
@@ -156,5 +156,29 @@ describe('computePay', () => {
 
 	it('rounds to the nearest taka', () => {
 		expect([roundTaka(149), roundTaka(150), roundTaka(-149)]).toEqual([100, 200, -100]);
+	});
+});
+
+describe('bonus', () => {
+	it('counts whole months of service up to a date', () => {
+		expect(serviceMonths('2026-01-05', '2026-11-30')).toBe(10);
+		expect(serviceMonths('2026-01-31', '2026-02-28')).toBe(0);
+		expect(serviceMonths('2025-11-30', '2026-11-30')).toBe(12);
+		expect(serviceMonths('2026-12-01', '2026-11-30')).toBe(-1);
+	});
+
+	it('pays a percent of basic as one taxable earning rounded to the taka', () => {
+		const r = computeBonus(3_000_050, 5000, 'Eid bonus');
+		expect(r.lines).toEqual([{ code: 'BONUS', name: 'Eid bonus', kind: 'earning', taxable: true, amount: 1_500_025 }]);
+		expect([r.gross, r.taxable, r.net, r.rounding, r.tax, r.deductions, r.error]).toEqual([
+			1_500_025,
+			1_500_025,
+			1_500_000,
+			-25,
+			0,
+			0,
+			null
+		]);
+		expect(computeBonus(3_000_000, 0, 'Eid bonus')).toMatchObject({ lines: [], gross: 0, net: 0, error: null });
 	});
 });

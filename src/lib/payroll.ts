@@ -63,7 +63,7 @@ const segmentOn = (segments: Segment[], date: string) =>
 const gross = (s: Segment) => s.parts.filter((p) => p.kind === 'earning').reduce((sum, p) => sum + p.amount, 0);
 const basicOf = (s: Segment) => s.parts.find((p) => p.code === 'BASIC')?.amount ?? 0;
 
-const failed = (error: string): PayResult => ({
+export const failed = (error: string): PayResult => ({
 	lines: [],
 	paidDays: 0,
 	unpaidDays: 0,
@@ -179,5 +179,25 @@ export function computePay(input: PayInput): PayResult {
 		claimed,
 		skipped,
 		error: null
+	};
+}
+
+export const serviceMonths = (join: string, on: string) =>
+	(Number(on.slice(0, 4)) - Number(join.slice(0, 4))) * 12 +
+	Number(on.slice(5, 7)) -
+	Number(join.slice(5, 7)) -
+	(on.slice(8) < join.slice(8) ? 1 : 0);
+
+export function computeBonus(basic: number, rateBp: number, name: string): PayResult {
+	const amount = Math.round((basic * rateBp) / 10_000);
+	const net = roundTaka(amount);
+	return {
+		...failed(''),
+		error: null,
+		lines: amount ? [{ code: 'BONUS', name, kind: 'earning', taxable: true, amount }] : [],
+		gross: amount,
+		net,
+		rounding: net - amount,
+		taxable: amount
 	};
 }
