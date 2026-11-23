@@ -236,6 +236,12 @@ begin
 	if not found then
 		raise exception 'invitation_invalid' using errcode = 'P0001';
 	end if;
+	if inv.invited_by_membership_id is not null and not exists (
+		select 1 from public.memberships
+		where id = inv.invited_by_membership_id and tenant_id = inv.tenant_id and status = 'active'
+	) then
+		raise exception 'invitation_invalid' using errcode = 'P0001';
+	end if;
 	select * into usr from public.users where id = p_user_id and status = 'active';
 	if not found or usr.email <> inv.email then
 		raise exception 'invitation_email_mismatch' using errcode = 'P0001';

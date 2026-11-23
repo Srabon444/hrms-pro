@@ -68,6 +68,8 @@ export const SCOPES = ['own', 'team', 'department', 'all'] as const;
 
 export type Scope = (typeof SCOPES)[number];
 
+export const isScopeValue = (value: string): value is Scope => (SCOPES as readonly string[]).includes(value);
+
 export type Grant = readonly [Permission, Scope];
 
 const RESTRICTED_PREFIXES = ['payroll.', 'salary.', 'audit.', 'employee.sensitive.'];
