@@ -71,7 +71,11 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('employee_tax_profiles', 'row_only', '{}'),
 	('payroll_runs', 'plain', '{id,tenant_id,run_type,title,period,settings,employee_id,notice_pay_days,notice_short_days,asset_deduction,status,inputs_hash,output_hash,computed_by_user_id,computed_at,approved_by_user_id,approved_at,paid_by_user_id,paid_at}'),
 	('payslips', 'row_only', '{}'),
-	('payslip_lines', 'row_only', '{}')
+	('payslip_lines', 'row_only', '{}'),
+	('job_openings', 'plain', '{id,tenant_id,title,department_id,designation_id,headcount,status,created_by_user_id}'),
+	('pipeline_stages', 'plain', '{id,tenant_id,opening_id,name,sort_order,kind}'),
+	('candidates', 'plain', '{id,tenant_id,opening_id,stage_id,source,resume_key,resume_type,resume_size,employee_id,created_by_user_id}'),
+	('candidate_stage_history', 'plain', '{id,tenant_id,candidate_id,from_stage_id,to_stage_id,moved_by_user_id}')
 on conflict (table_name) do update set mode = excluded.mode, plain_columns = excluded.plain_columns;
 
 insert into owner_row_tables (table_name, flag) values

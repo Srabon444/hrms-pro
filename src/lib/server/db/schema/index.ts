@@ -7,3 +7,4 @@ export * from './payroll';
 export * from './expense';
 export * from './loan';
 export * from './tax';
+export * from './recruitment';
