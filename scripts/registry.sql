@@ -78,7 +78,10 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('candidate_stage_history', 'plain', '{id,tenant_id,candidate_id,from_stage_id,to_stage_id,moved_by_user_id}'),
 	('interviews', 'plain', '{id,tenant_id,candidate_id,title,scheduled_at,duration_minutes,status,created_by_user_id}'),
 	('interview_feedback', 'plain', '{id,tenant_id,interview_id,membership_id,submitted_at}'),
-	('offers', 'plain', '{id,tenant_id,candidate_id,join_date,expires_on,status,created_by_user_id,decided_at}')
+	('offers', 'plain', '{id,tenant_id,candidate_id,join_date,expires_on,status,created_by_user_id,decided_at}'),
+	('review_cycles', 'plain', '{id,tenant_id,name,period_start,period_end,status,created_by_user_id}'),
+	('reviews', 'plain', '{id,tenant_id,cycle_id,employee_id,stage,shared,self_submitted_at,manager_submitted_at,manager_user_id,finalised_at,finalised_by_user_id}'),
+	('goals', 'plain', '{id,tenant_id,review_id,weight}')
 on conflict (table_name) do update set mode = excluded.mode, plain_columns = excluded.plain_columns;
 
 insert into owner_row_tables (table_name, flag) values

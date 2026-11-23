@@ -260,6 +260,13 @@
       "when": 1795468315069,
       "tag": "0036_candidate_retention_check",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795468974271,
+      "tag": "0037_performance_reviews",
+      "breakpoints": true
     }
   ]
 }
