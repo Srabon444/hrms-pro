@@ -12,11 +12,13 @@ import {
 	uniqueIndex,
 	uuid
 } from 'drizzle-orm/pg-core';
-import { tenantBase, tenantKey, tfk } from './_helpers';
+import { tenantBase, tenantKey, tfk, tstz } from './_helpers';
 import { employees } from './org';
 
 export const LEAVE_ACCRUALS = ['yearly', 'monthly', 'none'] as const;
 export const LEAVE_GENDERS = ['female', 'male'] as const;
+export const LEAVE_SESSIONS = ['full', 'am', 'pm'] as const;
+export const LEAVE_REQUEST_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'] as const;
 export const LEDGER_KINDS = ['accrual', 'taken', 'adjustment', 'carry', 'expiry', 'encash', 'comp_credit'] as const;
 
 const days = () => numeric({ precision: 5, scale: 1, mode: 'number' });
@@ -85,5 +87,67 @@ export const leaveLedger = pgTable(
 		),
 		check('leave_ledger_days_ck', sql`${t.days} <> 0 and abs(${t.days}) <= 366`),
 		check('leave_ledger_note_ck', sql`${t.note} is null or length(${t.note}) <= 500`)
+	]
+);
+
+export const leaveRequests = pgTable(
+	'leave_requests',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		leaveTypeId: uuid().notNull(),
+		startDate: date({ mode: 'string' }).notNull(),
+		endDate: date({ mode: 'string' }).notNull(),
+		session: text().notNull(),
+		days: days().notNull(),
+		reason: text(),
+		status: text().notNull().default('pending'),
+		requestedByUserId: uuid().notNull(),
+		decidedByUserId: uuid(),
+		decidedAt: tstz(),
+		decisionNote: text()
+	},
+	(t) => [
+		tenantKey('leave_requests', t),
+		tfk('leave_requests_employee_fk', t, t.employeeId, employees, 'restrict'),
+		tfk('leave_requests_type_fk', t, t.leaveTypeId, leaveTypes, 'restrict'),
+		index('leave_requests_employee_ix').on(t.tenantId, t.employeeId, t.startDate),
+		index('leave_requests_status_ix').on(t.tenantId, t.status),
+		check('leave_requests_range_ck', sql`${t.endDate} >= ${t.startDate}`),
+		check(
+			'leave_requests_session_ck',
+			sql`${t.session} = 'full' or (${t.session} in ('am','pm') and ${t.startDate} = ${t.endDate})`
+		),
+		check('leave_requests_status_ck', sql`${t.status} in ('pending','approved','rejected','cancelled')`),
+		check('leave_requests_days_ck', sql`${t.days} >= 0 and ${t.days} <= 366`),
+		check(
+			'leave_requests_notes_ck',
+			sql`coalesce(length(${t.reason}), 0) <= 500 and coalesce(length(${t.decisionNote}), 0) <= 500`
+		)
+	]
+);
+
+export const leaveRequestDays = pgTable(
+	'leave_request_days',
+	{
+		...tenantBase(),
+		requestId: uuid().notNull(),
+		employeeId: uuid().notNull(),
+		date: date({ mode: 'string' }).notNull(),
+		session: text().notNull(),
+		fiscalYear: smallint().notNull(),
+		status: text().notNull()
+	},
+	(t) => [
+		tenantKey('leave_request_days', t),
+		tfk('leave_request_days_request_fk', t, t.requestId, leaveRequests, 'cascade'),
+		tfk('leave_request_days_employee_fk', t, t.employeeId, employees, 'restrict'),
+		uniqueIndex('leave_request_days_active_uq')
+			.on(t.tenantId, t.employeeId, t.date, t.session)
+			.where(sql`${t.status} in ('pending','approved')`),
+		index('leave_request_days_date_ix').on(t.tenantId, t.date),
+		index('leave_request_days_request_ix').on(t.tenantId, t.requestId),
+		check('leave_request_days_session_ck', sql`${t.session} in ('full','am','pm')`),
+		check('leave_request_days_status_ck', sql`${t.status} in ('pending','approved','rejected','cancelled')`)
 	]
 );

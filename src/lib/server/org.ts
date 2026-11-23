@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { branches, departments, designations, grades, holidays } from './db/schema';
 import { FK_VIOLATION, pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { AppError } from './errors';
+import { dropHolidayFromLeave } from './leave-requests';
 import { advisoryLock, LOCK } from './locks';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
 
@@ -141,7 +142,10 @@ const holidaySchema = z.object({
 export async function addHoliday(ctx: TenantCtx, raw: { date: string; name: string }): Promise<void> {
 	const input = holidaySchema.parse(raw);
 	try {
-		await withTenant(ctx, (tx) => tx.insert(holidays).values({ tenantId: ctx.tenantId, ...input }));
+		await withTenant(ctx, async (tx) => {
+			await tx.insert(holidays).values({ tenantId: ctx.tenantId, ...input });
+			await dropHolidayFromLeave(tx, input.date);
+		});
 	} catch (err) {
 		if (pgCode(err) === UNIQUE_VIOLATION) throw new AppError('duplicate', 'That date is already a holiday.', 409);
 		throw err;

@@ -1,7 +1,15 @@
 import { and, asc, eq, inArray, ne, sql, sum } from 'drizzle-orm';
 import { z } from 'zod';
 import { authPool } from './db';
-import { employees, leaveLedger, leaveTypes, tenants, tenantSettings } from './db/schema';
+import {
+	employees,
+	leaveLedger,
+	leaveRequestDays,
+	leaveRequests,
+	leaveTypes,
+	tenants,
+	tenantSettings
+} from './db/schema';
 import { AppError } from './errors';
 import { lockEmployee } from './employees';
 import { fiscalYearOf, fiscalYearRange, monthlyCredits, proRataQuota } from './leave-days';
@@ -19,7 +27,7 @@ type LedgerRow = typeof leaveLedger.$inferInsert;
 export const appliesTo = (t: Pick<LeaveType, 'gender'>, e: { gender: string | null }) =>
 	!t.gender || t.gender === e.gender;
 
-async function fiscalStartMonth(tx: Tx) {
+export async function fiscalStartMonth(tx: Tx) {
 	const [s] = await tx.select({ m: tenantSettings.fiscalYearStartMonth }).from(tenantSettings);
 	return s?.m ?? 7;
 }
@@ -117,7 +125,23 @@ export async function balanceRows(tx: Tx, e: { id: string; gender: string | null
 		.from(leaveLedger)
 		.where(and(eq(leaveLedger.employeeId, e.id), eq(leaveLedger.fiscalYear, fy)))
 		.groupBy(leaveLedger.leaveTypeId);
+	const pending = await tx
+		.select({
+			leaveTypeId: leaveRequests.leaveTypeId,
+			days: sql<string>`sum(case when ${leaveRequestDays.session} = 'full' then 1 else 0.5 end)`
+		})
+		.from(leaveRequestDays)
+		.innerJoin(leaveRequests, eq(leaveRequests.id, leaveRequestDays.requestId))
+		.where(
+			and(
+				eq(leaveRequestDays.employeeId, e.id),
+				eq(leaveRequestDays.fiscalYear, fy),
+				eq(leaveRequestDays.status, 'pending')
+			)
+		)
+		.groupBy(leaveRequests.leaveTypeId);
 	const by = new Map(sums.map((s) => [s.leaveTypeId, Number(s.days)]));
+	const held = new Map(pending.map((s) => [s.leaveTypeId, Number(s.days)]));
 	return types
 		.filter((t) => appliesTo(t, e))
 		.map((t) => ({
@@ -125,8 +149,21 @@ export async function balanceRows(tx: Tx, e: { id: string; gender: string | null
 			name: t.name,
 			paid: t.paid,
 			unlimited: t.quota === null && t.accrual === 'none',
-			balance: by.get(t.id) ?? 0
+			balance: by.get(t.id) ?? 0,
+			pending: held.get(t.id) ?? 0,
+			available: (by.get(t.id) ?? 0) - (held.get(t.id) ?? 0)
 		}));
+}
+
+export async function ownBalances(tx: Tx, access: Access) {
+	const fy = fiscalYearOf(await tenantToday(tx), await fiscalStartMonth(tx));
+	const [me] = access.employeeId
+		? await tx
+				.select({ id: employees.id, gender: employees.gender })
+				.from(employees)
+				.where(eq(employees.id, access.employeeId))
+		: [];
+	return { fy, rows: me ? await balanceRows(tx, me, fy) : [] };
 }
 
 export async function leaveBalances(tx: Tx, access: Access, e: { id: string; gender: string | null }) {

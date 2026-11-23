@@ -32,3 +32,68 @@ test('an employee sees their leave balance and HR adjusts it', async ({ page, br
 	await expect(own.getByRole('button', { name: 'Adjust balance' })).toHaveCount(0);
 	await ctx.close();
 });
+
+const workday = (from: number | string, offset = 0) => {
+	const d = new Date(typeof from === 'number' ? Date.now() + from * 86_400_000 : `${from}T00:00:00Z`);
+	d.setUTCDate(d.getUTCDate() + offset);
+	while ([5, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
+	return d.toISOString().slice(0, 10);
+};
+
+test('an employee asks for leave, the manager approves it and the employee cancels it', async ({
+	page,
+	browser,
+	request
+}) => {
+	const f = await fixture(request, {
+		tenant: {},
+		users: [
+			{ key: 'boss', roles: ['line_manager'], employee: true },
+			{ key: 'ela', roles: ['employee'], employee: true, manager: 'boss' }
+		]
+	});
+	const slug = f.tenant!.slug;
+	const start = workday(14);
+	const from = new Date(start).getUTCDay() === 4 ? workday(start, 3) : start;
+	const to = workday(from, 1);
+	await signIn(page, f.users.ela.email);
+	await page.goto(`/t/${slug}`);
+	await page.getByRole('link', { name: 'Leave', exact: true }).click();
+	const form = page.getByRole('region', { name: 'Request leave' });
+	await form.getByLabel('Leave type').selectOption({ label: 'Casual leave' });
+	await form.getByLabel('From', { exact: true }).fill(from);
+	await form.getByLabel('To', { exact: true }).fill(to);
+	await form.getByLabel('Reason').fill('Family visit');
+	await form.getByRole('button', { name: 'Request leave' }).click();
+	await expect(page.getByRole('status')).toHaveText('Leave requested.');
+	const casual = page
+		.getByRole('region', { name: 'My balance' })
+		.getByTestId('leave-balance')
+		.filter({ hasText: 'Casual leave' });
+	await expect(casual).toContainText('8 days left · 2 pending');
+	const mine = page.getByRole('region', { name: 'My requests' }).getByTestId('leave-request');
+	await expect(mine).toHaveText([/Casual leave · .* · 2 days · pending/]);
+
+	const ctx = await browser.newContext();
+	const boss = await ctx.newPage();
+	await signIn(boss, f.users.boss.email);
+	await boss.goto(`/t/${slug}/approvals`);
+	await boss.getByRole('link', { name: /Casual leave, 2 days/ }).click();
+	await expect(boss.getByTestId('leave-days')).toContainText(`2 · ${from}, ${to}`);
+	await boss.getByRole('button', { name: 'Approve' }).click();
+	await expect(boss.getByRole('status')).toHaveText('Decision saved.');
+	await ctx.close();
+
+	await page.reload();
+	await expect(casual).toContainText('8 days left');
+	await expect(casual).not.toContainText('pending');
+	await expect(mine).toHaveText([/2 days · approved/]);
+	await expect(page.getByRole('region', { name: 'Who is out' }).getByTestId('out')).toHaveText([
+		new RegExp(`${from} · .* · Casual leave`),
+		new RegExp(`${to} · .* · Casual leave`)
+	]);
+	await page.getByRole('button', { name: `Cancel Casual leave from ${from}` }).click();
+	await expect(page.getByRole('status')).toHaveText('Leave cancelled.');
+	await expect(casual).toContainText('10 days left');
+	await expect(mine).toHaveText([/2 days · cancelled/]);
+});
