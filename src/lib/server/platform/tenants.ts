@@ -16,6 +16,7 @@ import { AppError } from '../errors';
 import { createInvitation, invitationMail } from '../invitations';
 import { seedLeaveTypes } from '../leave-types';
 import { sendMail } from '../mail';
+import { seedShift } from '../shifts';
 import { systemCtx, withTenant, type Tx } from '../tenancy';
 
 export const tenantInputSchema = z.object({
@@ -31,6 +32,7 @@ export const tenantInputSchema = z.object({
 export async function seedTenant(tx: Tx, tenantId: string): Promise<Record<string, string>> {
 	await tx.insert(tenantSettings).values({ tenantId }).onConflictDoNothing({ target: tenantSettings.tenantId });
 	await seedLeaveTypes(tx, tenantId);
+	await seedShift(tx, tenantId);
 	const created = await tx
 		.insert(roles)
 		.values(

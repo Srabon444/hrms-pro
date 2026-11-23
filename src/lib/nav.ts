@@ -15,6 +15,7 @@ export const NAV: NavItem[] = [
 	{ href: 'settings/roles', label: 'Roles', perm: 'role.manage' },
 	{ href: 'settings/checklists', label: 'Checklists', perm: 'settings.manage' },
 	{ href: 'settings/leave-types', label: 'Leave types', perm: 'leave.manage' },
+	{ href: 'settings/shifts', label: 'Shifts', perm: 'attendance.manage' },
 	{ href: 'settings/audit', label: 'Audit log', perm: 'audit.read' },
 	{ href: 'settings/organisation', label: 'Settings', perm: 'settings.manage' }
 ];

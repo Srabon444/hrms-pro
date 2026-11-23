@@ -390,6 +390,55 @@
 	</section>
 {/if}
 
+{#if data.shift}
+	{@const sh = data.shift}
+	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Shift">
+		<h2 class="font-semibold text-slate-900">Shift</h2>
+		{#if form && 'shiftSaved' in form}<Alert tone="info" message="Shift saved." />{/if}
+		<p class="mt-2 text-sm text-slate-700" data-testid="current-shift">
+			{sh.current
+				? `${sh.current.name} · ${sh.current.startTime.slice(0, 5)}–${sh.current.endTime.slice(0, 5)}`
+				: 'No shift'}
+		</p>
+		{#if sh.history.length}
+			<ul class="mt-3 divide-y divide-slate-100 text-sm">
+				{#each sh.history as a (a.id)}
+					<li class="flex items-center gap-3 py-2" data-testid="shift-assignment">
+						<span class="text-slate-800">From {a.effectiveFrom}: {a.name}</span>
+						{#if sh.canManage}
+							<form method="POST" action="?/removeShift" class="ml-auto">
+								<input type="hidden" name="assignmentId" value={a.id} />
+								<button
+									type="submit"
+									class="text-red-700 hover:underline"
+									aria-label="Remove shift from {a.effectiveFrom}"
+								>
+									Remove
+								</button>
+							</form>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		{#if sh.canManage}
+			<form method="POST" action="?/assignShift" class="mt-4 grid gap-3 sm:grid-cols-3">
+				<label class="text-sm text-slate-700">
+					Shift
+					<select name="shiftId" required class="{field} mt-1 block w-full">
+						{#each sh.choices as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+					</select>
+				</label>
+				<label class="text-sm text-slate-700">
+					Starting
+					<input name="effectiveFrom" type="date" required min={e.joinDate} class="{field} mt-1 block w-full" />
+				</label>
+				<div class="flex items-end"><Button type="submit" variant="secondary">Assign shift</Button></div>
+			</form>
+		{/if}
+	</section>
+{/if}
+
 {#if data.checklists.length}
 	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Checklists">
 		<h2 class="font-semibold text-slate-900">Checklists</h2>

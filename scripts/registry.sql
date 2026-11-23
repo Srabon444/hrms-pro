@@ -29,6 +29,8 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('leave_ledger', 'plain', '{id,tenant_id,employee_id,leave_type_id,fiscal_year,kind,days,period,ref_id,expires_on,created_by_user_id}'),
 	('leave_requests', 'plain', '{id,tenant_id,employee_id,leave_type_id,start_date,end_date,session,days,status,requested_by_user_id,decided_by_user_id,decided_at,decision_note}'),
 	('leave_request_days', 'plain', '{id,tenant_id,request_id,employee_id,date,session,fiscal_year,status}'),
+	('shifts', 'plain', '{id,tenant_id,name,start_time,end_time,grace_minutes,half_day_minutes,full_day_minutes,is_default,active}'),
+	('shift_assignments', 'plain', '{id,tenant_id,employee_id,shift_id,effective_from,created_by_user_id}'),
 	('checklist_templates', 'plain', '{id,tenant_id,kind,name,active}'),
 	('checklist_template_items', 'plain', '{id,tenant_id,template_id,title,assignee_role,due_offset_days}'),
 	('checklists', 'plain', '{id,tenant_id,employee_id,template_id,kind,name,anchor_date}'),
