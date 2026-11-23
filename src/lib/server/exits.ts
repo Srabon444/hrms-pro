@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { dropOffboarding, moveOffboarding, startChecklists } from './checklists';
 import { now } from './clock';
 import { authPool } from './db';
 import {
@@ -155,6 +156,9 @@ export async function applyExit(tx: Tx, m: Member, e: Employee, input: z.infer<t
 	if (e.status === 'exited') throw new AppError('exited', 'This person has already left.', 409);
 	if (input.exitDate < e.joinDate)
 		throw new AppError('before_join', 'The last day cannot be before the join date.', 400);
+	if (e.status === 'notice' && e.exitDate && e.exitDate !== input.exitDate)
+		await moveOffboarding(tx, e.id, e.exitDate, input.exitDate);
+	await startChecklists(tx, m.tenant.id, e.id, 'offboarding', input.exitDate);
 	const today = await tenantToday(tx);
 	const due = input.exitDate <= today;
 	await tx
@@ -192,6 +196,7 @@ export async function withdrawExit(m: Member, employeeId: string) {
 		await assertCanExit(tx, m, e);
 		if (e.status !== 'notice' || !e.exitDate)
 			throw new AppError('no_pending_exit', 'This person has no upcoming exit.', 409);
+		await dropOffboarding(tx, e.id, e.exitDate);
 		await tx
 			.update(employees)
 			.set({ status: 'active', exitDate: null, exitType: null, exitReason: null })
@@ -230,6 +235,7 @@ export async function rehire(m: Member, employeeId: string, raw: Record<string, 
 				confirmationDate: null
 			})
 			.where(eq(employees.id, e.id));
+		await startChecklists(tx, m.tenant.id, e.id, 'onboarding', joinDate);
 		await tx.insert(employeeHistory).values({
 			tenantId: m.tenant.id,
 			employeeId: e.id,

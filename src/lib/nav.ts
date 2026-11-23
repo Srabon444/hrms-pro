@@ -6,6 +6,7 @@ export const NAV: NavItem[] = [
 	{ href: '', label: 'Home' },
 	{ href: 'notifications', label: 'Notifications' },
 	{ href: 'approvals', label: 'Approvals' },
+	{ href: 'tasks', label: 'Tasks' },
 	{ href: 'employees', label: 'Employees', perm: 'employee.read' },
 	{ href: 'lifecycle', label: 'Lifecycle', perm: 'employee.update' },
 	{ href: 'org', label: 'Organisation', perm: 'org.manage' },

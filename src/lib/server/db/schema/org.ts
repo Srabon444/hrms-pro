@@ -364,3 +364,43 @@ export const checklistTemplateItems = pgTable(
 		check('checklist_template_items_offset_ck', sql`${t.dueOffsetDays} between -90 and 365`)
 	]
 );
+
+export const checklists = pgTable(
+	'checklists',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		templateId: uuid().notNull(),
+		kind: text().notNull(),
+		name: text().notNull(),
+		anchorDate: date({ mode: 'string' }).notNull()
+	},
+	(t) => [
+		tenantKey('checklists', t),
+		tfk('checklists_employee_fk', t, t.employeeId, employees, 'restrict'),
+		tfk('checklists_template_fk', t, t.templateId, checklistTemplates, 'restrict'),
+		unique('checklists_once_uq').on(t.tenantId, t.employeeId, t.templateId, t.anchorDate),
+		check('checklists_kind_ck', inList(t.kind, CHECKLIST_KINDS))
+	]
+);
+
+export const checklistItems = pgTable(
+	'checklist_items',
+	{
+		...tenantBase(),
+		checklistId: uuid().notNull(),
+		title: text().notNull(),
+		assigneeRole: text().notNull(),
+		dueDate: date({ mode: 'string' }).notNull(),
+		doneAt: tstz(),
+		doneByUserId: uuid()
+	},
+	(t) => [
+		tenantKey('checklist_items', t),
+		tfk('checklist_items_checklist_fk', t, t.checklistId, checklists, 'cascade'),
+		index('checklist_items_checklist_idx').on(t.tenantId, t.checklistId),
+		index('checklist_items_open_idx')
+			.on(t.tenantId, t.assigneeRole, t.dueDate)
+			.where(sql`${t.doneAt} is null`)
+	]
+);

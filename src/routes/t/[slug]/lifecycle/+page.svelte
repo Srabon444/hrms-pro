@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TaskList from '#lib/components/TaskList.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import type { PageProps } from './$types';
@@ -16,6 +17,7 @@
 	<Alert message={form?.message} />
 	{#if saved === 'confirm'}<Alert tone="info" message="Employment confirmed." />{/if}
 	{#if saved === 'extend'}<Alert tone="info" message="Probation extended." />{/if}
+	{#if form && 'taskSaved' in form}<Alert tone="info" message="Task done." />{/if}
 </div>
 
 <section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Probation due">
@@ -68,4 +70,9 @@
 			<li class="py-2 text-slate-500">Nobody is on notice.</li>
 		{/each}
 	</ul>
+</section>
+
+<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Checklist tasks">
+	<h2 class="font-semibold text-slate-900">Open checklist tasks</h2>
+	<TaskList tasks={data.tasks} slug={data.tenant.slug} roleNames={data.roleNames} action="?/task" />
 </section>

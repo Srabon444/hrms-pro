@@ -353,6 +353,37 @@
 	</section>
 {/if}
 
+{#if data.checklists.length}
+	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Checklists">
+		<h2 class="font-semibold text-slate-900">Checklists</h2>
+		{#if form && 'taskSaved' in form}<Alert tone="info" message="Checklist saved." />{/if}
+		{#each data.checklists as c (c.id)}
+			<h3 class="mt-4 text-sm font-medium text-slate-800">{c.name} · {c.kind} from {c.anchorDate}</h3>
+			<ul class="mt-2 divide-y divide-slate-100 text-sm">
+				{#each c.items as i (i.id)}
+					<li class="flex items-center gap-3 py-2" data-testid="checklist-item">
+						<span class={i.done ? 'text-slate-400 line-through' : 'text-slate-800'}>{i.title}</span>
+						<span class="text-slate-500">{data.roleNames[i.assigneeRole] ?? i.assigneeRole} · due {i.dueDate}</span>
+						{#if i.canComplete}
+							<form method="POST" action="?/task" class="ml-auto">
+								<input type="hidden" name="itemId" value={i.id} />
+								<input type="hidden" name="done" value={String(!i.done)} />
+								<button
+									type="submit"
+									class="text-indigo-700 hover:underline"
+									aria-label="{i.done ? 'Undo' : 'Done'}: {i.title}"
+								>
+									{i.done ? 'Undo' : 'Mark done'}
+								</button>
+							</form>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/each}
+	</section>
+{/if}
+
 {#if data.exit.canRehire}
 	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Rehire">
 		<h2 class="font-semibold text-slate-900">Rehire</h2>

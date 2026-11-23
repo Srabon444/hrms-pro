@@ -1,5 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { z } from 'zod';
+import { employeeChecklists, roleNames, setTaskDone } from '#lib/server/checklists.ts';
 import { cancelChange, CHANGE_LABELS, ownPendingChange, requestChange } from '#lib/server/change-requests.ts';
 import { DOCUMENT_CATEGORIES, EXIT_TYPES } from '#lib/server/db/schema/org.ts';
 import { exitInterviewView, submitExitInterview } from '#lib/server/exit-interviews.ts';
@@ -33,6 +34,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				m.access.employeeId === record.employee.id
 					? { pending: await ownResignation(tx, m.access, record.employee.id), terms: await noticeTerms(tx) }
 					: null,
+			checklists: await employeeChecklists(tx, m.access, record.employee),
+			roleNames: await roleNames(tx),
 			documentCategories: DOCUMENT_CATEGORIES
 		};
 	});
@@ -89,6 +92,16 @@ export const actions: Actions = {
 			return profileError(err, locals.requestId);
 		}
 		return { rehired: true };
+	},
+	task: async ({ request, locals }) => {
+		const m = requireMember(locals);
+		const form = await request.formData();
+		try {
+			await setTaskDone(m, field(form, 'itemId'), field(form, 'done') === 'true');
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { taskSaved: true };
 	},
 	resign: async ({ request, locals, params }) => {
 		const m = requireMember(locals);

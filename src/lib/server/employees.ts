@@ -16,6 +16,7 @@ import {
 	tenantSettings
 } from './db/schema';
 import { FK_VIOLATION, pgCode, UNIQUE_VIOLATION } from './db/errors';
+import { startChecklists } from './checklists';
 import { AppError } from './errors';
 import { advisoryLock, LOCK } from './locks';
 import { notify, sendAll } from './notifications';
@@ -190,6 +191,7 @@ async function insertEmployee(tx: Tx, tenantId: string, access: Access, form: Em
 		throw new AppError('out_of_scope', 'You can only add people within your own scope.', 403);
 	if (hasSensitive(form) && !inScope(await resolveScope(tx, access, 'employee.sensitive.update'), row.id))
 		throw new AppError('sensitive_denied', 'You cannot set identity or bank details.', 403);
+	if (input.status === 'onboarding') await startChecklists(tx, tenantId, row.id, 'onboarding', input.joinDate);
 	return row.id;
 }
 
