@@ -10,3 +10,4 @@ export * from './tax';
 export * from './recruitment';
 export * from './performance';
 export * from './projects';
+export * from './assets';

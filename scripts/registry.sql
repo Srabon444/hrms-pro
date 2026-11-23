@@ -86,7 +86,9 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('projects', 'plain', '{id,tenant_id,code,name,client,status,billable,created_by_user_id}'),
 	('project_members', 'plain', '{id,tenant_id,project_id,employee_id,role,allocation}'),
 	('timesheets', 'plain', '{id,tenant_id,employee_id,week_start,status,submitted_at,decided_by_user_id,decided_at,decision_note}'),
-	('timesheet_entries', 'excluded', '{}')
+	('timesheet_entries', 'excluded', '{}'),
+	('assets', 'plain', '{id,tenant_id,tag,name,category,serial,purchase_date,purchase_cost,status,created_by_user_id}'),
+	('asset_assignments', 'plain', '{id,tenant_id,asset_id,employee_id,assigned_on,condition_out,assigned_by_user_id,returned_on,condition_in,outcome,charge,closed_by_user_id}')
 on conflict (table_name) do update set mode = excluded.mode, plain_columns = excluded.plain_columns;
 
 insert into owner_row_tables (table_name, flag) values

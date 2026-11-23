@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { assetsOut } from './assets';
 import { dropOffboarding, moveOffboarding, startChecklists } from './checklists';
 import { accrue } from './leave';
 import { now } from './clock';
@@ -47,6 +48,13 @@ async function completeExit(
 	e: Employee,
 	actorUserId: string | null
 ): Promise<Mail[]> {
+	const out = await assetsOut(tx, e.id);
+	if (out)
+		throw new AppError(
+			'assets_out',
+			`${e.fullName} still has ${out} asset(s). Take them back or write them off first.`,
+			409
+		);
 	const [membership] = await tx
 		.select({ id: memberships.id, status: memberships.status })
 		.from(memberships)

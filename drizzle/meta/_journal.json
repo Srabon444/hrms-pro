@@ -281,6 +281,13 @@
       "when": 1795470317729,
       "tag": "0039_projects_timesheets",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795472225670,
+      "tag": "0040_assets",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { roundTaka } from '../../src/lib/payroll';
 import { closePools } from '../../src/lib/server/db';
 import {
+	assetAssignments,
+	assets,
 	auditLog,
 	attendanceDays,
 	attendanceRequests,
@@ -1163,6 +1165,25 @@ describe('final settlement', () => {
 			{ id: sam.id, period: '2024-08', name: 'Final settlement', net: sam.net }
 		]);
 		expect((await openPayslipPdf(who.sam, sam.id)).fileName).toBe('final-2024-08.pdf');
+
+		await db(async (tx) => {
+			const [laptop] = await tx
+				.insert(assets)
+				.values({ tenantId: tenant.id, tag: 'LAP-9', name: 'Laptop', category: 'Laptop', status: 'lost' })
+				.returning();
+			const handout = { tenantId: tenant.id, assetId: laptop.id, employeeId: ids.una, conditionOut: 'good' };
+			await tx.insert(assetAssignments).values([
+				{ ...handout, assignedOn: '2023-05-01', returnedOn: '2023-06-01', outcome: 'written_off', charge: 99 },
+				{ ...handout, assignedOn: '2024-02-01', returnedOn: '2024-09-01', outcome: 'written_off', charge: 25_000 }
+			]);
+		});
+		expect((await payrollBoard(who.po)).leavers.map((l) => [l.name, l.charges])).toEqual([['Una', 25_000]]);
+		const charged = await settle(ids.una);
+		const runOf = async (id: string) =>
+			(await db((tx) => tx.select().from(payrollRuns).where(eq(payrollRuns.id, id))))[0].assetDeduction;
+		expect(await runOf(charged)).toBe(25_000);
+		await voidRun(who.po, { runId: charged });
+		expect(await runOf(await settle(ids.una, { assetDeduction: '0' }))).toBe(0);
 	});
 });
 

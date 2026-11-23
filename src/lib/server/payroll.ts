@@ -20,6 +20,7 @@ import { poishaOf } from '../money';
 import { fiscalMonths, fiscalYearOf, type TaxCategory } from '../tax';
 import type { ApprovalItem } from './approvals';
 import { singleAdmin } from './approval-chain';
+import { assetCharges } from './assets';
 import {
 	attendanceDays,
 	attendanceRequests,
@@ -800,6 +801,7 @@ async function lockedRun(tx: Tx, m: Member, runId: string) {
 
 async function startFinal(m: Member, form: Record<string, string>) {
 	const input = finalSchema.parse(form);
+	const useRecordedCharges = !(form.assetDeduction ?? '').trim();
 	return withTenant(payrollCtx(m, 'payroll.run'), async (tx) => {
 		await advisoryLock(tx, LOCK.payroll, m.tenant.id);
 		const [e] = await tx
@@ -830,6 +832,7 @@ async function startFinal(m: Member, form: Record<string, string>) {
 				`${e.name} is in the ${period} payroll waiting for approval. Approve or void it first.`,
 				409
 			);
+		if (useRecordedCharges) input.assetDeduction = await assetCharges(tx, input.employeeId);
 		const [run] = await tx
 			.insert(payrollRuns)
 			.values({
@@ -1094,7 +1097,13 @@ export async function payrollBoard(m: Member, runId?: string) {
 			.where(among(runs.flatMap((r) => r.employeeId ?? []))(employees.id));
 		const leaverOf = (r: { employeeId: string | null }) => names.find((n) => n.id === r.employeeId)?.name ?? null;
 		const leavers = await tx
-			.select({ id: employees.id, name: employees.fullName, code: employees.code, exit: employees.exitDate })
+			.select({
+				id: employees.id,
+				name: employees.fullName,
+				code: employees.code,
+				exit: employees.exitDate,
+				charges: sql<number>`(select coalesce(sum(aa.charge), 0)::int from asset_assignments aa where aa.employee_id = employees.id and aa.returned_on >= employees.join_date)`
+			})
 			.from(employees)
 			.where(
 				and(

@@ -58,7 +58,9 @@
 				<select name="employeeId" required class={`${input} block`}>
 					<option value="">Choose…</option>
 					{#each b.leavers as l (l.id)}
-						<option value={l.id}>{l.name} ({l.code}), leaves {l.exit}</option>
+						<option value={l.id}>
+							{l.name} ({l.code}), leaves {l.exit}{l.charges ? `, asset charges ৳${taka(l.charges)}` : ''}
+						</option>
 					{/each}
 				</select>
 			</label>
@@ -79,12 +81,12 @@
 				/>
 			</label>
 			<label class="text-slate-700">
-				Unreturned assets (৳)
+				Asset deduction (৳, blank uses recorded charges)
 				<input
 					name="assetDeduction"
 					inputmode="decimal"
 					pattern={'\\d{1,7}(\\.\\d{1,2})?'}
-					placeholder="0.00"
+					placeholder="Recorded"
 					class={`${input} block w-32`}
 				/>
 			</label>
