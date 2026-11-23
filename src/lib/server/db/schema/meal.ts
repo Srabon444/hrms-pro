@@ -1,9 +1,11 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, date, integer, pgTable, smallint, text, unique, uuid } from 'drizzle-orm/pg-core';
-import { tenantBase, tenantKey, tfk } from './_helpers';
+import { tenantBase, tenantKey, tfk, tstz } from './_helpers';
+import { employees } from './org';
 
 export const MEAL_MODES = ['opt_out', 'opt_in'] as const;
 export const MEAL_BILLING_MODES = ['payroll', 'direct'] as const;
+export const MEAL_ORDER_STATUSES = ['ordered', 'opted_out', 'auto_off'] as const;
 
 export const mealVendors = pgTable(
 	'meal_vendors',
@@ -53,4 +55,40 @@ export const mealTypePrices = pgTable(
 		check('meal_type_prices_cost_ck', sql`${t.unitCost} between 1 and 1000000`),
 		check('meal_type_prices_subsidy_ck', sql`${t.subsidyPct} between 0 and 100`)
 	]
+);
+
+export const mealOrders = pgTable(
+	'meal_orders',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		date: date({ mode: 'string' }).notNull(),
+		mealTypeId: uuid().notNull(),
+		status: text().notNull(),
+		guestQty: smallint().notNull().default(0),
+		unitCost: integer(),
+		subsidyPct: smallint(),
+		updatedByUserId: uuid()
+	},
+	(t) => [
+		tenantKey('meal_orders', t),
+		tfk('meal_orders_employee_fk', t, t.employeeId, employees, 'restrict'),
+		tfk('meal_orders_type_fk', t, t.mealTypeId, mealTypes, 'restrict'),
+		unique('meal_orders_day_uq').on(t.tenantId, t.employeeId, t.date, t.mealTypeId),
+		check('meal_orders_status_ck', sql`${t.status} in ('ordered','opted_out','auto_off')`),
+		check('meal_orders_guests_ck', sql`${t.guestQty} between 0 and 10`),
+		check('meal_orders_price_ck', sql`(${t.unitCost} is null) = (${t.subsidyPct} is null)`)
+	]
+);
+
+export const mealDays = pgTable(
+	'meal_days',
+	{
+		...tenantBase(),
+		date: date({ mode: 'string' }).notNull(),
+		locked: boolean().notNull().default(false),
+		lockedAt: tstz(),
+		lockedByUserId: uuid()
+	},
+	(t) => [tenantKey('meal_days', t), unique('meal_days_date_uq').on(t.tenantId, t.date)]
 );

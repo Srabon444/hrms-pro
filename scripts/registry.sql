@@ -45,6 +45,8 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('meal_vendors', 'plain', '{id,tenant_id,name,contact,active}'),
 	('meal_types', 'plain', '{id,tenant_id,name,vendor_id,active}'),
 	('meal_type_prices', 'plain', '{id,tenant_id,meal_type_id,effective_from,unit_cost,subsidy_pct}'),
+	('meal_days', 'plain', '{id,tenant_id,date,locked,locked_at,locked_by_user_id}'),
+	('meal_orders', 'excluded', '{}'),
 	('attendance_punches', 'excluded', '{}'),
 	('attendance_days', 'excluded', '{}'),
 	('counters', 'excluded', '{}'),

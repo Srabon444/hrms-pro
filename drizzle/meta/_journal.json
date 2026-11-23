@@ -141,6 +141,13 @@
       "when": 1795445245815,
       "tag": "0019_meal_setup",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795445562601,
+      "tag": "0020_meal_orders",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ export const NAV: NavItem[] = [
 	{ href: 'tasks', label: 'Tasks' },
 	{ href: 'leave', label: 'Leave', perm: 'leave.request' },
 	{ href: 'attendance', label: 'Attendance', perm: 'attendance.read' },
+	{ href: 'meals', label: 'Meals', perm: 'meal.order' },
 	{ href: 'employees', label: 'Employees', perm: 'employee.read' },
 	{ href: 'lifecycle', label: 'Lifecycle', perm: 'employee.update' },
 	{ href: 'org', label: 'Organisation', perm: 'org.manage' },

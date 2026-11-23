@@ -4,3 +4,6 @@ export const poishaOf = (amount: string) => {
 	const [whole, fraction = ''] = amount.split('.');
 	return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
 };
+
+export const employeeShare = (unitCost: number, subsidyPct: number) =>
+	Math.round((unitCost * (100 - subsidyPct)) / 100);
