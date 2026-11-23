@@ -32,7 +32,7 @@ test('HR builds the department tree and holiday calendar', async ({ page, reques
 test('settings reject invalid values and save valid ones', async ({ page, request }) => {
 	const f = await fixture(request, { tenant: {}, users: [{ key: 'owner', roles: ['owner'] }] });
 	await signIn(page, f.users.owner.email);
-	await page.getByRole('link', { name: 'Settings' }).click();
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByLabel('Keep audit history (days)').evaluate((el: HTMLInputElement) => el.removeAttribute('min'));
 	await page.getByLabel('Keep audit history (days)').fill('10');
 	await page.getByRole('button', { name: 'Save settings' }).click();
