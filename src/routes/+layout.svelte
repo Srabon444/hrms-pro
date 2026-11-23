@@ -3,6 +3,10 @@
 	import favicon from '#lib/assets/favicon.svg';
 
 	let { children } = $props();
+
+	$effect(() => {
+		document.documentElement.dataset.hydrated = '';
+	});
 </script>
 
 <svelte:head>
