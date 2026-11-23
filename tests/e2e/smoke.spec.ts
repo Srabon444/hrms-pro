@@ -20,5 +20,6 @@ test('metrics require the bearer token', async ({ request }) => {
 test('landing page renders with a CSP header', async ({ page }) => {
 	const res = await page.goto('/');
 	expect(res?.headers()['content-security-policy']).toContain("frame-ancestors 'none'");
-	await expect(page.getByRole('heading', { name: 'HRMS' })).toBeVisible();
+	await expect(page).toHaveURL(/\/login/);
+	await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 });

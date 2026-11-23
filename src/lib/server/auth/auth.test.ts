@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { safeNext } from './cookies';
 import { decrypt, encrypt, parseKeyRing, sign, unsign } from './crypto';
 import { hashPassword, passwordProblem, verifyPassword } from './password';
 import { base32Decode, base32Encode, hotp, matchTotp } from './totp';
@@ -91,5 +92,22 @@ describe('password', () => {
 		expect(await verifyPassword(h, 'wrong horse battery')).toBe(false);
 		expect(await verifyPassword(null, 'anything')).toBe(false);
 		expect(await verifyPassword('x', 'anything')).toBe(false);
+	});
+});
+
+describe('safeNext', () => {
+	it('keeps same-site paths and rejects anything a browser could turn into another origin', () => {
+		expect(safeNext('/t/demo/leave?x=1')).toBe('/t/demo/leave?x=1');
+		for (const bad of [
+			null,
+			'',
+			'https://evil.test',
+			'//evil.test',
+			'/\\evil.test',
+			'/\t/evil.test',
+			'/\n/evil.test',
+			'javascript:alert(1)'
+		])
+			expect(safeNext(bad)).toBe('/');
 	});
 });

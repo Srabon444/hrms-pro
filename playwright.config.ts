@@ -10,11 +10,20 @@ export default defineConfig({
 	reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
 	use: { baseURL: E2E_URL, trace: 'retain-on-failure' },
 	projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-	webServer: {
-		command: 'npm run build && node build',
-		url: `${E2E_URL}/healthz`,
-		reuseExistingServer: !process.env.CI,
-		timeout: 180_000,
-		env: { ...(process.env as Record<string, string>), ...e2eEnv }
-	}
+	webServer: [
+		{
+			command: 'npm run build && node build',
+			url: `${E2E_URL}/healthz`,
+			reuseExistingServer: !process.env.CI,
+			timeout: 180_000,
+			env: { ...(process.env as Record<string, string>), ...e2eEnv }
+		},
+		{
+			command: 'node --import tsx src/worker.ts',
+			wait: { stdout: /worker ready/ },
+			reuseExistingServer: !process.env.CI,
+			timeout: 60_000,
+			env: { ...(process.env as Record<string, string>), ...e2eEnv, LOG_LEVEL: 'info' }
+		}
+	]
 });
