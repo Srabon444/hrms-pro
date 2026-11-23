@@ -1,11 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { check, index, pgTable, smallint, text, unique, uniqueIndex, uuid, integer } from 'drizzle-orm/pg-core';
-import { citext, tenantBase, tenantKey, tfk } from './_helpers';
+import { check, date, index, integer, pgTable, smallint, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { citext, tenantBase, tenantKey, tfk, tstz } from './_helpers';
+import { memberships } from './core';
 import { departments, designations, employees } from './org';
 
 export const OPENING_STATUSES = ['open', 'on_hold', 'closed'] as const;
 export const STAGE_KINDS = ['active', 'hired', 'rejected'] as const;
 export const CANDIDATE_SOURCES = ['referral', 'job_board', 'website', 'agency', 'walk_in', 'other'] as const;
+export const RECOMMENDATIONS = ['strong_no', 'no', 'yes', 'strong_yes'] as const;
+export const OFFER_DECISIONS = ['accepted', 'declined', 'withdrawn'] as const;
 export const DEFAULT_STAGES: { name: string; kind: (typeof STAGE_KINDS)[number] }[] = [
 	{ name: 'Applied', kind: 'active' },
 	{ name: 'Screening', kind: 'active' },
@@ -121,5 +124,85 @@ export const candidateStageHistory = pgTable(
 		tfk('candidate_stage_history_to_fk', t, t.toStageId, pipelineStages, 'restrict'),
 		index('candidate_stage_history_candidate_idx').on(t.tenantId, t.candidateId),
 		check('candidate_stage_history_note_ck', sql`length(${t.note}) <= 300`)
+	]
+);
+
+export const interviews = pgTable(
+	'interviews',
+	{
+		...tenantBase(),
+		candidateId: uuid().notNull(),
+		title: text().notNull(),
+		scheduledAt: tstz().notNull(),
+		durationMinutes: smallint().notNull(),
+		location: text().notNull().default(''),
+		status: text().notNull().default('scheduled'),
+		createdByUserId: uuid()
+	},
+	(t) => [
+		tenantKey('interviews', t),
+		tfk('interviews_candidate_fk', t, t.candidateId, candidates, 'cascade'),
+		index('interviews_candidate_idx').on(t.tenantId, t.candidateId),
+		check('interviews_title_ck', sql`length(trim(${t.title})) between 1 and 80`),
+		check('interviews_duration_ck', sql`${t.durationMinutes} between 15 and 480`),
+		check('interviews_location_ck', sql`length(${t.location}) <= 300`),
+		check('interviews_status_ck', sql`${t.status} in ('scheduled','cancelled')`)
+	]
+);
+
+export const interviewFeedback = pgTable(
+	'interview_feedback',
+	{
+		...tenantBase(),
+		interviewId: uuid().notNull(),
+		membershipId: uuid().notNull(),
+		rating: smallint(),
+		recommendation: text(),
+		comments: text().notNull().default(''),
+		submittedAt: tstz()
+	},
+	(t) => [
+		tenantKey('interview_feedback', t),
+		tfk('interview_feedback_interview_fk', t, t.interviewId, interviews, 'cascade'),
+		tfk('interview_feedback_membership_fk', t, t.membershipId, memberships, 'cascade'),
+		unique('interview_feedback_uq').on(t.tenantId, t.interviewId, t.membershipId),
+		index('interview_feedback_member_idx').on(t.tenantId, t.membershipId),
+		check('interview_feedback_rating_ck', sql`${t.rating} is null or ${t.rating} between 1 and 5`),
+		check(
+			'interview_feedback_recommendation_ck',
+			sql`${t.recommendation} is null or ${t.recommendation} in ('strong_no','no','yes','strong_yes')`
+		),
+		check('interview_feedback_comments_ck', sql`length(${t.comments}) <= 2000`),
+		check(
+			'interview_feedback_submitted_ck',
+			sql`(${t.submittedAt} is null) = (${t.rating} is null) and (${t.submittedAt} is null) = (${t.recommendation} is null)`
+		)
+	]
+);
+
+export const offers = pgTable(
+	'offers',
+	{
+		...tenantBase(),
+		candidateId: uuid().notNull(),
+		monthlyGross: integer().notNull(),
+		joinDate: date().notNull(),
+		expiresOn: date(),
+		status: text().notNull().default('pending'),
+		note: text().notNull().default(''),
+		createdByUserId: uuid(),
+		decidedAt: tstz()
+	},
+	(t) => [
+		tenantKey('offers', t),
+		tfk('offers_candidate_fk', t, t.candidateId, candidates, 'cascade'),
+		uniqueIndex('offers_live_uq')
+			.on(t.tenantId, t.candidateId)
+			.where(sql`${t.status} in ('pending','accepted')`),
+		check('offers_gross_ck', sql`${t.monthlyGross} > 0`),
+		check('offers_status_ck', sql`${t.status} in ('pending','accepted','declined','withdrawn')`),
+		check('offers_note_ck', sql`length(${t.note}) <= 500`),
+		check('offers_expiry_ck', sql`${t.expiresOn} is null or ${t.expiresOn} <= ${t.joinDate}`),
+		check('offers_decided_ck', sql`(${t.status} = 'pending') = (${t.decidedAt} is null)`)
 	]
 );

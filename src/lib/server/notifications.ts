@@ -8,7 +8,8 @@ export const NOTIFICATION_CATEGORIES = {
 	access: 'Access and roles',
 	approvals: 'Approvals',
 	profile: 'Profile changes',
-	people: 'Joiners and leavers'
+	people: 'Joiners and leavers',
+	recruitment: 'Interviews'
 } as const;
 
 export type NotificationCategory = keyof typeof NOTIFICATION_CATEGORIES;

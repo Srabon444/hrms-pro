@@ -1,19 +1,43 @@
-import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { and, eq } from 'drizzle-orm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { closePools } from '../../src/lib/server/db';
-import { auditLog, candidates, departments, designations } from '../../src/lib/server/db/schema';
+import { processors } from '../../src/lib/server/jobs';
+import { closeQueues, startWorker } from '../../src/lib/server/queue';
+import { closeRedis } from '../../src/lib/server/redis';
+import {
+	auditLog,
+	candidates,
+	departments,
+	designations,
+	employees,
+	invitations,
+	memberships,
+	notifications,
+	offers
+} from '../../src/lib/server/db/schema';
+import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
+import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
 import {
 	addCandidate,
+	cancelInterview,
 	candidateView,
+	decideOffer,
+	hireCandidate,
+	interviewerChoices,
+	makeOffer,
 	moveCandidate,
+	myInterviews,
 	openingView,
 	openResume,
 	recruitmentBoard,
-	saveOpening
+	saveOpening,
+	scheduleInterview,
+	submitFeedback
 } from '../../src/lib/server/recruitment';
 import { getObject } from '../../src/lib/server/storage';
-import { withTenant, type TenantCtx } from '../../src/lib/server/tenancy';
-import { createTenant } from './helpers';
+import { systemCtx, withTenant, type TenantCtx } from '../../src/lib/server/tenancy';
+import { waitForMail } from '../mailpit';
+import { createTenant, createUser } from './helpers';
 
 let ctx: TenantCtx;
 let other: TenantCtx;
@@ -37,7 +61,11 @@ beforeAll(async () => {
 		(await tx.insert(designations).values({ tenantId: t.id, name: 'Engineer' }).returning())[0].id
 	]);
 });
-afterAll(closePools);
+const mailer = startWorker('mail', processors.mail);
+afterAll(async () => {
+	await mailer.close();
+	await Promise.all([closeQueues(), closePools(), closeRedis()]);
+});
 
 it('opens a job with the default pipeline and refuses bad input', async () => {
 	expect(await code(saveOpening(ctx, { ...opening, title: ' ' }))).toBe('invalid: Enter the job title.');
@@ -84,11 +112,14 @@ it('adds candidates with a resume, moves them through stages and counts the funn
 	const rafi = await add({ email: 'rafi@example.com', source: 'referral', tags: 'go, sql, go' }, pdf());
 	expect(await code(add({ fullName: 'Rafi again', email: 'RAFI@example.com' }))).toBe('duplicate');
 	const mina = await add({ fullName: 'Mina' });
+	const noor = await add({ fullName: 'Noor' });
+	const noEmail = await withTenant(ctx, (tx) => tx.select().from(candidates).where(eq(candidates.id, noor)));
+	expect([noEmail[0].email, noEmail[0].phone]).toEqual([null, null]);
 
 	const view = await withTenant(ctx, (tx) => openingView(tx, id));
 	const stage = Object.fromEntries(view.stages.map((s) => [s.name, s.id]));
 	expect(view.candidates.find((c) => c.id === rafi)!.tags).toEqual(['go', 'sql']);
-	expect(view.funnel.map((f) => f.count)).toEqual([2, 0, 0, 0, 0, 0]);
+	expect(view.funnel.map((f) => f.count)).toEqual([3, 0, 0, 0, 0, 0]);
 
 	const move = (candidateId: string, to: string, note = '') =>
 		moveCandidate(ctx, { candidateId, stageId: stage[to], note });
@@ -107,7 +138,7 @@ it('adds candidates with a resume, moves them through stages and counts the funn
 
 	const after = await withTenant(ctx, (tx) => openingView(tx, id));
 	expect(after.funnel.map((f) => [f.stageName, f.count])).toEqual([
-		['Applied', 0],
+		['Applied', 1],
 		['Screening', 0],
 		['Interview', 1],
 		['Offer', 0],
@@ -144,7 +175,221 @@ it('adds candidates with a resume, moves them through stages and counts the funn
 	).toBe(true);
 
 	const board = await withTenant(ctx, recruitmentBoard);
-	expect(board.openings.find((o) => o.id === id)).toMatchObject({ status: 'closed', total: 2, active: 1 });
+	expect(board.openings.find((o) => o.id === id)).toMatchObject({ status: 'closed', total: 3, active: 2 });
 	expect(board.openings.at(-1)!.status).toBe('closed');
 	expect(board.departments.map((d) => d.name)).toEqual(['Engineering']);
+});
+
+describe('interviews, offers and hiring', () => {
+	type Member = ReturnType<typeof requireMember>;
+	let tenant: { id: string; slug: string };
+	const who: Record<string, Member> = {};
+	const email: Record<string, string> = {};
+	let openingId: string;
+	let stages: Record<string, string>;
+	const as = (k: string) => userCtx(who[k]);
+	const view = (k: string, id: string) => withTenant(as(k), (tx) => candidateView(tx, id, who[k].access.membershipId));
+
+	async function member(key: string, roleKeys: string[]) {
+		const u = await createUser();
+		email[key] = u.email;
+		const id = await withTenant(systemCtx(tenant.id), (tx) => addMember(tx, tenant.id, u.id, roleKeys));
+		const access = await loadAccess(tenant.id, { id, status: 'active', employeeId: null });
+		who[key] = {
+			user: { userId: u.id },
+			tenant: { id: tenant.id, slug: tenant.slug, name: tenant.slug },
+			access
+		} as unknown as Member;
+	}
+
+	beforeAll(async () => {
+		tenant = await createTenant('ats-hire');
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await member('rec', ['recruiter']);
+		await member('ivA', ['hr_officer']);
+		await member('ivB', ['hr_officer']);
+		await member('emp', []);
+		await member('adm', ['hr_admin']);
+		const dept = await withTenant(
+			as('adm'),
+			async (tx) => (await tx.insert(departments).values({ tenantId: tenant.id, name: 'Platform' }).returning())[0].id
+		);
+		openingId = await saveOpening(as('rec'), {
+			title: 'Site reliability engineer',
+			departmentId: dept,
+			designationId: '',
+			headcount: '1',
+			description: ''
+		});
+		stages = Object.fromEntries(
+			(await withTenant(as('rec'), (tx) => openingView(tx, openingId))).stages.map((s) => [s.name, s.id])
+		);
+	});
+
+	it('keeps interview feedback blind until every interviewer has sent theirs', async () => {
+		const sara = await addCandidate(as('rec'), { openingId, fullName: 'Sara' }, null);
+		const slot = { candidateId: sara, title: 'Technical', scheduledAt: '2030-01-10T10:00', durationMinutes: '60' };
+		const [a, b, e] = [who.ivA, who.ivB, who.emp].map((m) => m.access.membershipId);
+		const schedule = (raw: Record<string, string>, panel = [a, b]) =>
+			scheduleInterview(as('rec'), tenant.slug, { ...slot, ...raw }, panel);
+
+		expect(await code(schedule({ scheduledAt: '2020-01-10T10:00' }))).toBe('past');
+		expect(await code(schedule({ scheduledAt: '2030-02-30T10:00' }))).toBe(
+			'invalid: Pick the interview date and time.'
+		);
+		expect(await code(schedule({ durationMinutes: '10' }))).toBe('invalid: Interviews last 15 to 480 minutes.');
+		expect(await code(schedule({}, []))).toBe('invalid: Choose at least one interviewer.');
+		expect(await code(schedule({}, [a, e]))).toBe('invalid_interviewer');
+		expect((await withTenant(as('rec'), interviewerChoices)).map((c) => c.id)).not.toContain(e);
+
+		await schedule({}, [a, b, a]);
+		const notes = await withTenant(as('rec'), (tx) =>
+			tx.select().from(notifications).where(eq(notifications.category, 'recruitment'))
+		);
+		expect(notes.map((n) => n.membershipId).sort()).toEqual([a, b].sort());
+		expect((await waitForMail(email.ivA)).subject).toBe('Interview: Sara · Technical');
+
+		const [interview] = (await view('rec', sara)).interviews;
+		const id = interview.id;
+		const feedback = { interviewId: id, rating: '4', recommendation: 'yes', comments: 'Solid on Linux' };
+		expect(await code(submitFeedback(as('emp'), e, feedback))).toBe('not_found');
+		expect(await code(submitFeedback(as('ivA'), a, { ...feedback, rating: '6' }))).toBe(
+			'invalid: Rate the candidate from 1 to 5.'
+		);
+		await submitFeedback(as('ivA'), a, feedback);
+		expect(await code(submitFeedback(as('ivA'), a, feedback))).toBe('already_submitted');
+
+		const seen = async (k: string) =>
+			Object.fromEntries(
+				(await view(k, sara)).interviews[0].panel.map((p) => [p.membershipId, [p.submitted, p.rating, p.comments]])
+			);
+		expect(await seen('rec')).toEqual({ [a]: [true, null, null], [b]: [false, null, null] });
+		expect(await seen('ivA')).toEqual({ [a]: [true, 4, 'Solid on Linux'], [b]: [false, null, null] });
+		expect((await withTenant(as('ivB'), (tx) => myInterviews(tx, b))).map((i) => [i.candidateName, i.rating])).toEqual([
+			['Sara', null]
+		]);
+		expect(await code(cancelInterview(as('rec'), id))).toBe('has_feedback');
+
+		await submitFeedback(as('ivB'), b, { ...feedback, rating: '2', recommendation: 'no', comments: '' });
+		const after = (await view('rec', sara)).interviews[0];
+		expect(after.allIn).toBe(true);
+		expect(Object.fromEntries(after.panel.map((p) => [p.membershipId, [p.rating, p.recommendation]]))).toEqual({
+			[a]: [4, 'yes'],
+			[b]: [2, 'no']
+		});
+
+		await schedule({ title: 'Culture' }, [b]);
+		const culture = (await view('rec', sara)).interviews.find((i) => i.title === 'Culture')!;
+		await cancelInterview(as('rec'), culture.id);
+		expect(await code(cancelInterview(as('rec'), culture.id))).toBe('cancelled');
+		expect(await code(submitFeedback(as('ivB'), b, { ...feedback, interviewId: culture.id }))).toBe('cancelled');
+		expect((await withTenant(as('ivB'), (tx) => myInterviews(tx, b))).map((i) => i.title)).toEqual(['Technical']);
+
+		await moveCandidate(as('rec'), { candidateId: sara, stageId: stages.Rejected });
+		expect(await code(schedule({ title: 'Again' }))).toBe('not_active');
+	});
+
+	it('hires a candidate with an accepted offer into an onboarding employee and invites them', async () => {
+		const add = (fullName: string, mail: string) =>
+			addCandidate(as('rec'), { openingId, fullName, email: mail, phone: '+8801700000000' }, null);
+		const nadia = await add('Nadia', `nadia-${tenant.slug}@example.com`);
+		const omar = await add('Omar', '');
+		const offer = { candidateId: nadia, monthlyGross: '85000.50', joinDate: '2030-03-01', expiresOn: '2030-02-01' };
+
+		expect(await code(makeOffer(as('rec'), { ...offer, monthlyGross: '0' }))).toBe(
+			'invalid: Enter the monthly gross in taka, up to 2 decimals.'
+		);
+		expect(await code(makeOffer(as('rec'), { ...offer, joinDate: '2020-03-01', expiresOn: '' }))).toBe('past_join');
+		expect(await code(makeOffer(as('rec'), { ...offer, expiresOn: '2020-02-01' }))).toBe('past_expiry');
+		expect(await code(makeOffer(as('rec'), { ...offer, expiresOn: '2030-03-02' }))).toBe('expiry_after_join');
+		await makeOffer(as('rec'), offer);
+		expect(await code(makeOffer(as('rec'), offer))).toBe('offer_exists');
+		expect(await code(hireCandidate(who.adm, { candidateId: nadia }))).toBe('no_offer');
+
+		const [o] = (await view('rec', nadia)).offers;
+		expect([o.monthlyGross, o.status]).toEqual([8_500_050, 'pending']);
+		await withTenant(as('rec'), (tx) => tx.update(offers).set({ expiresOn: '2020-01-01' }).where(eq(offers.id, o.id)));
+		expect(await code(decideOffer(as('rec'), { offerId: o.id, decision: 'accepted' }))).toBe('expired');
+		await withTenant(as('rec'), (tx) => tx.update(offers).set({ expiresOn: null }).where(eq(offers.id, o.id)));
+		await decideOffer(as('rec'), { offerId: o.id, decision: 'accepted' });
+		expect(await code(decideOffer(as('rec'), { offerId: o.id, decision: 'withdrawn' }))).toBe('decided');
+
+		expect(await code(hireCandidate(who.rec, { candidateId: nadia }))).toBe('forbidden');
+		const hired = await hireCandidate(who.adm, { candidateId: nadia, invite: 'on' });
+		expect(hired.invite).toBeNull();
+		const [e] = await withTenant(as('adm'), (tx) =>
+			tx.select().from(employees).where(eq(employees.id, hired.employeeId))
+		);
+		const opening = (await withTenant(as('rec'), (tx) => openingView(tx, openingId))).opening;
+		expect([e.fullName, e.status, e.joinDate, e.personalEmail, e.departmentId, e.employmentType]).toEqual([
+			'Nadia',
+			'onboarding',
+			'2030-03-01',
+			`nadia-${tenant.slug}@example.com`,
+			opening.departmentId,
+			'full_time'
+		]);
+		const detail = await view('rec', nadia);
+		expect([detail.candidate.employeeId, detail.candidate.stageId, detail.history[0].note]).toEqual([
+			hired.employeeId,
+			stages.Hired,
+			'Hired'
+		]);
+		const [inv] = await withTenant(as('adm'), (tx) =>
+			tx.select().from(invitations).where(eq(invitations.employeeId, hired.employeeId))
+		);
+		expect(inv.email).toBe(`nadia-${tenant.slug}@example.com`);
+		expect(await code(hireCandidate(who.adm, { candidateId: nadia }))).toBe('hired');
+		expect(await code(moveCandidate(as('rec'), { candidateId: nadia, stageId: stages.Offer }))).toBe('hired');
+
+		await makeOffer(as('rec'), { candidateId: omar, monthlyGross: '50000', joinDate: '2030-03-01' });
+		const [o2] = (await view('rec', omar)).offers;
+		await decideOffer(as('rec'), { offerId: o2.id, decision: 'accepted' });
+		expect(await code(hireCandidate(who.adm, { candidateId: omar }))).toBe('headcount_full');
+		await saveOpening(as('rec'), {
+			openingId,
+			title: opening.title,
+			description: '',
+			headcount: '2',
+			departmentId: opening.departmentId ?? '',
+			designationId: '',
+			status: 'open'
+		});
+		const second = await hireCandidate(who.adm, { candidateId: omar, invite: 'on' });
+		expect(second.invite).toBe('Hired. Add their email, then invite them from Users.');
+		expect(
+			await withTenant(as('adm'), (tx) =>
+				tx
+					.select()
+					.from(memberships)
+					.where(and(eq(memberships.employeeId, second.employeeId)))
+			)
+		).toEqual([]);
+
+		const lina = await add('Lina', `lina-${tenant.slug}@example.com`);
+		await makeOffer(as('rec'), { candidateId: lina, monthlyGross: '60000', joinDate: '2030-04-01' });
+		const [o3] = (await view('rec', lina)).offers;
+		await moveCandidate(as('rec'), { candidateId: lina, stageId: stages.Rejected });
+		expect(await code(decideOffer(as('rec'), { offerId: o3.id, decision: 'accepted' }))).toBe('not_active');
+		await moveCandidate(as('rec'), { candidateId: lina, stageId: stages.Screening });
+		await decideOffer(as('rec'), { offerId: o3.id, decision: 'accepted' });
+		await saveOpening(as('rec'), {
+			openingId,
+			title: opening.title,
+			description: '',
+			headcount: '3',
+			departmentId: opening.departmentId ?? '',
+			designationId: '',
+			status: 'open'
+		});
+		expect((await hireCandidate(who.adm, { candidateId: lina })).invite).toBeNull();
+		expect(
+			await withTenant(as('adm'), (tx) =>
+				tx
+					.select()
+					.from(invitations)
+					.where(eq(invitations.email, `lina-${tenant.slug}@example.com`))
+			)
+		).toEqual([]);
+	});
 });

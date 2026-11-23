@@ -185,7 +185,7 @@ async function labels(tx: Tx, values: Record<string, unknown>): Promise<Record<s
 	};
 }
 
-async function insertEmployee(tx: Tx, tenantId: string, access: Access, form: EmployeeForm): Promise<string> {
+export async function insertEmployee(tx: Tx, tenantId: string, access: Access, form: EmployeeForm): Promise<string> {
 	const input = baseSchema.parse(form);
 	const sensitive = sensitiveSchema.parse(
 		Object.fromEntries(SENSITIVE_KEYS.filter((k) => k in form).map((k) => [k, form[k]]))

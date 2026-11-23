@@ -1,23 +1,38 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { computeFunnel } from '../domain/recruitment/funnel';
+import { poishaOf } from '../money';
+import { zonedInstant } from './attendance-day';
 import { auditEvent } from './audit';
+import { now } from './clock';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import {
 	CANDIDATE_SOURCES,
 	DEFAULT_STAGES,
 	MAX_DOCUMENT_BYTES,
+	OFFER_DECISIONS,
 	OPENING_STATUSES,
+	RECOMMENDATIONS,
 	candidateStageHistory,
 	candidates,
 	departments,
 	designations,
+	interviewFeedback,
+	interviews,
 	jobOpenings,
-	pipelineStages
+	offers,
+	pipelineStages,
+	roles,
+	tenantSettings
 } from './db/schema';
+import { EMPLOYMENT_FIELDS, insertEmployee, PROFILE_FIELDS } from './employees';
 import { AppError } from './errors';
+import { tenantToday } from './lifecycle';
 import { log } from './log';
+import { notify, sendAll } from './notifications';
+import { can, userCtx, type requireMember } from './rbac/access';
+import { inviteMember, toActor } from './rbac/members';
 import { sniffType } from './sniff';
 import { deleteObject, getObject, putObject } from './storage';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
@@ -33,8 +48,8 @@ const headcount = 'Headcount is 1 to 500.';
 
 const openingSchema = z.object({
 	title: z.string().trim().min(1, 'Enter the job title.').max(120, 'Keep the job title under 120 characters.'),
-	departmentId: optionalId('Choose a department.').default(''),
-	designationId: optionalId('Choose a designation.').default(''),
+	departmentId: optionalId('Choose a department.').prefault(''),
+	designationId: optionalId('Choose a designation.').prefault(''),
 	headcount: z.coerce.number(headcount).int(headcount).min(1, headcount).max(500, headcount),
 	status: z.enum(OPENING_STATUSES, 'Choose a status.').default('open'),
 	description: z.string().max(5000, 'Keep the description under 5000 characters.').default('')
@@ -47,14 +62,14 @@ const candidateSchema = z.object({
 	email: z
 		.union([z.literal(''), z.email('Enter a valid email.').max(254, 'Enter a valid email.')])
 		.transform((v) => v || null)
-		.default(''),
+		.prefault(''),
 	phone: z
 		.string()
 		.trim()
 		.max(40, 'Enter a valid phone number.')
 		.regex(/^([+\d][\d\s-]*)?$/, 'Enter a valid phone number.')
 		.transform((v) => v || null)
-		.default(''),
+		.prefault(''),
 	source: z.enum(CANDIDATE_SOURCES, 'Choose where the candidate came from.').default('other'),
 	tags: z
 		.string()
@@ -296,7 +311,7 @@ export async function moveCandidate(ctx: TenantCtx, raw: Record<string, string>)
 	});
 }
 
-export async function candidateView(tx: Tx, candidateId: string) {
+export async function candidateView(tx: Tx, candidateId: string, viewerMembershipId: string | null = null) {
 	if (!z.uuid().safeParse(candidateId).success) throw candidateMissing();
 	const [c] = await tx.select().from(candidates).where(eq(candidates.id, candidateId));
 	if (!c) throw candidateMissing();
@@ -325,7 +340,21 @@ export async function candidateView(tx: Tx, candidateId: string) {
 		candidate: { ...rest, hasResume: resumeKey !== null },
 		opening,
 		stages,
-		history: history.map((h) => ({ from: nameOf(h.fromStageId), to: nameOf(h.toStageId)!, note: h.note, at: h.at }))
+		history: history.map((h) => ({ from: nameOf(h.fromStageId), to: nameOf(h.toStageId)!, note: h.note, at: h.at })),
+		interviews: await candidateInterviews(tx, c.id, viewerMembershipId),
+		offers: await tx
+			.select({
+				id: offers.id,
+				monthlyGross: offers.monthlyGross,
+				joinDate: offers.joinDate,
+				expiresOn: offers.expiresOn,
+				status: offers.status,
+				note: offers.note,
+				createdAt: offers.createdAt
+			})
+			.from(offers)
+			.where(eq(offers.candidateId, c.id))
+			.orderBy(desc(offers.createdAt))
 	};
 }
 
@@ -346,4 +375,369 @@ export async function openResume(ctx: TenantCtx, candidateId: string) {
 		return row;
 	});
 	return { fileName: c.name!, contentType: c.type!, body: await getObject(c.key!) };
+}
+
+type Member = ReturnType<typeof requireMember>;
+
+const duration = 'Interviews last 15 to 480 minutes.';
+const interviewSchema = z.object({
+	candidateId: z.uuid({ error: 'Choose a candidate.' }),
+	title: z.string().trim().min(1, 'Enter the interview title.').max(80, 'Keep the title under 80 characters.'),
+	scheduledAt: z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'Pick the interview date and time.')
+		.refine((v) => new Date(`${v}:00Z`).toISOString().startsWith(v), 'Pick the interview date and time.'),
+	durationMinutes: z.coerce.number(duration).int(duration).min(15, duration).max(480, duration),
+	location: z.string().trim().max(300, 'Keep the location under 300 characters.').default(''),
+	interviewers: z
+		.array(z.uuid({ error: 'Choose the interviewers.' }))
+		.transform((ids) => [...new Set(ids)])
+		.pipe(z.array(z.string()).min(1, 'Choose at least one interviewer.').max(10, 'Choose up to 10 interviewers.'))
+});
+
+const feedbackSchema = z.object({
+	interviewId: z.uuid({ error: 'Choose an interview.' }),
+	rating: z.coerce
+		.number('Rate the candidate from 1 to 5.')
+		.int('Rate the candidate from 1 to 5.')
+		.min(1, 'Rate the candidate from 1 to 5.')
+		.max(5, 'Rate the candidate from 1 to 5.'),
+	recommendation: z.enum(RECOMMENDATIONS, 'Choose a recommendation.'),
+	comments: z.string().trim().max(2000, 'Keep the comments under 2000 characters.').default('')
+});
+
+const offerSchema = z.object({
+	candidateId: z.uuid({ error: 'Choose a candidate.' }),
+	monthlyGross: z
+		.string()
+		.trim()
+		.regex(/^\d{1,8}(\.\d{1,2})?$/, 'Enter the monthly gross in taka, up to 2 decimals.')
+		.transform(poishaOf)
+		.refine((v) => v > 0, 'Enter the monthly gross in taka, up to 2 decimals.'),
+	joinDate: z.iso.date('Enter a valid join date.'),
+	expiresOn: z
+		.union([z.literal(''), z.iso.date('Enter a valid expiry date.')])
+		.transform((v) => v || null)
+		.prefault(''),
+	note: z.string().trim().max(500, 'Keep the note under 500 characters.').default('')
+});
+
+const decisionSchema = z.object({
+	offerId: z.uuid({ error: 'Choose an offer.' }),
+	decision: z.enum(OFFER_DECISIONS, 'Choose what happened to the offer.')
+});
+
+async function liveCandidate(tx: Tx, candidateId: string) {
+	if (!z.uuid().safeParse(candidateId).success) throw candidateMissing();
+	const [c] = await tx
+		.select({
+			id: candidates.id,
+			fullName: candidates.fullName,
+			email: candidates.email,
+			phone: candidates.phone,
+			openingId: candidates.openingId,
+			stageId: candidates.stageId,
+			employeeId: candidates.employeeId,
+			stageKind: pipelineStages.kind,
+			openingStatus: jobOpenings.status
+		})
+		.from(candidates)
+		.innerJoin(pipelineStages, eq(pipelineStages.id, candidates.stageId))
+		.innerJoin(jobOpenings, eq(jobOpenings.id, candidates.openingId))
+		.where(eq(candidates.id, candidateId))
+		.for('update', { of: candidates });
+	if (!c) throw candidateMissing();
+	if (c.employeeId) throw new AppError('hired', 'This candidate is already hired.', 409);
+	if (c.stageKind !== 'active')
+		throw new AppError('not_active', 'Move the candidate back into the pipeline first.', 409);
+	if (c.openingStatus === 'closed') throw new AppError('closed', 'Reopen the opening first.', 409);
+	return c;
+}
+
+async function feedbackMembers(tx: Tx, ids?: string[]) {
+	if (ids && !ids.length) return [];
+	return tx.execute<{ id: string; name: string }>(sql`
+		select distinct tu.membership_id as id, coalesce(tu.name, tu.email::text) as name
+		from tenant_users tu
+		join membership_roles mr on mr.membership_id = tu.membership_id
+		join role_permissions rp on rp.role_id = mr.role_id
+		where rp.permission = 'interview.feedback' and tu.membership_status = 'active'
+		${ids ? sql`and tu.membership_id in ${ids}` : sql``}
+		order by 2`);
+}
+
+export const interviewerChoices = (tx: Tx) => feedbackMembers(tx);
+
+export async function scheduleInterview(
+	ctx: TenantCtx,
+	tenantSlug: string,
+	raw: Record<string, string>,
+	interviewers: string[]
+) {
+	const input = interviewSchema.parse({ ...raw, interviewers });
+	const mails = await withTenant(ctx, async (tx) => {
+		const c = await liveCandidate(tx, input.candidateId);
+		const [s] = await tx.select({ tz: tenantSettings.timezone }).from(tenantSettings);
+		const scheduledAt = zonedInstant(input.scheduledAt, s?.tz ?? 'UTC');
+		if (scheduledAt <= now()) throw new AppError('past', 'Pick a time in the future.', 400);
+		const panel = await feedbackMembers(tx, input.interviewers);
+		if (panel.length !== input.interviewers.length)
+			throw new AppError('invalid_interviewer', 'Choose interviewers who can give interview feedback.', 400);
+		const [row] = await tx
+			.insert(interviews)
+			.values({
+				tenantId: ctx.tenantId,
+				candidateId: c.id,
+				title: input.title,
+				scheduledAt,
+				durationMinutes: input.durationMinutes,
+				location: input.location,
+				createdByUserId: ctx.userId ?? null
+			})
+			.returning({ id: interviews.id });
+		await tx
+			.insert(interviewFeedback)
+			.values(
+				input.interviewers.map((membershipId) => ({ tenantId: ctx.tenantId, interviewId: row.id, membershipId }))
+			);
+		return notify(
+			tx,
+			ctx.tenantId,
+			input.interviewers,
+			{
+				category: 'recruitment',
+				title: `Interview: ${c.fullName} · ${input.title}`,
+				body: `You are on the panel for ${c.fullName} (${input.title}) on ${input.scheduledAt.replace('T', ' ')}.`,
+				link: 'recruitment/interviews'
+			},
+			tenantSlug
+		);
+	});
+	await sendAll(mails);
+}
+
+export async function cancelInterview(ctx: TenantCtx, interviewId: string) {
+	if (!z.uuid().safeParse(interviewId).success) throw new AppError('not_found', 'That interview does not exist.', 404);
+	await withTenant(ctx, async (tx) => {
+		const [i] = await tx.select().from(interviews).where(eq(interviews.id, interviewId)).for('update');
+		if (!i) throw new AppError('not_found', 'That interview does not exist.', 404);
+		if (i.status === 'cancelled') throw new AppError('cancelled', 'That interview is already cancelled.', 409);
+		const [given] = await tx
+			.select({ id: interviewFeedback.id })
+			.from(interviewFeedback)
+			.where(and(eq(interviewFeedback.interviewId, i.id), isNotNull(interviewFeedback.submittedAt)))
+			.limit(1);
+		if (given) throw new AppError('has_feedback', 'Feedback is already in, so the interview cannot be cancelled.', 409);
+		await tx.update(interviews).set({ status: 'cancelled' }).where(eq(interviews.id, i.id));
+	});
+}
+
+export async function submitFeedback(ctx: TenantCtx, membershipId: string, raw: Record<string, string>) {
+	const input = feedbackSchema.parse(raw);
+	await withTenant(ctx, async (tx) => {
+		const [row] = await tx
+			.select({ id: interviewFeedback.id, submittedAt: interviewFeedback.submittedAt, status: interviews.status })
+			.from(interviewFeedback)
+			.innerJoin(interviews, eq(interviews.id, interviewFeedback.interviewId))
+			.where(
+				and(eq(interviewFeedback.interviewId, input.interviewId), eq(interviewFeedback.membershipId, membershipId))
+			)
+			.for('update', { of: interviewFeedback });
+		if (!row) throw new AppError('not_found', 'That interview is not assigned to you.', 404);
+		if (row.status === 'cancelled') throw new AppError('cancelled', 'That interview was cancelled.', 409);
+		if (row.submittedAt) throw new AppError('already_submitted', 'You already sent feedback for this interview.', 409);
+		await tx
+			.update(interviewFeedback)
+			.set({
+				rating: input.rating,
+				recommendation: input.recommendation,
+				comments: input.comments,
+				submittedAt: now()
+			})
+			.where(eq(interviewFeedback.id, row.id));
+	});
+}
+
+export async function myInterviews(tx: Tx, membershipId: string) {
+	return tx
+		.select({
+			interviewId: interviews.id,
+			title: interviews.title,
+			scheduledAt: interviews.scheduledAt,
+			durationMinutes: interviews.durationMinutes,
+			location: interviews.location,
+			candidateId: candidates.id,
+			candidateName: candidates.fullName,
+			openingTitle: jobOpenings.title,
+			submittedAt: interviewFeedback.submittedAt,
+			rating: interviewFeedback.rating,
+			recommendation: interviewFeedback.recommendation,
+			comments: interviewFeedback.comments
+		})
+		.from(interviewFeedback)
+		.innerJoin(interviews, eq(interviews.id, interviewFeedback.interviewId))
+		.innerJoin(candidates, eq(candidates.id, interviews.candidateId))
+		.innerJoin(jobOpenings, eq(jobOpenings.id, candidates.openingId))
+		.where(and(eq(interviewFeedback.membershipId, membershipId), eq(interviews.status, 'scheduled')))
+		.orderBy(sql`${interviewFeedback.submittedAt} is not null`, asc(interviews.scheduledAt))
+		.limit(100);
+}
+
+const panelName = sql<string>`(select coalesce(tu.name, tu.email::text) from tenant_users tu where tu.membership_id = interview_feedback.membership_id)`;
+
+async function candidateInterviews(tx: Tx, candidateId: string, viewer: string | null) {
+	const list = await tx
+		.select({
+			id: interviews.id,
+			title: interviews.title,
+			scheduledAt: interviews.scheduledAt,
+			durationMinutes: interviews.durationMinutes,
+			location: interviews.location,
+			status: interviews.status
+		})
+		.from(interviews)
+		.where(eq(interviews.candidateId, candidateId))
+		.orderBy(desc(interviews.scheduledAt));
+	const panel = list.length
+		? await tx
+				.select({
+					interviewId: interviewFeedback.interviewId,
+					membershipId: interviewFeedback.membershipId,
+					name: panelName,
+					rating: interviewFeedback.rating,
+					recommendation: interviewFeedback.recommendation,
+					comments: interviewFeedback.comments,
+					submittedAt: interviewFeedback.submittedAt
+				})
+				.from(interviewFeedback)
+				.where(
+					inArray(
+						interviewFeedback.interviewId,
+						list.map((i) => i.id)
+					)
+				)
+				.orderBy(panelName, asc(interviewFeedback.membershipId))
+		: [];
+	return list.map((i) => {
+		const mine = panel.filter((p) => p.interviewId === i.id);
+		const allIn = mine.every((p) => p.submittedAt);
+		return {
+			...i,
+			allIn,
+			panel: mine.map((p) => {
+				const open = allIn || p.membershipId === viewer;
+				return {
+					membershipId: p.membershipId,
+					name: p.name,
+					submitted: p.submittedAt !== null,
+					rating: open ? p.rating : null,
+					recommendation: open ? p.recommendation : null,
+					comments: open ? p.comments : null
+				};
+			})
+		};
+	});
+}
+
+export async function makeOffer(ctx: TenantCtx, raw: Record<string, string>) {
+	const input = offerSchema.parse(raw);
+	try {
+		await withTenant(ctx, async (tx) => {
+			const c = await liveCandidate(tx, input.candidateId);
+			const today = await tenantToday(tx);
+			if (input.joinDate < today) throw new AppError('past_join', 'The join date cannot be in the past.', 400);
+			if (input.expiresOn && input.expiresOn < today)
+				throw new AppError('past_expiry', 'The offer cannot expire in the past.', 400);
+			if (input.expiresOn && input.expiresOn > input.joinDate)
+				throw new AppError('expiry_after_join', 'The offer must expire on or before the join date.', 400);
+			await tx
+				.insert(offers)
+				.values({ tenantId: ctx.tenantId, ...input, candidateId: c.id, createdByUserId: ctx.userId ?? null });
+		});
+	} catch (err) {
+		if (pgCode(err) === UNIQUE_VIOLATION)
+			throw new AppError('offer_exists', 'This candidate already has an open offer.', 409);
+		throw err;
+	}
+}
+
+export async function decideOffer(ctx: TenantCtx, raw: Record<string, string>) {
+	const input = decisionSchema.parse(raw);
+	await withTenant(ctx, async (tx) => {
+		const [o] = await tx.select().from(offers).where(eq(offers.id, input.offerId)).for('update');
+		if (!o) throw new AppError('not_found', 'That offer does not exist.', 404);
+		if (o.status !== 'pending') throw new AppError('decided', 'This offer is already decided.', 409);
+		if (input.decision === 'accepted') {
+			await liveCandidate(tx, o.candidateId);
+			if (o.expiresOn && o.expiresOn < (await tenantToday(tx)))
+				throw new AppError('expired', 'This offer has expired.', 409);
+		}
+		await tx.update(offers).set({ status: input.decision, decidedAt: now() }).where(eq(offers.id, o.id));
+	});
+}
+
+export async function hireCandidate(m: Member, raw: Record<string, string>) {
+	if (!can(m.access, 'employee.create'))
+		throw new AppError('forbidden', 'Hiring needs permission to add employees.', 403);
+	const ctx = userCtx(m);
+	const hired = await withTenant(ctx, async (tx) => {
+		const c = await liveCandidate(tx, raw.candidateId ?? '');
+		const [opening] = await tx.select().from(jobOpenings).where(eq(jobOpenings.id, c.openingId)).for('update');
+		const [offer] = await tx
+			.select()
+			.from(offers)
+			.where(and(eq(offers.candidateId, c.id), eq(offers.status, 'accepted')));
+		if (!offer) throw new AppError('no_offer', 'Record an accepted offer before hiring.', 409);
+		const [filled] = await tx
+			.select({ n: count() })
+			.from(candidates)
+			.where(and(eq(candidates.openingId, opening.id), isNotNull(candidates.employeeId)));
+		if (filled.n >= opening.headcount)
+			throw new AppError('headcount_full', 'All positions for this opening are filled.', 409);
+		const [stage] = await tx
+			.select({ id: pipelineStages.id })
+			.from(pipelineStages)
+			.where(and(eq(pipelineStages.openingId, opening.id), eq(pipelineStages.kind, 'hired')))
+			.orderBy(asc(pipelineStages.sortOrder))
+			.limit(1);
+		if (!stage) throw new AppError('no_stage', 'This opening has no Hired stage.', 409);
+		const form = Object.fromEntries(
+			[...Object.keys(PROFILE_FIELDS), ...Object.keys(EMPLOYMENT_FIELDS)].map((k) => [k, ''])
+		);
+		const employeeId = await insertEmployee(tx, ctx.tenantId, m.access, {
+			...form,
+			fullName: c.fullName,
+			personalEmail: c.email ?? '',
+			phone: c.phone ?? '',
+			departmentId: opening.departmentId ?? '',
+			designationId: opening.designationId ?? '',
+			employmentType: 'full_time',
+			joinDate: offer.joinDate,
+			status: 'onboarding'
+		});
+		await tx.update(candidates).set({ employeeId, stageId: stage.id }).where(eq(candidates.id, c.id));
+		await tx.insert(candidateStageHistory).values({
+			tenantId: ctx.tenantId,
+			candidateId: c.id,
+			fromStageId: c.stageId,
+			toStageId: stage.id,
+			movedByUserId: ctx.userId ?? null,
+			note: 'Hired'
+		});
+		const [role] = await tx.select({ id: roles.id }).from(roles).where(eq(roles.key, 'employee'));
+		return { employeeId, email: c.email, roleId: role?.id ?? null };
+	});
+	if (raw.invite !== 'on') return { employeeId: hired.employeeId, invite: null };
+	if (!can(m.access, 'user.manage'))
+		return { employeeId: hired.employeeId, invite: 'Hired. Ask someone who manages users to send the invite.' };
+	if (!hired.email || !hired.roleId)
+		return { employeeId: hired.employeeId, invite: 'Hired. Add their email, then invite them from Users.' };
+	try {
+		await inviteMember(toActor(m), { email: hired.email, roleIds: [hired.roleId], employeeId: hired.employeeId });
+		return { employeeId: hired.employeeId, invite: null };
+	} catch (err) {
+		if (err instanceof AppError)
+			return { employeeId: hired.employeeId, invite: `Hired, but the invite failed: ${err.message}` };
+		throw err;
+	}
 }
