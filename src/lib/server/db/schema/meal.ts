@@ -14,6 +14,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { tenantBase, tenantKey, tfk, tstz } from './_helpers';
 import { employees } from './org';
+import { payrollRuns } from './payroll';
 
 export const MEAL_MODES = ['opt_out', 'opt_in'] as const;
 export const MEAL_BILLING_MODES = ['payroll', 'direct'] as const;
@@ -125,6 +126,7 @@ export const mealBills = pgTable(
 	(t) => [
 		tenantKey('meal_bills', t),
 		tfk('meal_bills_employee_fk', t, t.employeeId, employees, 'restrict'),
+		tfk('meal_bills_run_fk', t, t.payrollRunId, payrollRuns),
 		uniqueIndex('meal_bills_period_uq')
 			.on(t.tenantId, t.employeeId, t.period)
 			.where(sql`${t.status} <> 'void'`),

@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { tenantBase, tenantKey, tfk, tstz } from './_helpers';
 import { employees } from './org';
+import { payrollRuns } from './payroll';
 
 export const LOAN_KINDS = ['loan', 'advance'] as const;
 export const LOAN_STATUSES = ['requested', 'approved', 'rejected', 'cancelled', 'closed'] as const;
@@ -58,6 +59,7 @@ export const loanInstalments = pgTable(
 		tenantKey('loan_instalments', t),
 		tfk('loan_instalments_loan_fk', t, t.loanId, loans, 'cascade'),
 		tfk('loan_instalments_employee_fk', t, t.employeeId, employees, 'restrict'),
+		tfk('loan_instalments_run_fk', t, t.payrollRunId, payrollRuns),
 		unique('loan_instalments_period_uq').on(t.tenantId, t.loanId, t.period),
 		index('loan_instalments_due_idx').on(t.tenantId, t.employeeId, t.period),
 		check('loan_instalments_period_ck', PERIOD(t.period)),

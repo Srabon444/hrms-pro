@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { boolean, check, date, index, integer, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
 import { tenantBase, tenantKey, tfk, tstz } from './_helpers';
 import { employees } from './org';
+import { payrollRuns } from './payroll';
 
 export const EXPENSE_STATUSES = ['submitted', 'approved', 'rejected', 'paid', 'cancelled'] as const;
 export const EXPENSE_PAY_VIA = ['payroll', 'direct'] as const;
@@ -43,6 +44,7 @@ export const expenseClaims = pgTable(
 	(t) => [
 		tenantKey('expense_claims', t),
 		tfk('expense_claims_employee_fk', t, t.employeeId, employees, 'restrict'),
+		tfk('expense_claims_run_fk', t, t.payrollRunId, payrollRuns),
 		index('expense_claims_employee_idx').on(t.tenantId, t.employeeId),
 		index('expense_claims_status_idx').on(t.tenantId, t.status),
 		check('expense_claims_title_ck', sql`length(trim(${t.title})) between 1 and 120`),

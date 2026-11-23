@@ -6,7 +6,9 @@ import {
 	index,
 	integer,
 	jsonb,
+	numeric,
 	pgTable,
+	smallint,
 	text,
 	unique,
 	uniqueIndex,
@@ -108,5 +110,89 @@ export const employeeSalaryLines = pgTable(
 		unique('employee_salary_lines_uq').on(t.tenantId, t.salaryId, t.componentId),
 		index('employee_salary_lines_component_idx').on(t.tenantId, t.componentId),
 		check('employee_salary_lines_value_ck', sql`${t.value} >= 0 and ${t.amount} >= 0`)
+	]
+);
+
+export const PAYROLL_RUN_TYPES = ['regular', 'bonus', 'arrears', 'final'] as const;
+export const PAYROLL_RUN_STATUSES = ['computed', 'approved', 'paid', 'void'] as const;
+
+export const payrollRuns = pgTable(
+	'payroll_runs',
+	{
+		...tenantBase(),
+		runType: text().notNull().default('regular'),
+		period: text().notNull(),
+		status: text().notNull().default('computed'),
+		inputsHash: text().notNull(),
+		outputHash: text().notNull(),
+		computedByUserId: uuid().notNull(),
+		computedAt: tstz().notNull(),
+		approvedByUserId: uuid(),
+		approvedAt: tstz(),
+		paidByUserId: uuid(),
+		paidAt: tstz()
+	},
+	(t) => [
+		tenantKey('payroll_runs', t),
+		uniqueIndex('payroll_runs_regular_uq')
+			.on(t.tenantId, t.period)
+			.where(sql`${t.runType} = 'regular' and ${t.status} <> 'void'`),
+		check('payroll_runs_period_ck', sql`${t.period} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+		check('payroll_runs_type_ck', sql`${t.runType} in ('regular','bonus','arrears','final')`),
+		check('payroll_runs_status_ck', sql`${t.status} in ('computed','approved','paid','void')`)
+	]
+);
+
+export const payslips = pgTable(
+	'payslips',
+	{
+		...tenantBase(),
+		runId: uuid().notNull(),
+		employeeId: uuid().notNull(),
+		paidDays: integer().notNull().default(0),
+		unpaidDays: numeric({ precision: 5, scale: 1, mode: 'number' }).notNull().default(0),
+		gross: integer().notNull().default(0),
+		deductions: integer().notNull().default(0),
+		rounding: integer().notNull().default(0),
+		net: integer().notNull().default(0),
+		taxable: integer().notNull().default(0),
+		tax: integer().notNull().default(0),
+		error: text(),
+		notes: text()
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		pdfKey: text()
+	},
+	(t) => [
+		tenantKey('payslips', t),
+		tfk('payslips_run_fk', t, t.runId, payrollRuns, 'cascade'),
+		tfk('payslips_employee_fk', t, t.employeeId, employees, 'restrict'),
+		unique('payslips_run_employee_uq').on(t.tenantId, t.runId, t.employeeId),
+		index('payslips_employee_idx').on(t.tenantId, t.employeeId),
+		check('payslips_net_ck', sql`${t.net} >= 0`)
+	]
+);
+
+export const payslipLines = pgTable(
+	'payslip_lines',
+	{
+		...tenantBase(),
+		payslipId: uuid().notNull(),
+		employeeId: uuid().notNull(),
+		seq: smallint().notNull(),
+		code: text().notNull(),
+		name: text().notNull(),
+		kind: text().notNull(),
+		taxable: boolean().notNull(),
+		amount: integer().notNull()
+	},
+	(t) => [
+		tenantKey('payslip_lines', t),
+		tfk('payslip_lines_payslip_fk', t, t.payslipId, payslips, 'cascade'),
+		tfk('payslip_lines_employee_fk', t, t.employeeId, employees, 'restrict'),
+		unique('payslip_lines_seq_uq').on(t.tenantId, t.payslipId, t.seq),
+		check('payslip_lines_kind_ck', sql`${t.kind} in ('earning','deduction','employer')`),
+		check('payslip_lines_amount_ck', sql`${t.amount} > 0`)
 	]
 );
