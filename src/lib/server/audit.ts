@@ -1,9 +1,21 @@
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { can, userCtx, type requireMember } from './rbac/access';
-import { withTenant } from './tenancy';
+import { auditLog } from './db/schema';
+import { withTenant, type TenantCtx, type Tx } from './tenancy';
 
 export const AUDIT_PAGE_SIZE = 50;
+
+export const auditEvent = (tx: Tx, ctx: TenantCtx, tableName: string, rowId: string | null, event: string) =>
+	tx.insert(auditLog).values({
+		tenantId: ctx.tenantId,
+		actorUserId: ctx.userId ?? null,
+		actorKind: ctx.actor,
+		tableName,
+		rowId,
+		op: 'READ',
+		event
+	});
 
 type Values = Record<string, unknown> | null;
 

@@ -132,3 +132,34 @@ test('HR uploads a document that only its owner and HR can download', async ({ p
 		await ctx.close();
 	}
 });
+
+test('HR imports employees from CSV and exports the list', async ({ page, request }) => {
+	const f = await fixture(request, { tenant: {}, users: [{ key: 'hr', roles: ['hr_admin'] }] });
+	await signIn(page, f.users.hr.email);
+	await page.getByRole('link', { name: 'Employees' }).click();
+	await page.getByRole('link', { name: 'Import CSV' }).click();
+	const upload = async (body: string) => {
+		await page
+			.getByLabel('CSV file')
+			.setInputFiles({ name: 'people.csv', mimeType: 'text/csv', buffer: Buffer.from(body) });
+		await page.getByRole('button', { name: 'Import' }).click();
+	};
+	const header = 'full_name,work_email,manager_email,employment_type,status,join_date';
+	await upload(
+		`${header}\nAyesha,ayesha@acme.test,,full_time,active,2026-01-01\nNoor,,ghost@acme.test,full_time,active,2026-01-01\n`
+	);
+	await expect(page.getByTestId('import-error')).toHaveText(/Line 3: No employee has the manager email/);
+	await upload(
+		`${header}\nAyesha,ayesha@acme.test,,full_time,active,2026-01-01\nNoor,,ayesha@acme.test,full_time,active,2026-01-01\n`
+	);
+	await expect(page.getByRole('status')).toHaveText('2 employees imported.');
+
+	await page.getByRole('link', { name: 'Back to employees' }).click();
+	await expect(page.getByTestId('employee-total')).toHaveText('2');
+	const href = await page.getByRole('link', { name: 'Export CSV' }).getAttribute('href');
+	const res = await page.request.get(href!);
+	expect(res.headers()['content-type']).toContain('text/csv');
+	const text = await res.text();
+	expect(text.charCodeAt(0)).toBe(0xfeff);
+	expect(text).toMatch(/EMP-0002,Noor,,.*ayesha@acme\.test/);
+});

@@ -22,10 +22,14 @@
 <div class="flex items-center gap-4">
 	<h1 class="text-2xl font-semibold text-slate-900">Employees</h1>
 	<span class="text-sm text-slate-500" data-testid="employee-total">{data.total}</span>
+	<a href="/t/{data.tenant.slug}/employees/export{pageHref(1)}" class="ml-auto text-sm text-indigo-600 hover:underline">
+		Export CSV
+	</a>
 	{#if data.canCreate}
+		<a href="/t/{data.tenant.slug}/employees/import" class="text-sm text-indigo-600 hover:underline">Import CSV</a>
 		<a
 			href="/t/{data.tenant.slug}/employees/new"
-			class="ml-auto rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+			class=" rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
 		>
 			New employee
 		</a>

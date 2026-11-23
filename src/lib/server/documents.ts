@@ -1,7 +1,8 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { auditLog, DOCUMENT_CATEGORIES, employeeDocuments, employees, MAX_DOCUMENT_BYTES } from './db/schema';
+import { auditEvent } from './audit';
+import { DOCUMENT_CATEGORIES, employeeDocuments, employees, MAX_DOCUMENT_BYTES } from './db/schema';
 import { AppError } from './errors';
 import { log } from './log';
 import type { Access } from './rbac/access';
@@ -102,14 +103,7 @@ async function findDocument(tx: Tx, access: Access, employeeId: string, document
 export async function openDocument(ctx: TenantCtx, access: Access, employeeId: string, documentId: string) {
 	const doc = await withTenant(ctx, async (tx) => {
 		const d = await findDocument(tx, access, employeeId, documentId, false);
-		await tx.insert(auditLog).values({
-			tenantId: ctx.tenantId,
-			actorUserId: ctx.userId ?? null,
-			tableName: 'employee_documents',
-			rowId: d.id,
-			op: 'READ',
-			event: 'document.download'
-		});
+		await auditEvent(tx, ctx, 'employee_documents', d.id, 'document.download');
 		return d;
 	});
 	return { fileName: doc.fileName, contentType: doc.contentType, body: await getObject(doc.storageKey) };

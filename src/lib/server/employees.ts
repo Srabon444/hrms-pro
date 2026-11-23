@@ -150,25 +150,26 @@ async function labels(tx: Tx, values: Record<string, unknown>): Promise<Record<s
 	};
 }
 
-export async function createEmployee(ctx: TenantCtx, access: Access, form: EmployeeForm): Promise<string> {
+async function insertEmployee(tx: Tx, tenantId: string, access: Access, form: EmployeeForm): Promise<string> {
 	const input = baseSchema.parse(form);
 	const sensitive = sensitiveSchema.parse(
 		Object.fromEntries(SENSITIVE_KEYS.filter((k) => k in form).map((k) => [k, form[k]]))
 	);
-	return withTenant(ctx, async (tx) => {
-		const code = await nextCode(tx, ctx.tenantId);
-		const [row] = await tx
-			.insert(employees)
-			.values({ tenantId: ctx.tenantId, code, ...input, ...sensitive })
-			.returning({ id: employees.id })
-			.catch(friendly);
-		if (!inScope(await resolveScope(tx, access, 'employee.create'), row.id))
-			throw new AppError('out_of_scope', 'You can only add people within your own scope.', 403);
-		if (hasSensitive(form) && !inScope(await resolveScope(tx, access, 'employee.sensitive.update'), row.id))
-			throw new AppError('sensitive_denied', 'You cannot set identity or bank details.', 403);
-		return row.id;
-	});
+	const code = await nextCode(tx, tenantId);
+	const [row] = await tx
+		.insert(employees)
+		.values({ tenantId, code, ...input, ...sensitive })
+		.returning({ id: employees.id })
+		.catch(friendly);
+	if (!inScope(await resolveScope(tx, access, 'employee.create'), row.id))
+		throw new AppError('out_of_scope', 'You can only add people within your own scope.', 403);
+	if (hasSensitive(form) && !inScope(await resolveScope(tx, access, 'employee.sensitive.update'), row.id))
+		throw new AppError('sensitive_denied', 'You cannot set identity or bank details.', 403);
+	return row.id;
 }
+
+export const createEmployee = (ctx: TenantCtx, access: Access, form: EmployeeForm): Promise<string> =>
+	withTenant(ctx, (tx) => insertEmployee(tx, ctx.tenantId, access, form));
 
 export async function updateEmployee(ctx: TenantCtx, access: Access, employeeId: string, form: EmployeeForm) {
 	const targetId = z.uuid().parse(employeeId);
@@ -230,8 +231,7 @@ export const listSchema = z.object({
 
 export const PAGE_SIZE = 25;
 
-export async function listEmployees(tx: Tx, access: Access, raw: Record<string, string | null>) {
-	const f = listSchema.parse(raw);
+async function listFilter(tx: Tx, access: Access, f: z.infer<typeof listSchema>) {
 	const scope = await resolveScope(tx, access, 'employee.read');
 	const where: SQL[] = [scopeWhere(scope, employees.id)];
 	if (f.q) {
@@ -240,7 +240,12 @@ export async function listEmployees(tx: Tx, access: Access, raw: Record<string, 
 	}
 	if (f.department) where.push(eq(employees.departmentId, f.department));
 	if (f.status) where.push(eq(employees.status, f.status));
-	const filter = and(...where);
+	return and(...where);
+}
+
+export async function listEmployees(tx: Tx, access: Access, raw: Record<string, string | null>) {
+	const f = listSchema.parse(raw);
+	const filter = await listFilter(tx, access, f);
 	const [rows, [{ total }]] = await Promise.all([
 		tx
 			.select({
@@ -325,4 +330,154 @@ export async function employeeChoices(tx: Tx) {
 			.orderBy(asc(employees.fullName))
 	]);
 	return { departments: d, designations: des, grades: g, branches: b, managers: m };
+}
+
+export const CSV_COLUMNS = [
+	'full_name',
+	'work_email',
+	'personal_email',
+	'phone',
+	'date_of_birth',
+	'gender',
+	'department',
+	'designation',
+	'grade',
+	'branch',
+	'manager_email',
+	'employment_type',
+	'status',
+	'join_date',
+	'probation_end_date'
+] as const;
+
+export async function exportEmployees(tx: Tx, access: Access, raw: Record<string, string | null>) {
+	const f = listSchema.parse(raw);
+	const rows = await tx
+		.select({
+			code: employees.code,
+			fullName: employees.fullName,
+			workEmail: employees.workEmail,
+			personalEmail: employees.personalEmail,
+			phone: employees.phone,
+			dateOfBirth: employees.dateOfBirth,
+			gender: employees.gender,
+			department: departments.name,
+			designation: designations.name,
+			grade: grades.name,
+			branch: branches.name,
+			managerEmail: manager.workEmail,
+			employmentType: employees.employmentType,
+			status: employees.status,
+			joinDate: employees.joinDate,
+			probationEndDate: employees.probationEndDate
+		})
+		.from(employees)
+		.leftJoin(departments, eq(departments.id, employees.departmentId))
+		.leftJoin(designations, eq(designations.id, employees.designationId))
+		.leftJoin(grades, eq(grades.id, employees.gradeId))
+		.leftJoin(branches, eq(branches.id, employees.branchId))
+		.leftJoin(manager, eq(manager.id, employees.managerId))
+		.where(await listFilter(tx, access, f))
+		.orderBy(...SORTS[f.sort]);
+	return [['code', ...CSV_COLUMNS], ...rows.map((r) => Object.values(r))];
+}
+
+export const MAX_IMPORT_ROWS = 2000;
+
+export type ImportRowError = { line: number; message: string };
+
+export class ImportFailed extends AppError {
+	constructor(public rows: ImportRowError[]) {
+		super('import_failed', 'Nothing was imported. Fix the rows below and upload the file again.', 400);
+	}
+}
+
+const unformula = (v: string) => v.trim().replace(/^'(?=[=+\-@\t\r])/, '');
+
+export async function importEmployees(ctx: TenantCtx, access: Access, table: string[][]): Promise<number> {
+	const [header, ...body] = table;
+	const cols = (header ?? []).map((h) => h.trim().toLowerCase());
+	const unknown = cols.filter((c) => !(CSV_COLUMNS as readonly string[]).includes(c));
+	const missing = ['full_name', 'employment_type', 'status', 'join_date'].filter((c) => !cols.includes(c));
+	if (unknown.length || missing.length || new Set(cols).size !== cols.length)
+		throw new ImportFailed([
+			{
+				line: 1,
+				message: `Header must use these columns: ${CSV_COLUMNS.join(', ')} (full_name, employment_type, status and join_date are required).`
+			}
+		]);
+	if (!body.length) throw new ImportFailed([{ line: 2, message: 'The file has no rows to import.' }]);
+	if (body.length > MAX_IMPORT_ROWS)
+		throw new ImportFailed([{ line: 1, message: `Import at most ${MAX_IMPORT_ROWS} rows at a time.` }]);
+
+	return withTenant(ctx, async (tx) => {
+		const byName = async (table: typeof departments | typeof designations | typeof grades | typeof branches) =>
+			new Map(
+				(await tx.select({ id: table.id, name: table.name }).from(table)).map((r) => [r.name.toLowerCase(), r.id])
+			);
+		const lookups = {
+			department: ['departmentId', await byName(departments)],
+			designation: ['designationId', await byName(designations)],
+			grade: ['gradeId', await byName(grades)],
+			branch: ['branchId', await byName(branches)]
+		} as const;
+		const emails = new Map(
+			(await tx.select({ id: employees.id, email: employees.workEmail }).from(employees))
+				.filter((r) => r.email)
+				.map((r) => [r.email!.toLowerCase(), r.id])
+		);
+		const errors: ImportRowError[] = [];
+		for (const [i, cells] of body.entries()) {
+			const line = i + 2;
+			const v = Object.fromEntries(cols.map((c, j) => [c, unformula(cells[j] ?? '')]));
+			const form: EmployeeForm = Object.fromEntries(
+				Object.keys({ ...PROFILE_FIELDS, ...EMPLOYMENT_FIELDS }).map((k) => [k, ''])
+			);
+			Object.assign(form, {
+				fullName: v.full_name ?? '',
+				workEmail: v.work_email ?? '',
+				personalEmail: v.personal_email ?? '',
+				phone: v.phone ?? '',
+				dateOfBirth: v.date_of_birth ?? '',
+				gender: v.gender ?? '',
+				employmentType: v.employment_type ?? '',
+				status: v.status ?? '',
+				joinDate: v.join_date ?? '',
+				probationEndDate: v.probation_end_date ?? ''
+			});
+			const problems: string[] = [];
+			for (const [col, [key, map]] of Object.entries(lookups)) {
+				if (!v[col]) continue;
+				const found = map.get(v[col].toLowerCase());
+				if (found) form[key] = found;
+				else problems.push(`Unknown ${col} "${v[col]}".`);
+			}
+			if (v.manager_email) {
+				const found = emails.get(v.manager_email.toLowerCase());
+				if (found) form.managerId = found;
+				else
+					problems.push(`No employee has the manager email "${v.manager_email}" (list managers before their reports).`);
+			}
+			if (problems.length) {
+				errors.push({ line, message: problems.join(' ') });
+				continue;
+			}
+			try {
+				const id = await tx.transaction((sp) => insertEmployee(sp, ctx.tenantId, access, form));
+				if (form.workEmail) emails.set(form.workEmail.toLowerCase(), id);
+			} catch (err) {
+				if (err instanceof z.ZodError)
+					errors.push({
+						line,
+						message: err.issues
+							.map((x) => `${String(x.path[0]).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}: ${x.message}`)
+							.join(' ')
+					});
+				else if (err instanceof AppError) errors.push({ line, message: err.message });
+				else throw err;
+			}
+		}
+		if (errors.length) throw new ImportFailed(errors);
+		return body.length;
+	});
 }
