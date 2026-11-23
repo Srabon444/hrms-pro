@@ -1,15 +1,17 @@
-import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { canGrant } from '../../rbac/grants';
 import { isPermission, isScopeValue, type Permission, type Scope } from '../../rbac/permissions';
 import { emailSchema } from '../auth/users';
 import { now } from '../clock';
-import { invitations, membershipRoles, memberships, rolePermissions, roles } from '../db/schema';
+import { employees, invitations, membershipRoles, memberships, rolePermissions, roles } from '../db/schema';
 import { AppError } from '../errors';
 import { createInvitation, invitationMail } from '../invitations';
 import { sendMail, type Mail } from '../mail';
 import { notify, sendAll } from '../notifications';
 import { withTenant, type TenantCtx, type Tx } from '../tenancy';
 import { userCtx, type Access, type requireMember } from './access';
+import { inScope, resolveScope, scopeWhere } from './scope';
 
 export type Actor = {
 	ctx: TenantCtx;
@@ -99,7 +101,7 @@ async function loadTarget(tx: Tx, actor: Actor, membershipId: string) {
 	if (membershipId === actor.access.membershipId)
 		throw new AppError('self_change', 'You cannot change your own access.', 403);
 	const [target] = await tx
-		.select({ id: memberships.id, status: memberships.status })
+		.select({ id: memberships.id, status: memberships.status, employeeId: memberships.employeeId })
 		.from(memberships)
 		.where(eq(memberships.id, membershipId))
 		.for('update');
@@ -123,9 +125,45 @@ const revokeInvitesBy = (tx: Tx, membershipId: string) =>
 			)
 		);
 
-export async function inviteMember(actor: Actor, input: { email: string; roleIds: string[] }): Promise<void> {
+const assertEmployeeInScope = async (tx: Tx, access: Access, employeeId: string) => {
+	if (!inScope(await resolveScope(tx, access, 'employee.update'), employeeId))
+		throw new AppError('out_of_scope', 'You can only link employee records within your scope.', 403);
+};
+
+async function claimEmployee(tx: Tx, access: Access, employeeId: string, exceptMembershipId: string | null) {
+	const [e] = await tx
+		.select({ status: employees.status })
+		.from(employees)
+		.where(eq(employees.id, employeeId))
+		.for('update');
+	if (!e) throw new AppError('employee_not_found', 'That employee record does not exist.', 404);
+	if (e.status === 'exited') throw new AppError('employee_exited', 'That person has left the organisation.', 409);
+	await assertEmployeeInScope(tx, access, employeeId);
+	const [taken] = await tx
+		.select({ id: memberships.id })
+		.from(memberships)
+		.where(
+			and(
+				eq(memberships.employeeId, employeeId),
+				exceptMembershipId ? ne(memberships.id, exceptMembershipId) : undefined
+			)
+		);
+	if (taken) throw new AppError('employee_taken', 'That employee record is linked to another member.', 409);
+	await tx
+		.update(invitations)
+		.set({ revokedAt: now() })
+		.where(and(eq(invitations.employeeId, employeeId), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
+}
+
+const optionalId = z.uuid().nullable();
+
+export async function inviteMember(
+	actor: Actor,
+	input: { email: string; roleIds: string[]; employeeId?: string | null }
+): Promise<void> {
 	const email = emailSchema.parse(input.email);
 	const roleIds = [...new Set(input.roleIds)];
+	const employeeId = optionalId.parse(input.employeeId ?? null);
 	const token = await withTenant(actor.ctx, async (tx) => {
 		const wanted = await rolesWithGrants(tx, roleIds);
 		if (wanted.length !== roleIds.length) throw new AppError('role_not_found', 'One or more roles do not exist.');
@@ -134,10 +172,12 @@ export async function inviteMember(actor: Actor, input: { email: string; roleIds
 			sql`select membership_id as id from tenant_users where email = ${email} and membership_status = 'active'`
 		);
 		if (existing.length) throw new AppError('already_member', 'That person is already a member.', 409);
+		if (employeeId) await claimEmployee(tx, actor.access, employeeId, null);
 		return createInvitation(tx, {
 			tenantId: actor.tenant.id,
 			email,
 			roleIds,
+			employeeId,
 			invitedByMembershipId: actor.access.membershipId
 		});
 	});
@@ -214,4 +254,33 @@ export async function setMemberStatus(
 		await tx.update(memberships).set({ status }).where(eq(memberships.id, membershipId));
 		if (status === 'disabled') await revokeInvitesBy(tx, membershipId);
 	});
+}
+
+export async function linkEmployee(actor: Actor, membershipId: string, employeeId: string | null): Promise<void> {
+	const wanted = optionalId.parse(employeeId);
+	await withTenant(actor.ctx, async (tx) => {
+		const target = await loadTarget(tx, actor, membershipId);
+		if (target.status === 'ex_employee')
+			throw new AppError('ex_employee', 'Former employees are managed through the exit process.', 409);
+		if (target.employeeId === wanted) return;
+		assertCanHandOut(actor.access, await rolesWithGrants(tx, target.roleIds));
+		if (target.employeeId) await assertEmployeeInScope(tx, actor.access, target.employeeId);
+		if (wanted) await claimEmployee(tx, actor.access, wanted, membershipId);
+		await tx.update(memberships).set({ employeeId: wanted }).where(eq(memberships.id, membershipId));
+	});
+}
+
+export async function linkableEmployees(tx: Tx, access: Access, membershipId: string | null) {
+	const scope = await resolveScope(tx, access, 'employee.update');
+	return tx
+		.select({ id: employees.id, name: sql<string>`${employees.fullName} || ' (' || ${employees.code} || ')'` })
+		.from(employees)
+		.where(
+			and(
+				ne(employees.status, 'exited'),
+				scopeWhere(scope, employees.id),
+				sql`not exists (select 1 from memberships m where m.employee_id = ${employees.id} and m.id is distinct from ${membershipId}::uuid)`
+			)
+		)
+		.orderBy(asc(employees.fullName));
 }

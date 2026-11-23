@@ -1,11 +1,17 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authPool, closePools } from '../../src/lib/server/db';
-import { invitations } from '../../src/lib/server/db/schema';
+import { employees, invitations, memberships } from '../../src/lib/server/db/schema';
 import { sha256 } from '../../src/lib/server/auth/crypto';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess } from '../../src/lib/server/rbac/access';
-import { inviteMember, setMemberRoles, setMemberStatus, type Actor } from '../../src/lib/server/rbac/members';
+import {
+	inviteMember,
+	linkEmployee,
+	setMemberRoles,
+	setMemberStatus,
+	type Actor
+} from '../../src/lib/server/rbac/members';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
 import { resolveTenantAccess } from '../../src/lib/server/tenancy/resolve';
 import { createInvitation } from '../../src/lib/server/invitations';
@@ -137,5 +143,80 @@ describe('member management guards', () => {
 		await expect(authPool().sql`select auth_accept_invitation(${sha256(token)}, ${joiner.id})`).rejects.toThrow(
 			'invitation_invalid'
 		);
+	});
+});
+
+describe('linking members to employee records', () => {
+	let n = 0;
+	const employee = async (status = 'active') => {
+		n += 1;
+		const [e] = await withTenant(systemCtx(tenant.id), (tx) =>
+			tx
+				.insert(employees)
+				.values({
+					tenantId: tenant.id,
+					code: `LNK-${n}`,
+					fullName: `Linked ${n}`,
+					employmentType: 'full_time',
+					status: status as 'active',
+					joinDate: '2026-01-05'
+				})
+				.returning({ id: employees.id })
+		);
+		return e.id;
+	};
+	const linkedTo = async (membershipId: string) => {
+		const [m] = await withTenant(systemCtx(tenant.id), (tx) =>
+			tx.select({ employeeId: memberships.employeeId }).from(memberships).where(eq(memberships.id, membershipId))
+		);
+		return m.employeeId;
+	};
+
+	it('HR links and unlinks a member; one record belongs to one member', async () => {
+		const hr = await actorFor(await member(['hr_admin']));
+		const a = await member([]);
+		const b = await member([]);
+		const rec = await employee();
+		expect(await code(linkEmployee(hr, a.id, rec))).toBe('ok');
+		expect((await resolveTenantAccess(tenant.slug, a.userId))!.membership.employeeId).toBe(rec);
+		expect(await code(linkEmployee(hr, b.id, rec))).toBe('employee_taken');
+		expect(await code(linkEmployee(hr, a.id, null))).toBe('ok');
+		expect(await linkedTo(a.id)).toBeNull();
+		expect(await code(linkEmployee(hr, b.id, rec))).toBe('ok');
+	});
+
+	it('refuses self-links, exited records, unknown ids and records outside the actor scope', async () => {
+		const hrMember = await member(['hr_admin']);
+		const hr = await actorFor(hrMember);
+		const staff = await member([]);
+		expect(await code(linkEmployee(hr, hrMember.id, await employee()))).toBe('self_change');
+		expect(await code(linkEmployee(hr, staff.id, await employee('exited')))).toBe('employee_exited');
+		expect(await code(linkEmployee(hr, staff.id, crypto.randomUUID()))).toBe('employee_not_found');
+		expect(await code(linkEmployee(hr, staff.id, 'nope'))).not.toBe('ok');
+		const usersOnly: Actor = { ...hr, access: { ...hr.access, grants: { 'user.manage': ['all'] } } };
+		expect(await code(linkEmployee(usersOnly, staff.id, await employee()))).toBe('out_of_scope');
+		expect(await linkedTo(staff.id)).toBeNull();
+	});
+
+	it('an invitation carries the employee record into the new membership', async () => {
+		const owner = await actorFor(await member(['owner']));
+		const rec = await employee();
+		await inviteMember(owner, { email: 'linked@members.test', roleIds: [], employeeId: rec });
+		const [inv] = await withTenant(systemCtx(tenant.id), (tx) =>
+			tx
+				.select({ employeeId: invitations.employeeId })
+				.from(invitations)
+				.where(and(eq(invitations.email, 'linked@members.test'), isNull(invitations.revokedAt)))
+		);
+		expect(inv.employeeId).toBe(rec);
+		const other = await member([]);
+		await linkEmployee(owner, other.id, rec);
+		const open = await withTenant(systemCtx(tenant.id), (tx) =>
+			tx
+				.select()
+				.from(invitations)
+				.where(and(eq(invitations.email, 'linked@members.test'), isNull(invitations.revokedAt)))
+		);
+		expect(open).toEqual([]);
 	});
 });

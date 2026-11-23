@@ -55,3 +55,31 @@ test('an employee sees only their own record and cannot edit it', async ({ page,
 	expect((await page.goto(`/t/${f.tenant!.slug}/employees/${f.users.peer.employeeId}`))!.status()).toBe(404);
 	expect((await page.goto(`/t/${f.tenant!.slug}/employees/new`))!.status()).toBe(403);
 });
+
+test('HR links a member to an employee record and the member then sees it', async ({ page, request }) => {
+	const f = await fixture(request, {
+		tenant: {},
+		users: [{ key: 'hr', roles: ['hr_admin'] }, { key: 'staff' }]
+	});
+	await signIn(page, f.users.hr.email);
+	await page.getByRole('link', { name: 'Employees' }).click();
+	await page.getByRole('link', { name: 'New employee' }).click();
+	await page.getByLabel('Full name').fill('Karim Staff');
+	await page.getByLabel('Join date').fill('2026-03-01');
+	await page.getByRole('button', { name: 'Add employee' }).click();
+	await expect(page.getByRole('heading', { name: 'Karim Staff' })).toBeVisible();
+
+	await page.getByRole('link', { name: 'Users' }).click();
+	await page.getByRole('link', { name: /^staff / }).click();
+	await page.getByLabel('Linked employee').selectOption({ label: 'Karim Staff (EMP-0001)' });
+	await page.getByRole('button', { name: 'Save link' }).click();
+	await expect(page.getByRole('status')).toHaveText('Employee record linked.');
+	await page.getByRole('link', { name: 'Back to users' }).click();
+	await expect(page.getByRole('row', { name: /staff/ })).toContainText('Karim Staff (EMP-0001)');
+
+	await page.context().clearCookies();
+	await signIn(page, f.users.staff.email);
+	await page.getByRole('link', { name: 'Employees' }).click();
+	await expect(page.getByTestId('employee-total')).toHaveText('1');
+	await expect(page.getByRole('link', { name: 'Karim Staff' })).toBeVisible();
+});

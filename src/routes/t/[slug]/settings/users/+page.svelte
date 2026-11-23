@@ -28,6 +28,15 @@
 				</div>
 			</fieldset>
 		{/if}
+		{#if data.employees.length}
+			<label class="block text-sm font-medium text-slate-700">
+				Employee record
+				<select name="employeeId" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+					<option value="">Not linked</option>
+					{#each data.employees as e (e.id)}<option value={e.id}>{e.name}</option>{/each}
+				</select>
+			</label>
+		{/if}
 		<Button type="submit">Send invitation</Button>
 	</form>
 	<div class="mt-4">
@@ -59,6 +68,7 @@
 		<thead class="text-left text-slate-600">
 			<tr>
 				<th class="px-4 py-3 font-medium">Name</th>
+				<th class="px-4 py-3 font-medium">Employee</th>
 				<th class="px-4 py-3 font-medium">Roles</th>
 				<th class="px-4 py-3 font-medium">Status</th>
 				<th class="px-4 py-3 font-medium">2FA</th>
@@ -76,6 +86,7 @@
 						{/if}
 						<div class="text-slate-500">{u.email}</div>
 					</td>
+					<td class="px-4 py-3 text-slate-700">{u.employee ?? ''}</td>
 					<td class="px-4 py-3 text-slate-700">{u.roles.join(', ')}</td>
 					<td class="px-4 py-3 text-slate-700">{u.status}</td>
 					<td class="px-4 py-3 text-slate-700">{u.totpEnabled ? 'On' : 'Off'}</td>

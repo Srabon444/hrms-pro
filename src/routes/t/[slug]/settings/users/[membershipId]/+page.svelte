@@ -36,6 +36,24 @@
 
 {#if data.member.status !== 'ex_employee'}
 	<section class="mt-6 max-w-xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
+		<h2 class="font-semibold text-slate-900">Employee record</h2>
+		<p class="mt-1 text-sm text-slate-600">Their own profile, leave and payslips come from the linked record.</p>
+		<form method="POST" action="?/link" class="mt-4 flex items-end gap-3">
+			<select
+				name="employeeId"
+				aria-label="Linked employee"
+				class="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+			>
+				<option value="">Not linked</option>
+				{#each data.employees as e (e.id)}
+					<option value={e.id} selected={e.id === data.member.employeeId}>{e.name}</option>
+				{/each}
+			</select>
+			<Button type="submit">Save link</Button>
+		</form>
+	</section>
+
+	<section class="mt-6 max-w-xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
 		<h2 class="font-semibold text-slate-900">Access</h2>
 		<form method="POST" action="?/status" class="mt-4">
 			{#if data.member.status === 'active'}
