@@ -134,6 +134,13 @@
       "when": 1795444330009,
       "tag": "0018_comp_off_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795445245815,
+      "tag": "0019_meal_setup",
+      "breakpoints": true
     }
   ]
 }
