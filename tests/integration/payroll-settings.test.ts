@@ -14,7 +14,8 @@ const valid = {
 	overtimeRateBp: '200',
 	overtimeMonthlyHours: '208',
 	bonusRateBp: '150.5',
-	bonusMinServiceMonths: '6'
+	bonusMinServiceMonths: '6',
+	arrearsLookbackMonths: '6'
 };
 const reason = (raw: Record<string, string>) =>
 	savePayrollSettings(systemCtx(tenant.id), raw).then(
@@ -34,7 +35,9 @@ it('stores payroll settings in basis points and refuses values out of range', as
 	expect([s.pfEmployeeRateBp, s.pfEmployerRateBp, s.overtimeRateBp, s.overtimeMonthlyHours]).toEqual([
 		1000, 1250, 20000, 208
 	]);
-	expect([s.bonusRateBp, s.bonusMinServiceMonths]).toEqual([15050, 6]);
+	expect([s.bonusRateBp, s.bonusMinServiceMonths, s.arrearsLookbackMonths]).toEqual([15050, 6, 6]);
+	expect(await reason({ ...valid, arrearsLookbackMonths: '0' })).toBe('Arrears look back 1 to 24 months.');
+	expect(await reason({ ...valid, arrearsLookbackMonths: '25' })).toBe('Arrears look back 1 to 24 months.');
 	expect(await reason({ ...valid, bonusRateBp: '500.01' })).toContain('festival bonus');
 	expect(await reason({ ...valid, bonusMinServiceMonths: '121' })).toContain('0 to 120');
 	expect(await reason({ ...valid, bonusMinServiceMonths: '1.5' })).toBe('Enter whole months.');

@@ -3,10 +3,14 @@ import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, ne, notInArray, or, 
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import {
+	computeArrears,
 	computeBonus,
 	computePay,
 	failed,
+	runName,
 	serviceMonths,
+	slipName,
+	type LineKind,
 	type PayLine,
 	type PayResult,
 	type Segment
@@ -57,7 +61,7 @@ type Run = { id: string; period: string; runType: string; title: string | null }
 const periodSchema = z.object({ period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Choose a month.') });
 const startSchema = periodSchema
 	.extend({
-		runType: z.enum(['regular', 'bonus'], 'Choose what to pay.').default('regular'),
+		runType: z.enum(['regular', 'bonus', 'arrears'], 'Choose what to pay.').default('regular'),
 		title: z
 			.string()
 			.trim()
@@ -140,6 +144,78 @@ export function computeBonusRun(inputs: Awaited<ReturnType<typeof loadBonusInput
 			return { employeeId: p.id, ...result };
 		})
 		.filter((s) => s.error || s.gross);
+}
+
+export async function loadArrearsInputs(tx: Tx, run: Run) {
+	const [{ lookback }] = await tx.select({ lookback: tenantSettings.arrearsLookbackMonths }).from(tenantSettings);
+	const window = Array.from({ length: lookback + 1 }, (_, i) => addMonths(run.period, i - lookback));
+	const paid = await tx
+		.select({
+			employeeId: payslipLines.employeeId,
+			month: sql<string>`coalesce(${payslipLines.forPeriod}, ${payrollRuns.period})`,
+			regular: sql<boolean>`${payrollRuns.runType} = 'regular'`,
+			code: payslipLines.code,
+			kind: payslipLines.kind,
+			taxable: payslipLines.taxable,
+			amount: payslipLines.amount
+		})
+		.from(payslipLines)
+		.innerJoin(payslips, eq(payslips.id, payslipLines.payslipId))
+		.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
+		.where(
+			and(
+				inArray(payrollRuns.status, ['approved', 'paid']),
+				or(
+					and(eq(payrollRuns.runType, 'regular'), inArray(payrollRuns.period, window)),
+					and(eq(payrollRuns.runType, 'arrears'), inArray(payslipLines.forPeriod, window))
+				),
+				notInArray(payslipLines.employeeId, finalsIn(tx, run.period))
+			)
+		)
+		.orderBy(asc(payslipLines.employeeId), asc(payslipLines.payslipId), asc(payslipLines.seq));
+	const regulars = await tx
+		.select({ period: payrollRuns.period, settings: payrollRuns.settings })
+		.from(payrollRuns)
+		.where(
+			and(
+				eq(payrollRuns.runType, 'regular'),
+				inArray(payrollRuns.status, ['approved', 'paid']),
+				inArray(payrollRuns.period, window)
+			)
+		)
+		.orderBy(asc(payrollRuns.period));
+	const months = await Promise.all(
+		regulars.map(async (r) => {
+			const inputs = await loadPayrollInputs(tx, { ...run, period: r.period });
+			const settings = (r.settings as typeof inputs.settings | null) ?? inputs.settings;
+			return { period: r.period, inputs: { ...inputs, settings, ytd: [], expenses: [], instalments: [], meals: [] } };
+		})
+	);
+	return {
+		period: run.period,
+		fy: fiscalYearOf(`${run.period}-01`),
+		months,
+		paid: paid.map((l) => ({ ...l, kind: l.kind as LineKind }))
+	};
+}
+
+export function computeArrearsRun(inputs: Awaited<ReturnType<typeof loadArrearsInputs>>) {
+	const dues = inputs.months.map((m) => ({ period: m.period, slips: computeRun(m.inputs) }));
+	return [...new Set(inputs.paid.map((l) => l.employeeId))]
+		.map((id) => {
+			const mine = inputs.paid.filter((l) => l.employeeId === id);
+			const months: Parameters<typeof computeArrears>[0] = [];
+			let error: string | null = null;
+			for (const d of dues) {
+				const paid = mine.filter((l) => l.month === d.period);
+				const due = d.slips.find((s) => s.employeeId === id);
+				if (!due || !paid.some((l) => l.regular)) continue;
+				if (due.error) error ??= `${d.period}: ${due.error}`;
+				else months.push({ period: d.period, due: due.lines, paid });
+			}
+			return { employeeId: id, ...(error ? failed(error) : computeArrears(months)) };
+		})
+		.filter((s) => s.error || s.net > 0);
 }
 
 export async function loadPayrollInputs(tx: Tx, run: Run) {
@@ -490,7 +566,7 @@ const canonical = (slips: SlipShape[]) =>
 			s.tax,
 			s.error,
 			s.notes,
-			s.lines.map((l) => [l.code, l.name, l.kind, l.taxable, l.amount])
+			s.lines.map((l) => [l.code, l.name, l.kind, l.taxable, l.amount, l.forPeriod ?? null])
 		]);
 
 const asStored = (slips: Slip[]) => canonical(slips.map((s) => ({ ...s, notes: s.skipped })));
@@ -518,14 +594,18 @@ async function storedSlips(tx: Tx, runId: string) {
 async function compute(tx: Tx, run: Run) {
 	if (run.runType === 'bonus') {
 		const inputs = await loadBonusInputs(tx, run);
-		return { inputs, slips: computeBonusRun(inputs) };
+		return { inputs, slips: computeBonusRun(inputs), snapshot: null };
+	}
+	if (run.runType === 'arrears') {
+		const inputs = await loadArrearsInputs(tx, run);
+		return { inputs, slips: computeArrearsRun(inputs), snapshot: null };
 	}
 	const inputs = await loadPayrollInputs(tx, run);
-	return { inputs, slips: computeRun(inputs) };
+	return { inputs, slips: computeRun(inputs), snapshot: inputs.settings };
 }
 
 async function computeInto(tx: Tx, m: Member, run: Run) {
-	const { inputs, slips } = await compute(tx, run);
+	const { inputs, slips, snapshot } = await compute(tx, run);
 	await tx.delete(payslips).where(eq(payslips.runId, run.id));
 	const rows = slips.length
 		? await tx
@@ -557,6 +637,7 @@ async function computeInto(tx: Tx, m: Member, run: Run) {
 	await tx
 		.update(payrollRuns)
 		.set({
+			settings: snapshot,
 			inputsHash: sha(inputs),
 			outputHash: sha(asStored(slips)),
 			computedByUserId: m.user.userId,
@@ -682,7 +763,7 @@ export async function reopenRun(m: Member, form: Record<string, string>) {
 
 export async function payRun(m: Member, form: Record<string, string>) {
 	const { runId } = runSchema.parse(form);
-	const { period, title, recipients } = await withTenant(payrollCtx(m, 'payroll.approve'), async (tx) => {
+	const { period, name, recipients } = await withTenant(payrollCtx(m, 'payroll.approve'), async (tx) => {
 		const run = await lockedRun(tx, m, runId);
 		if (run.status !== 'approved') throw new AppError('locked', 'Only an approved run can be marked paid.', 409);
 		const now = new Date();
@@ -722,7 +803,7 @@ export async function payRun(m: Member, form: Record<string, string>) {
 			.from(payslips)
 			.innerJoin(employees, eq(employees.id, payslips.employeeId))
 			.where(eq(payslips.runId, run.id));
-		return { period: run.period, title: run.title, recipients };
+		return { period: run.period, name: slipName(run), recipients };
 	});
 	const link = `${config().APP_URL}/t/${m.tenant.slug}/payslips`;
 	await Promise.all(
@@ -732,11 +813,11 @@ export async function payRun(m: Member, form: Record<string, string>) {
 						sendMail(
 							{
 								to: r.email,
-								subject: `Your ${title ? `${title} ` : ''}payslip for ${period}`,
+								subject: `Your ${name ? `${name} ` : ''}payslip for ${period}`,
 								text: [
 									`Hello ${r.name},`,
 									'',
-									`Your ${title ? `${title} ` : ''}payslip for ${period} from ${m.tenant.name} is ready.`,
+									`Your ${name ? `${name} ` : ''}payslip for ${period} from ${m.tenant.name} is ready.`,
 									`Open it here: ${link}`
 								].join('\n')
 							},
@@ -781,7 +862,7 @@ export async function payrollBoard(m: Member, runId?: string) {
 			canReopen: m.access.isOwner && allScope(m.access, 'payroll.approve'),
 			selfApprove: lone,
 			me: m.user.userId,
-			runs: runs.map((r) => ({ id: r.id, period: r.period, title: r.title, status: r.status })),
+			runs: runs.map((r) => ({ id: r.id, period: r.period, name: slipName(r), status: r.status })),
 			run: run && {
 				...run,
 				totals: {
@@ -800,14 +881,20 @@ export async function payrollBoard(m: Member, runId?: string) {
 export async function payrollApprovals(tx: Tx, access: Access): Promise<ApprovalItem[]> {
 	if (!allScope(access, 'payroll.approve')) return [];
 	const rows = await tx
-		.select({ id: payrollRuns.id, period: payrollRuns.period, title: payrollRuns.title, at: payrollRuns.computedAt })
+		.select({
+			id: payrollRuns.id,
+			period: payrollRuns.period,
+			runType: payrollRuns.runType,
+			title: payrollRuns.title,
+			at: payrollRuns.computedAt
+		})
 		.from(payrollRuns)
 		.where(eq(payrollRuns.status, 'computed'))
 		.orderBy(asc(payrollRuns.computedAt));
 	return rows.map((r) => ({
 		id: r.id,
 		kind: 'Payroll',
-		title: `${r.title ?? 'Payroll'} for ${r.period}`,
+		title: `${runName(r)} for ${r.period}`,
 		requestedBy: 'Payroll',
 		at: r.at,
 		link: `payroll?run=${r.id}`
@@ -820,11 +907,18 @@ const paidSlip = (m: Member) =>
 export async function myPayslips(m: Member) {
 	return withTenant(userCtx(m), (tx) =>
 		tx
-			.select({ id: payslips.id, period: payrollRuns.period, title: payrollRuns.title, net: payslips.net })
+			.select({
+				id: payslips.id,
+				period: payrollRuns.period,
+				runType: payrollRuns.runType,
+				title: payrollRuns.title,
+				net: payslips.net
+			})
 			.from(payslips)
 			.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
 			.where(paidSlip(m))
 			.orderBy(desc(payrollRuns.period), desc(payrollRuns.paidAt))
+			.then((rows) => rows.map(({ runType, title, ...r }) => ({ ...r, name: slipName({ runType, title }) })))
 	);
 }
 
@@ -835,6 +929,7 @@ export async function openPayslipPdf(m: Member, payslipId: string) {
 			? await tx
 					.select({
 						period: payrollRuns.period,
+						runType: payrollRuns.runType,
 						title: payrollRuns.title,
 						employee: employees.fullName,
 						code: employees.code,
@@ -859,9 +954,10 @@ export async function openPayslipPdf(m: Member, payslipId: string) {
 			.orderBy(asc(payslipLines.seq));
 		const [settings] = await tx.select({ legalName: tenantSettings.legalName }).from(tenantSettings);
 		return {
-			fileName: `${slip.title ? 'bonus' : 'payslip'}-${slip.period}.pdf`,
+			fileName: `${slip.runType === 'regular' ? 'payslip' : slip.runType}-${slip.period}.pdf`,
 			body: await renderPayslipPdf({
 				...slip,
+				name: slipName(slip),
 				company: settings?.legalName ?? m.tenant.name,
 				lines: lines.map((l) => ({ ...l, kind: l.kind as PayLine['kind'] }))
 			})

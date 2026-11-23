@@ -2,6 +2,7 @@
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { taka } from '#lib/money.ts';
+	import { runName } from '#lib/payroll.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -45,6 +46,7 @@
 			<select name="runType" bind:value={runType} class={`${input} block`}>
 				<option value="regular">Monthly pay</option>
 				<option value="bonus">Festival bonus</option>
+				<option value="arrears">Salary arrears</option>
 			</select>
 		</label>
 		{#if runType === 'bonus'}
@@ -64,7 +66,7 @@
 				href={`/t/${data.tenant.slug}/payroll?run=${x.id}`}
 				class={x.id === r?.id ? 'font-semibold text-slate-900' : 'text-indigo-700 underline'}
 			>
-				{x.period}{x.title ? ` · ${x.title}` : ''} · {statusLabel[x.status]}
+				{x.period}{x.name ? ` · ${x.name}` : ''} · {statusLabel[x.status]}
 			</a>
 		{/each}
 	</nav>
@@ -72,7 +74,7 @@
 
 {#if r}
 	<section class="mt-6 max-w-5xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Payroll run">
-		<h2 class="font-semibold text-slate-900">{r.title ?? 'Payroll'} for {r.period} · {statusLabel[r.status]}</h2>
+		<h2 class="font-semibold text-slate-900">{runName(r)} for {r.period} · {statusLabel[r.status]}</h2>
 		<p class="mt-1 text-sm text-slate-600" data-testid="run-totals">
 			{r.slips.length} payslip(s) · Gross ৳{taka(r.totals.gross)} · Deductions ৳{taka(r.totals.deductions)} · Net ৳{taka(
 				r.totals.net

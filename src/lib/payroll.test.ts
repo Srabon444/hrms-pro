@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { computeBonus, computePay, roundTaka, serviceMonths, type PayInput, type Segment } from './payroll';
+import {
+	computeArrears,
+	computeBonus,
+	computePay,
+	monthPay,
+	roundTaka,
+	runName,
+	serviceMonths,
+	slipName,
+	type LineKind,
+	type PayInput,
+	type Segment
+} from './payroll';
 
 const days = Array.from({ length: 30 }, (_, i) => `2026-11-${String(i + 1).padStart(2, '0')}`);
 const part = (code: string, amount: number) => ({ code, name: code, kind: 'earning' as const, taxable: true, amount });
@@ -180,5 +192,94 @@ describe('bonus', () => {
 			null
 		]);
 		expect(computeBonus(3_000_000, 0, 'Eid bonus')).toMatchObject({ lines: [], gross: 0, net: 0, error: null });
+	});
+});
+
+describe('arrears', () => {
+	const l = (code: string, kind: LineKind, amount: number, taxable = false) => ({ code, kind, amount, taxable });
+
+	it('measures the pay, taxable pay and provident fund of a month', () => {
+		expect(
+			monthPay([
+				l('BASIC', 'earning', 3_000_000, true),
+				l('MEDICAL', 'earning', 500_000),
+				l('LOP', 'deduction', 200_000),
+				l('OVERTIME', 'earning', 50_000, true),
+				l('EXPENSE', 'earning', 100_000),
+				l('PF', 'deduction', 300_000),
+				l('PF_EMPLOYER', 'employer', 300_000),
+				l('TAX', 'deduction', 10_000),
+				l('LOAN', 'deduction', 20_000),
+				l('MEAL', 'deduction', 30_000)
+			])
+		).toEqual({ pay: 3_350_000, taxable: 2_850_000, pf: 300_000, pfEmployer: 300_000 });
+	});
+
+	it('pays what each month is short, takes back what it overpaid, and settles to zero once paid', () => {
+		const a = {
+			period: '2026-08',
+			due: [
+				l('BASIC', 'earning', 4_000_000, true),
+				l('PF', 'deduction', 400_000),
+				l('PF_EMPLOYER', 'employer', 400_000)
+			],
+			paid: [
+				l('BASIC', 'earning', 3_000_000, true),
+				l('PF', 'deduction', 300_000),
+				l('PF_EMPLOYER', 'employer', 300_000)
+			]
+		};
+		const b = {
+			period: '2026-09',
+			due: [l('BASIC', 'earning', 3_000_000, true), l('PF', 'deduction', 250_000), l('PF_EMPLOYER', 'employer', 1)],
+			paid: [l('BASIC', 'earning', 3_000_000, true), l('MEDICAL', 'earning', 500_050), l('PF', 'deduction', 300_000)]
+		};
+		const r = computeArrears([a, b]);
+		expect(r.lines.map((x) => [x.name, x.kind, x.taxable, x.amount, x.forPeriod])).toEqual([
+			['Arrears for 2026-08', 'earning', true, 1_000_000, '2026-08'],
+			['Provident fund for 2026-08', 'deduction', false, 100_000, '2026-08'],
+			['Employer provident fund for 2026-08', 'employer', false, 100_000, '2026-08'],
+			['Untaxed overpayment in 2026-09', 'deduction', false, 500_050, '2026-09'],
+			['Provident fund refund for 2026-09', 'earning', false, 50_000, '2026-09'],
+			['Employer provident fund for 2026-09', 'employer', false, 1, '2026-09']
+		]);
+		expect([r.gross, r.deductions, r.net, r.rounding, r.taxable, r.tax, r.error]).toEqual([
+			1_050_000,
+			600_050,
+			450_000,
+			50,
+			1_000_000,
+			0,
+			null
+		]);
+		const settled = [a, b].map((m) => ({
+			...m,
+			paid: [...m.paid, ...r.lines.filter((x) => x.forPeriod === m.period)]
+		}));
+		expect(computeArrears(settled).lines).toEqual([]);
+		const over = {
+			period: '2026-08',
+			due: [l('BASIC', 'earning', 2_000_000, true)],
+			paid: [l('BASIC', 'earning', 3_000_000, true), l('PF_EMPLOYER', 'employer', 300_000)]
+		};
+		const back = computeArrears([over]);
+		expect(back.lines).toEqual([
+			{
+				code: 'ARREARS',
+				name: 'Overpaid in 2026-08',
+				kind: 'deduction',
+				taxable: true,
+				amount: 1_000_000,
+				forPeriod: '2026-08'
+			}
+		]);
+		expect(computeArrears([{ ...over, paid: [...over.paid, ...back.lines] }]).lines).toEqual([]);
+	});
+
+	it('names runs by their kind or bonus title', () => {
+		expect(runName({ runType: 'regular', title: null })).toBe('Payroll');
+		expect(runName({ runType: 'arrears', title: null })).toBe('Salary arrears');
+		expect(slipName({ runType: 'regular', title: null })).toBeNull();
+		expect(slipName({ runType: 'bonus', title: 'Eid bonus' })).toBe('Eid bonus');
 	});
 });

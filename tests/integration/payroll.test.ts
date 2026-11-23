@@ -6,6 +6,7 @@ import {
 	attendanceDays,
 	attendanceRequests,
 	employees,
+	employeeSalaries,
 	employeeSalaryLines,
 	employeeTaxProfiles,
 	expenseClaims,
@@ -274,7 +275,7 @@ describe('payroll runs', () => {
 		expect([mail.to, mail.subject]).toEqual([emails.ana, `Your payslip for ${P}`]);
 		expect(mail.text).toContain(`/t/${tenant.slug}/payslips`);
 		expect(mail.text).not.toContain('৳');
-		expect(await myPayslips(who.ana)).toEqual([{ id: ana.id, period: P, title: null, net: 4_500_000 }]);
+		expect(await myPayslips(who.ana)).toEqual([{ id: ana.id, period: P, name: null, net: 4_500_000 }]);
 		expect(await myPayslips(who.fin)).toEqual([]);
 		const pdf = await openPayslipPdf(who.ana, ana.id);
 		expect([pdf.fileName, Buffer.from(pdf.body).toString('latin1').slice(0, 5)]).toEqual([`payslip-${P}.pdf`, '%PDF-']);
@@ -806,7 +807,7 @@ describe('bonus runs', () => {
 		const mail = (await queue('mail').getJob(`payslip-mail-${ivy.id}`))!.data;
 		expect([mail.to, mail.subject]).toEqual([emails.ivy, 'Your Eid-ul-Adha bonus payslip for 2024-08']);
 		expect(await myPayslips(who.ivy)).toEqual([
-			{ id: ivy.id, period: '2024-08', title: 'Eid-ul-Adha bonus', net: 15_000_000 }
+			{ id: ivy.id, period: '2024-08', name: 'Eid-ul-Adha bonus', net: 15_000_000 }
 		]);
 		const pdf = await openPayslipPdf(who.ivy, ivy.id);
 		expect(pdf.fileName).toBe('bonus-2024-08.pdf');
@@ -818,5 +819,139 @@ describe('bonus runs', () => {
 		const tax = Math.round(annualTax(15_000_000 + sepIvy.taxable * 10, 0, rule) / 10);
 		expect(tax).toBeGreaterThan(Math.round(annualTax(sepIvy.taxable * 10, 0, rule) / 10));
 		expect(sepIvy.amounts.TAX).toBe(tax);
+	});
+});
+
+describe('arrears runs', () => {
+	const finalFor = (employeeId: string, period: string) =>
+		db(async (tx) => {
+			const [final] = await tx
+				.insert(payrollRuns)
+				.values({
+					tenantId: tenant.id,
+					runType: 'final',
+					period,
+					status: 'approved',
+					inputsHash: '',
+					outputHash: '',
+					computedByUserId: who.po.user.userId,
+					computedAt: new Date()
+				})
+				.returning({ id: payrollRuns.id });
+			await tx.insert(payslips).values({
+				tenantId: tenant.id,
+				runId: final.id,
+				employeeId,
+				paidDays: 0,
+				unpaidDays: 0,
+				gross: 0,
+				deductions: 0,
+				rounding: 0,
+				net: 0,
+				taxable: 0,
+				tax: 0
+			});
+		});
+	const linesOf = (payslipId: string) =>
+		db((tx) => tx.select().from(payslipLines).where(eq(payslipLines.payslipId, payslipId)).orderBy(payslipLines.seq));
+	const slipsIn = (runId: string) => db((tx) => tx.select().from(payslips).where(eq(payslips.runId, runId)));
+	const approve = async (period: string, form: Record<string, string> = {}) =>
+		approveRun(who.fin, { runId: await startRun(who.po, { period, ...form }) });
+
+	beforeAll(async () => {
+		tenant = await createTenant('payroll-arrears');
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await member('po', ['payroll_officer'], null);
+		await member('fin', ['finance'], null);
+		await member('adm', ['hr_admin'], null);
+		await db(async (tx) => {
+			for (const c of await tx.select().from(payComponents)) comp[c.code] = c.id;
+		});
+		ids.opa = await hire('Opa', '2024-01-01');
+		ids.pia = await hire('Pia', '2024-01-01');
+		ids.quinn = await hire('Quinn', '2024-01-01');
+		await member('opa', ['employee'], ids.opa);
+		await pay(ids.opa, '2024-01-01', '30000');
+		await pay(ids.pia, '2024-01-01', '20000');
+		await pay(ids.quinn, '2024-01-01', '20000');
+		await db((tx) =>
+			tx.update(tenantSettings).set({
+				pfEmployeeRateBp: 1_000,
+				pfEmployerRateBp: 0,
+				arrearsLookbackMonths: 1,
+				bonusRateBp: 1_000
+			})
+		);
+		const taxYearId = await startTaxYear(who.adm, { fy: '2024-25' });
+		await confirmTaxYear(who.adm, { taxYearId });
+		await approve('2024-07');
+		ids.rex = await hire('Rex', '2024-07-01');
+		await pay(ids.rex, '2024-07-01', '10000');
+		await approve('2024-08');
+		await approve('2024-08', { runType: 'bonus', title: 'Eid bonus' });
+	});
+
+	it('pays salary differences of approved months once, inside the look-back window, under the rules of each month', async () => {
+		await db((tx) => tx.update(tenantSettings).set({ pfEmployeeRateBp: 2_000 }));
+		await pay(ids.opa, '2024-07-01', '40000');
+		await pay(ids.quinn, '2024-07-01', '40000');
+		await finalFor(ids.quinn, '2024-08');
+
+		const first = await startRun(who.po, { period: '2024-08', runType: 'arrears' });
+		const second = await startRun(who.po, { period: '2024-08', runType: 'arrears' });
+		const [run] = await db((tx) => tx.select().from(payrollRuns).where(eq(payrollRuns.id, first)));
+		expect([run.runType, run.title, run.settings]).toEqual(['arrears', null, null]);
+		expect((await slipsIn(first)).map((s) => s.employeeId)).toEqual([ids.opa]);
+		const opa = await slipOf(first, ids.opa);
+		const lines = await linesOf(opa.id);
+		expect(lines.map((l) => [l.name, l.kind, l.taxable, l.amount, l.forPeriod])).toEqual([
+			['Arrears for 2024-07', 'earning', true, 1_000_000, '2024-07'],
+			['Provident fund for 2024-07', 'deduction', false, 100_000, '2024-07'],
+			['Arrears for 2024-08', 'earning', true, 1_000_000, '2024-08'],
+			['Provident fund for 2024-08', 'deduction', false, 100_000, '2024-08']
+		]);
+		expect([opa.gross, opa.deductions, opa.net, opa.taxable, opa.tax, opa.paidDays]).toEqual([
+			2_000_000, 200_000, 1_800_000, 2_000_000, 0, 0
+		]);
+
+		await db((tx) => tx.update(payslipLines).set({ forPeriod: '2024-06' }).where(eq(payslipLines.id, lines[0].id)));
+		expect(await code(approveRun(who.fin, { runId: first }))).toBe('output_changed');
+		await db((tx) => tx.update(payslipLines).set({ forPeriod: '2024-07' }).where(eq(payslipLines.id, lines[0].id)));
+		await approveRun(who.fin, { runId: first });
+		expect(await code(approveRun(who.fin, { runId: second }))).toBe('inputs_changed');
+		await recomputeRun(who.po, { runId: second });
+		expect(await slipsIn(second)).toEqual([]);
+		await voidRun(who.po, { runId: second });
+
+		await payRun(who.fin, { runId: first });
+		const mail = (await queue('mail').getJob(`payslip-mail-${opa.id}`))!.data;
+		expect([mail.to, mail.subject]).toEqual([emails.opa, 'Your Salary arrears payslip for 2024-08']);
+		expect(await myPayslips(who.opa)).toEqual([
+			{ id: opa.id, period: '2024-08', name: 'Salary arrears', net: 1_800_000 }
+		]);
+		expect((await openPayslipPdf(who.opa, opa.id)).fileName).toBe('arrears-2024-08.pdf');
+
+		const settled = await startRun(who.po, { period: '2024-09', runType: 'arrears' });
+		expect(await slipsIn(settled)).toEqual([]);
+		await approve('2024-08', { runType: 'bonus', title: 'Puja bonus' });
+		await approveRun(who.fin, { runId: settled });
+
+		await db((tx) =>
+			tx.update(employeeSalaries).set({ effectiveFrom: '2024-07-05' }).where(eq(employeeSalaries.employeeId, ids.pia))
+		);
+		const late = await startRun(who.po, { period: '2024-09', runType: 'arrears' });
+		expect(await slipsIn(late)).toEqual([]);
+		await db((tx) => tx.update(tenantSettings).set({ arrearsLookbackMonths: 2 }));
+		await recomputeRun(who.po, { runId: late });
+		expect((await slipOf(late, ids.pia)).error).toBe('2024-07: No approved salary covers 2024-07-01.');
+		const quinn = await slipOf(late, ids.quinn);
+		expect([quinn.net, (await linesOf(quinn.id)).map((l) => l.name)]).toEqual([
+			1_800_000,
+			['Arrears for 2024-07', 'Provident fund for 2024-07']
+		]);
+		expect((await slipsIn(late)).length).toBe(2);
+		expect(
+			(await withTenant(systemCtx(tenant.id), (tx) => payrollApprovals(tx, who.fin.access))).map((a) => a.title)
+		).toEqual(['Salary arrears for 2024-09']);
 	});
 });

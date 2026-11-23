@@ -21,7 +21,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			overtimeRate: taka(s.overtimeRateBp),
 			overtimeMonthlyHours: s.overtimeMonthlyHours,
 			bonusRate: taka(s.bonusRateBp),
-			bonusMinServiceMonths: s.bonusMinServiceMonths
+			bonusMinServiceMonths: s.bonusMinServiceMonths,
+			arrearsLookbackMonths: s.arrearsLookbackMonths
 		}
 	};
 };

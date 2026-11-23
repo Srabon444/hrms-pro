@@ -5,7 +5,7 @@ it('renders a payslip with Bengali and English text into a PDF', async () => {
 	const pdf = await renderPayslipPdf({
 		company: 'Acme Ltd',
 		period: '2026-10',
-		title: null,
+		name: null,
 		employee: 'আনা রহমান',
 		code: 'E-001',
 		paidDays: 30,

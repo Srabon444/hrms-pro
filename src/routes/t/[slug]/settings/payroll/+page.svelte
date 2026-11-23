@@ -92,6 +92,15 @@
 			required
 			value={s.bonusMinServiceMonths}
 		/>
+		<Field
+			label="Months that salary arrears look back"
+			name="arrearsLookbackMonths"
+			type="number"
+			min={1}
+			max={24}
+			required
+			value={s.arrearsLookbackMonths}
+		/>
 	</div>
 	<Button type="submit">Save payroll settings</Button>
 </form>

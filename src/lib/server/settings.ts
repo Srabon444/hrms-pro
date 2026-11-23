@@ -98,7 +98,12 @@ export const payrollSettingsSchema = z.object({
 		.number()
 		.int('Enter whole months.')
 		.min(0, 'Months of service for a bonus must be 0 to 120.')
-		.max(120, 'Months of service for a bonus must be 0 to 120.')
+		.max(120, 'Months of service for a bonus must be 0 to 120.'),
+	arrearsLookbackMonths: z.coerce
+		.number()
+		.int('Enter whole months.')
+		.min(1, 'Arrears look back 1 to 24 months.')
+		.max(24, 'Arrears look back 1 to 24 months.')
 });
 
 export async function savePayrollSettings(ctx: TenantCtx, raw: Record<string, string>) {

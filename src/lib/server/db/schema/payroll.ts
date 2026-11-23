@@ -123,6 +123,7 @@ export const payrollRuns = pgTable(
 		runType: text().notNull().default('regular'),
 		title: text(),
 		period: text().notNull(),
+		settings: jsonb(),
 		status: text().notNull().default('computed'),
 		inputsHash: text().notNull(),
 		outputHash: text().notNull(),
@@ -189,7 +190,8 @@ export const payslipLines = pgTable(
 		name: text().notNull(),
 		kind: text().notNull(),
 		taxable: boolean().notNull(),
-		amount: integer().notNull()
+		amount: integer().notNull(),
+		forPeriod: text()
 	},
 	(t) => [
 		tenantKey('payslip_lines', t),
@@ -197,6 +199,7 @@ export const payslipLines = pgTable(
 		tfk('payslip_lines_employee_fk', t, t.employeeId, employees, 'restrict'),
 		unique('payslip_lines_seq_uq').on(t.tenantId, t.payslipId, t.seq),
 		check('payslip_lines_kind_ck', sql`${t.kind} in ('earning','deduction','employer')`),
-		check('payslip_lines_amount_ck', sql`${t.amount} > 0`)
+		check('payslip_lines_amount_ck', sql`${t.amount} > 0`),
+		check('payslip_lines_for_period_ck', sql`${t.forPeriod} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`)
 	]
 );

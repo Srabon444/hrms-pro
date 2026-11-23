@@ -5,7 +5,7 @@ import { pdfDoc, write } from './pdf';
 export type PayslipPdf = {
 	company: string;
 	period: string;
-	title: string | null;
+	name: string | null;
 	employee: string;
 	code: string;
 	paidDays: number;
@@ -29,9 +29,9 @@ export function renderPayslipPdf(slip: PayslipPdf): Promise<Uint8Array> {
 	doc.fontSize(16);
 	write(doc, slip.company, 48, 48);
 	doc.fontSize(12);
-	write(doc, `${slip.title ?? 'Payslip'} for ${slip.period}`, 48, 74);
+	write(doc, `${slip.name ?? 'Payslip'} for ${slip.period}`, 48, 74);
 	write(doc, `${slip.employee} (${slip.code})`, 48, 94);
-	if (!slip.title) write(doc, `Paid days ${slip.paidDays} · Unpaid days ${slip.unpaidDays}`, 48, 112);
+	if (!slip.name) write(doc, `Paid days ${slip.paidDays} · Unpaid days ${slip.unpaidDays}`, 48, 112);
 
 	let y = 148;
 	const row = (label: string, amount: string) => {

@@ -12,6 +12,7 @@ test('an admin sets provident fund, overtime and festival bonus pay rules', asyn
 	await page.getByLabel('Overtime rate (% of hourly basic, 0 = unpaid)').fill('200');
 	await page.getByLabel('Festival bonus (% of basic)').fill('50');
 	await page.getByLabel('Months of service before a festival bonus').fill('6');
+	await page.getByLabel('Months that salary arrears look back').fill('3');
 	await page.getByRole('button', { name: 'Save payroll settings' }).click();
 	await expect(page.getByRole('status')).toHaveText('Payroll settings saved.');
 	await page.reload();
@@ -20,4 +21,5 @@ test('an admin sets provident fund, overtime and festival bonus pay rules', asyn
 	await expect(page.getByLabel('Part-month pay is based on')).toHaveValue('working');
 	await expect(page.getByLabel('Festival bonus (% of basic)')).toHaveValue('50.00');
 	await expect(page.getByLabel('Months of service before a festival bonus')).toHaveValue('6');
+	await expect(page.getByLabel('Months that salary arrears look back')).toHaveValue('3');
 });

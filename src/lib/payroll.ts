@@ -1,7 +1,14 @@
 import { annualTax, type TaxRule } from './tax';
 
 export type LineKind = 'earning' | 'deduction' | 'employer';
-export type PayLine = { code: string; name: string; kind: LineKind; taxable: boolean; amount: number };
+export type PayLine = {
+	code: string;
+	name: string;
+	kind: LineKind;
+	taxable: boolean;
+	amount: number;
+	forPeriod?: string | null;
+};
 export type SalaryPart = {
 	code: string;
 	name: string;
@@ -199,5 +206,68 @@ export function computeBonus(basic: number, rateBp: number, name: string): PayRe
 		net,
 		rounding: net - amount,
 		taxable: amount
+	};
+}
+
+const RUN_NAMES: Record<string, string> = { regular: 'Payroll', arrears: 'Salary arrears', final: 'Final settlement' };
+export const runName = (r: { runType: string; title: string | null }) => r.title ?? RUN_NAMES[r.runType];
+export const slipName = (r: { runType: string; title: string | null }) => (r.runType === 'regular' ? null : runName(r));
+
+type Line = Pick<PayLine, 'code' | 'kind' | 'taxable' | 'amount'>;
+const NOT_PAY = new Set(['EXPENSE', 'PF', 'TAX', 'LOAN', 'MEAL']);
+
+export function monthPay(lines: Line[]) {
+	const sum = { pay: 0, taxable: 0, pf: 0, pfEmployer: 0 };
+	for (const l of lines) {
+		const signed = l.kind === 'earning' ? l.amount : l.kind === 'deduction' ? -l.amount : 0;
+		if (!NOT_PAY.has(l.code)) sum.pay += signed;
+		if (l.kind === 'earning' && l.taxable) sum.taxable += l.amount;
+		if (l.code === 'LOP' || (l.code === 'ARREARS' && l.kind === 'deduction' && l.taxable)) sum.taxable -= l.amount;
+		if (l.code === 'PF') sum.pf -= signed;
+		if (l.code === 'PF_EMPLOYER') sum.pfEmployer += l.amount;
+	}
+	return sum;
+}
+
+export function computeArrears(months: { period: string; due: Line[]; paid: Line[] }[]): PayResult {
+	const lines: PayLine[] = [];
+	for (const m of months) {
+		const due = monthPay(m.due);
+		const paid = monthPay(m.paid);
+		const add = (code: string, amount: number, taxable: boolean, up: [LineKind, string], down: [LineKind, string]) => {
+			const [kind, name] = amount > 0 ? up : down;
+			if (amount)
+				lines.push({ code, name: `${name} ${m.period}`, kind, taxable, amount: Math.abs(amount), forPeriod: m.period });
+		};
+		const taxed = due.taxable - paid.taxable;
+		add('ARREARS', taxed, true, ['earning', 'Arrears for'], ['deduction', 'Overpaid in']);
+		add(
+			'ARREARS',
+			due.pay - paid.pay - taxed,
+			false,
+			['earning', 'Untaxed arrears for'],
+			['deduction', 'Untaxed overpayment in']
+		);
+		add('PF', due.pf - paid.pf, false, ['deduction', 'Provident fund for'], ['earning', 'Provident fund refund for']);
+		add(
+			'PF_EMPLOYER',
+			Math.max(0, due.pfEmployer - paid.pfEmployer),
+			false,
+			['employer', 'Employer provident fund for'],
+			['employer', '']
+		);
+	}
+	const total = (kind: LineKind) => lines.filter((l) => l.kind === kind).reduce((sum, l) => sum + l.amount, 0);
+	const exact = total('earning') - total('deduction');
+	const net = roundTaka(exact);
+	return {
+		...failed(''),
+		error: null,
+		lines,
+		gross: total('earning'),
+		deductions: total('deduction'),
+		net,
+		rounding: net - exact,
+		taxable: monthPay(lines).taxable
 	};
 }
