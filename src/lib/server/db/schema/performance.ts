@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, index, pgTable, smallint, text, unique, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, index, pgTable, smallint, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { tenantBase, tenantKey, tfk, tstz } from './_helpers';
 import { employees } from './org';
 
@@ -81,5 +81,32 @@ export const goals = pgTable(
 		check('goals_text_ck', sql`length(${t.target}) <= 200 and length(${t.actual}) <= 200`),
 		check('goals_weight_ck', sql`${t.weight} between 1 and 100`),
 		check('goals_rating_ck', sql`${t.selfRating} between 1 and 5 and ${t.managerRating} between 1 and 5`)
+	]
+);
+
+export const WORK_PLAN_STATUSES = ['pending', 'in_progress', 'done'] as const;
+
+export const workPlanItems = pgTable(
+	'work_plan_items',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		weekStart: date().notNull(),
+		description: text().notNull(),
+		target: text().notNull().default(''),
+		status: text().notNull().default('pending'),
+		carriedOverFromId: uuid(),
+		createdByUserId: uuid()
+	},
+	(t) => [
+		tenantKey('work_plan_items', t),
+		tfk('work_plan_items_employee_fk', t, t.employeeId, employees, 'cascade'),
+		index('work_plan_items_week_idx').on(t.tenantId, t.weekStart, t.employeeId),
+		uniqueIndex('work_plan_items_carried_uq')
+			.on(t.tenantId, t.carriedOverFromId)
+			.where(sql`${t.carriedOverFromId} is not null`),
+		check('work_plan_items_description_ck', sql`length(trim(${t.description})) between 1 and 300`),
+		check('work_plan_items_target_ck', sql`length(${t.target}) <= 120`),
+		check('work_plan_items_status_ck', sql`${t.status} in ('pending','in_progress','done')`)
 	]
 );
