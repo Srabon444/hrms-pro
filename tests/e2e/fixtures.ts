@@ -18,6 +18,7 @@ export async function fixture(
 			member?: boolean;
 			platformAdmin?: boolean;
 			employee?: boolean;
+			manager?: string;
 			totpSecret?: string;
 		}[];
 	}

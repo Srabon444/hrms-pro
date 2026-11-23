@@ -20,6 +20,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			require2faForSensitive: s.require2faForSensitive,
 			allowSingleAdminApproval: s.allowSingleAdminApproval,
 			exEmployeeAccessDays: s.exEmployeeAccessDays,
+			noticePeriodDays: s.noticePeriodDays,
 			retentionAuditDays: s.retentionAuditDays
 		},
 		timezones: Intl.supportedValuesOf('timeZone'),
@@ -42,6 +43,7 @@ export const actions: Actions = {
 				require2faForSensitive: field(form, 'require2faForSensitive'),
 				allowSingleAdminApproval: field(form, 'allowSingleAdminApproval'),
 				exEmployeeAccessDays: field(form, 'exEmployeeAccessDays'),
+				noticePeriodDays: field(form, 'noticePeriodDays'),
 				retentionAuditDays: field(form, 'retentionAuditDays')
 			});
 		} catch (err) {

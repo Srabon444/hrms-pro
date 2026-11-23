@@ -56,6 +56,14 @@
 			value={s.exEmployeeAccessDays}
 		/>
 		<Field
+			label="Resignation notice period (days)"
+			name="noticePeriodDays"
+			type="number"
+			min={0}
+			max={365}
+			value={s.noticePeriodDays}
+		/>
+		<Field
 			label="Keep audit history (days)"
 			name="retentionAuditDays"
 			type="number"

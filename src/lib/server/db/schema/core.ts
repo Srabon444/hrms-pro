@@ -192,12 +192,14 @@ export const tenantSettings = pgTable(
 		retentionTicketsDays: integer().notNull().default(730),
 		retentionAuditDays: integer().notNull().default(730),
 		exEmployeeAccessDays: integer().notNull().default(90),
-		employeeCodePrefix: text().notNull().default('EMP-')
+		employeeCodePrefix: text().notNull().default('EMP-'),
+		noticePeriodDays: integer().notNull().default(30)
 	},
 	(t) => [
 		tenantKey('tenant_settings', t),
 		unique('tenant_settings_tenant_uq').on(t.tenantId),
 		check('tenant_settings_fy_ck', sql`${t.fiscalYearStartMonth} between 1 and 12`),
+		check('tenant_settings_notice_ck', sql`${t.noticePeriodDays} between 0 and 365`),
 		check('tenant_settings_basis_ck', sql`${t.payrollProrationBasis} in ('calendar','working')`),
 		check('tenant_settings_late_ck', sql`${t.latePolicyPenalty} in ('lop','leave')`),
 		check('tenant_settings_lag_ck', sql`${t.mealPayrollLagMonths} between 0 and 3`),

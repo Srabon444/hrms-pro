@@ -216,6 +216,47 @@
 	</section>
 {/each}
 
+{#if data.resignation && (data.resignation.pending || (e.status !== 'notice' && e.status !== 'exited'))}
+	{@const r = data.resignation}
+	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Resign">
+		<h2 class="font-semibold text-slate-900">Resign</h2>
+		{#if form && 'resigned' in form}<Alert tone="info" message="Your resignation was sent." />{/if}
+		{#if form && 'resignationWithdrawn' in form}<Alert tone="info" message="Resignation withdrawn." />{/if}
+		{#if r.pending}
+			<p class="mt-3 text-sm text-slate-700" data-testid="resignation-pending">
+				Submitted on {r.pending.submittedOn}, last day {r.pending.requestedLastDay}. Waiting for
+				{r.pending.status === 'pending_manager' ? 'your manager' : 'HR'}.
+			</p>
+			<form method="POST" action="?/withdrawResignation" class="mt-3">
+				<input type="hidden" name="resignationId" value={r.pending.id} />
+				<Button type="submit" variant="secondary">Withdraw resignation</Button>
+			</form>
+		{:else}
+			<p class="mt-1 text-sm text-slate-600">
+				The notice period is {r.terms.noticeDays} days, so the usual last day is {r.terms.earliest}.
+			</p>
+			<form method="POST" action="?/resign" class="mt-4 grid gap-3 sm:grid-cols-2">
+				<label class="text-sm text-slate-700">
+					My last working day
+					<input
+						name="lastDay"
+						type="date"
+						required
+						min={r.terms.today}
+						value={r.terms.earliest}
+						class="{field} mt-1 block w-full"
+					/>
+				</label>
+				<label class="text-sm text-slate-700 sm:col-span-2">
+					Why are you leaving?
+					<textarea name="reason" required maxlength={500} class="{field} mt-1 block w-full"></textarea>
+				</label>
+				<div class="sm:col-span-2"><Button type="submit" variant="danger">Submit resignation</Button></div>
+			</form>
+		{/if}
+	</section>
+{/if}
+
 {#if data.exit.canExit}
 	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Exit">
 		<h2 class="font-semibold text-slate-900">Exit</h2>

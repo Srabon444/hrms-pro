@@ -21,6 +21,7 @@ const bodySchema = z.object({
 			member: z.boolean().default(true),
 			platformAdmin: z.boolean().default(false),
 			employee: z.boolean().default(false),
+			manager: z.string().optional(),
 			totpSecret: z.string().optional()
 		})
 	)
@@ -71,7 +72,8 @@ export const POST: RequestHandler = async ({ request }) => {
 						fullName: `${u.key} ${run}`,
 						employmentType: 'full_time',
 						status: 'active',
-						joinDate: '2026-01-05'
+						joinDate: '2026-01-05',
+						managerId: u.manager ? created[u.manager]?.employeeId : undefined
 					})
 					.returning({ id: employees.id });
 				employeeId = e.id;

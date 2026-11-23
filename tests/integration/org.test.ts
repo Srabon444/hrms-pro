@@ -91,6 +91,7 @@ describe('organisation settings', () => {
 		require2faForSensitive: 'on',
 		allowSingleAdminApproval: '',
 		exEmployeeAccessDays: '90',
+		noticePeriodDays: '30',
 		retentionAuditDays: '730'
 	};
 
@@ -105,6 +106,7 @@ describe('organisation settings', () => {
 	it('validates every field on the server', async () => {
 		expect(await code(saveSettings(a, false, { ...base, timezone: 'Mars/Base' }))).toBe('invalid');
 		expect(await code(saveSettings(a, false, { ...base, retentionAuditDays: '30' }))).toBe('invalid');
+		expect(await code(saveSettings(a, false, { ...base, noticePeriodDays: '400' }))).toBe('invalid');
 		expect(await code(saveSettings(a, false, { ...base, weekendDays: ['0', '1', '2', '3', '4', '5', '6'] }))).toBe(
 			'invalid'
 		);

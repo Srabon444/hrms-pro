@@ -255,3 +255,41 @@ export const changeRequests = pgTable(
 		check('change_requests_note_ck', sql`${t.decisionNote} is null or length(${t.decisionNote}) <= 500`)
 	]
 );
+
+export const RESIGNATION_STATUSES = ['pending_manager', 'pending_hr', 'approved', 'rejected', 'withdrawn'] as const;
+
+export const resignations = pgTable(
+	'resignations',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		requestedByUserId: uuid().notNull(),
+		submittedOn: date({ mode: 'string' }).notNull(),
+		noticeDays: integer().notNull(),
+		requestedLastDay: date({ mode: 'string' }).notNull(),
+		reason: text().notNull(),
+		status: text().notNull(),
+		managerUserId: uuid(),
+		managerAt: tstz(),
+		managerNote: text(),
+		decidedByUserId: uuid(),
+		decidedAt: tstz(),
+		decisionNote: text(),
+		approvedLastDay: date({ mode: 'string' })
+	},
+	(t) => [
+		tenantKey('resignations', t),
+		tfk('resignations_employee_fk', t, t.employeeId, employees, 'restrict'),
+		uniqueIndex('resignations_one_open_uq')
+			.on(t.tenantId, t.employeeId)
+			.where(sql`${t.status} in ('pending_manager','pending_hr')`),
+		index('resignations_status_idx').on(t.tenantId, t.status),
+		check('resignations_status_ck', inList(t.status, RESIGNATION_STATUSES)),
+		check('resignations_reason_ck', sql`length(${t.reason}) between 1 and 500`),
+		check(
+			'resignations_notes_ck',
+			sql`coalesce(length(${t.managerNote}), 0) <= 500 and coalesce(length(${t.decisionNote}), 0) <= 500`
+		),
+		check('resignations_last_day_ck', sql`${t.requestedLastDay} >= ${t.submittedOn}`)
+	]
+);

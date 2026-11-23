@@ -30,14 +30,14 @@ type Employee = typeof employees.$inferSelect;
 const notFound = () => new AppError('not_found', 'That employee does not exist.', 404);
 const label = (e: { fullName: string; code: string }) => `${e.fullName} (${e.code})`;
 
-async function lockEmployee(tx: Tx, access: Access, employeeId: string): Promise<Employee> {
+export async function lockEmployee(tx: Tx, access: Access, employeeId: string): Promise<Employee> {
 	const id = z.uuid().safeParse(employeeId);
 	const [e] = id.success ? await tx.select().from(employees).where(eq(employees.id, id.data)).for('update') : [];
 	if (!e || !inScope(await resolveScope(tx, access, 'employee.read'), e.id)) throw notFound();
 	return e;
 }
 
-async function hrMemberships(tx: Tx): Promise<string[]> {
+export async function hrMemberships(tx: Tx): Promise<string[]> {
 	const rows = await tx
 		.selectDistinct({ id: memberships.id })
 		.from(membershipRoles)
@@ -151,33 +151,37 @@ async function assertCanExit(tx: Tx, m: Member, e: Employee) {
 	if (m.access.employeeId === e.id) throw new AppError('self_change', 'Someone else has to record your own exit.', 403);
 }
 
+export async function applyExit(tx: Tx, m: Member, e: Employee, input: z.infer<typeof exitSchema>): Promise<Mail[]> {
+	if (e.status === 'exited') throw new AppError('exited', 'This person has already left.', 409);
+	if (input.exitDate < e.joinDate)
+		throw new AppError('before_join', 'The last day cannot be before the join date.', 400);
+	const today = await tenantToday(tx);
+	const due = input.exitDate <= today;
+	await tx
+		.update(employees)
+		.set({ ...input, status: due ? e.status : 'notice' })
+		.where(eq(employees.id, e.id));
+	if (!due) {
+		if (e.status !== 'notice')
+			await tx.insert(employeeHistory).values({
+				tenantId: m.tenant.id,
+				employeeId: e.id,
+				field: 'status',
+				oldValue: e.status,
+				newValue: 'notice',
+				changedByUserId: m.user.userId
+			});
+		return [];
+	}
+	return completeExit(tx, m.tenant, { ...e, ...input }, m.user.userId);
+}
+
 export async function recordExit(m: Member, employeeId: string, raw: Record<string, string>) {
 	const input = exitSchema.parse(raw);
 	const mails = await withTenant(userCtx(m), async (tx) => {
 		const e = await lockEmployee(tx, m.access, employeeId);
 		await assertCanExit(tx, m, e);
-		if (e.status === 'exited') throw new AppError('exited', 'This person has already left.', 409);
-		if (input.exitDate < e.joinDate)
-			throw new AppError('before_join', 'The last day cannot be before the join date.', 400);
-		const today = await tenantToday(tx);
-		const due = input.exitDate <= today;
-		await tx
-			.update(employees)
-			.set({ ...input, status: due ? e.status : 'notice' })
-			.where(eq(employees.id, e.id));
-		if (!due) {
-			if (e.status !== 'notice')
-				await tx.insert(employeeHistory).values({
-					tenantId: m.tenant.id,
-					employeeId: e.id,
-					field: 'status',
-					oldValue: e.status,
-					newValue: 'notice',
-					changedByUserId: m.user.userId
-				});
-			return [];
-		}
-		return completeExit(tx, m.tenant, { ...e, ...input }, m.user.userId);
+		return applyExit(tx, m, e, input);
 	});
 	await sendAll(mails);
 }

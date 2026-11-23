@@ -24,6 +24,11 @@ export const settingsSchema = z.object({
 	require2faForSensitive: checkbox,
 	allowSingleAdminApproval: checkbox,
 	exEmployeeAccessDays: days(0, 'Former employee access must be 0 to 3650 days.'),
+	noticePeriodDays: z.coerce
+		.number()
+		.int()
+		.min(0, 'Notice period must be 0 to 365 days.')
+		.max(365, 'Notice period must be 0 to 365 days.'),
 	retentionAuditDays: days(365, 'Keep audit history for 365 to 3650 days.')
 });
 

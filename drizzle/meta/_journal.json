@@ -50,6 +50,13 @@
       "when": 1795430384198,
       "tag": "0006_employee_exit_type",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795431060496,
+      "tag": "0007_resignations",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ import { employeeActionError, formFields } from '#lib/server/http/employee-form.
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { addListEntry, profileLists, removeListEntry, updateOwnDetails } from '#lib/server/profile.ts';
 import { requireMember, requirePerm, userCtx } from '#lib/server/rbac/access.ts';
+import { noticeTerms, ownResignation, submitResignation, withdrawResignation } from '#lib/server/resignations.ts';
 import { withTenant } from '#lib/server/tenancy/index.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -26,6 +27,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			changeLabels: CHANGE_LABELS,
 			exit: await exitRights(tx, m.access, record.employee),
 			exitTypes: EXIT_TYPES,
+			resignation:
+				m.access.employeeId === record.employee.id
+					? { pending: await ownResignation(tx, m.access, record.employee.id), terms: await noticeTerms(tx) }
+					: null,
 			documentCategories: DOCUMENT_CATEGORIES
 		};
 	});
@@ -73,6 +78,24 @@ export const actions: Actions = {
 			return profileError(err, locals.requestId);
 		}
 		return { rehired: true };
+	},
+	resign: async ({ request, locals, params }) => {
+		const m = requireMember(locals);
+		try {
+			await submitResignation(m, params.employeeId, formFields(await request.formData()));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { resigned: true };
+	},
+	withdrawResignation: async ({ request, locals }) => {
+		const m = requireMember(locals);
+		try {
+			await withdrawResignation(m, field(await request.formData(), 'resignationId'));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { resignationWithdrawn: true };
 	},
 	requestChange: async ({ request, locals, params }) => {
 		const m = requireMember(locals);
