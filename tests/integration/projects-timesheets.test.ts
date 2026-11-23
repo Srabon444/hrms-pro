@@ -163,6 +163,7 @@ describe('projects', () => {
 	it('shows people only the projects they are on unless they can see all', async () => {
 		const codes = async (key: string) => (await read(key, projectList)).map((p) => p.code);
 		expect(await codes('pm')).toEqual(['ALPHA', 'BETA', 'GAMMA']);
+		expect((await read('pm', projectList)).map((p) => p.members)).toEqual([2, 2, 0]);
 		expect(await codes('ana')).toEqual(['ALPHA', 'BETA']);
 		expect(await codes('cal')).toEqual(['BETA']);
 		expect(await read('cal', (tx, a) => projectView(tx, a, proj.ALPHA))).toBeNull();

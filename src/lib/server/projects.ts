@@ -139,7 +139,7 @@ export async function projectList(tx: Tx, access: Access) {
 			client: projects.client,
 			status: projects.status,
 			billable: projects.billable,
-			members: sql<number>`(select count(*)::int from project_members pm where pm.project_id = ${projects.id})`
+			members: sql<number>`(select count(*)::int from project_members pm where pm.project_id = projects.id)`
 		})
 		.from(projects)
 		.where(visible(scope))

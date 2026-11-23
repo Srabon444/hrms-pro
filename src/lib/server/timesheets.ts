@@ -306,7 +306,7 @@ export async function timesheetApprovals(tx: Tx, access: Access): Promise<Approv
 			name: employees.fullName,
 			weekStart: timesheets.weekStart,
 			at: timesheets.submittedAt,
-			minutes: sql<number>`(select coalesce(sum(te.minutes), 0)::int from timesheet_entries te where te.timesheet_id = ${timesheets.id})`
+			minutes: sql<number>`(select coalesce(sum(te.minutes), 0)::int from timesheet_entries te where te.timesheet_id = timesheets.id)`
 		})
 		.from(timesheets)
 		.innerJoin(employees, eq(employees.id, timesheets.employeeId))
