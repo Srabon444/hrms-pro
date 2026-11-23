@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mailLink, waitForMail } from '../mailpit';
 import { fixture, signIn } from './fixtures';
 
 test('payroll computes a month, waits for confirmed tax rules, and finance approves and pays it', async ({
@@ -66,6 +67,19 @@ test('payroll computes a month, waits for confirmed tax rules, and finance appro
 	await expect(run.getByRole('heading')).toContainText('· Paid');
 	await expect(run.getByRole('button')).toHaveCount(0);
 
+	await expect(page.getByRole('link', { name: 'My payslips' })).toHaveCount(0);
+
+	const mail = await waitForMail(f.users.ana.email, 20_000, 'Your payslip for');
+	expect(mail.text).not.toContain('৳');
+	expect(mail.attachments).toEqual([]);
 	await as('ana', 'payroll');
 	await expect(page.getByText('You do not have permission to do that.')).toBeVisible();
+	await page.goto(mailLink(mail.text));
+	const slip = page.getByTestId('my-payslip');
+	await expect(slip).toHaveCount(1);
+	const period = mail.subject.slice(-7);
+	await expect(slip).toContainText(`${period} · Net ৳`);
+	const download = page.waitForEvent('download');
+	await slip.getByRole('link', { name: `Download PDF of ${period}` }).click();
+	expect((await download).suggestedFilename()).toBe(`payslip-${period}.pdf`);
 });

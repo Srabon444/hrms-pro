@@ -32,6 +32,8 @@ import { tenantToday } from '../../src/lib/server/lifecycle';
 import { periodRange } from '../../src/lib/server/meal-bills';
 import {
 	approveRun,
+	myPayslips,
+	openPayslipPdf,
 	payrollApprovals,
 	payrollBoard,
 	payRun,
@@ -40,6 +42,7 @@ import {
 	startRun,
 	voidRun
 } from '../../src/lib/server/payroll';
+import { closeQueues, queue } from '../../src/lib/server/queue';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
 import { decideSalary, proposeSalary } from '../../src/lib/server/salaries';
@@ -54,6 +57,7 @@ let P: string;
 const ids: Record<string, string> = {};
 const comp: Record<string, string> = {};
 const who: Record<string, Member> = {};
+const emails: Record<string, string> = {};
 const all = () => ({ ...systemCtx(tenant.id), payrollAll: true, salaryAll: true });
 const db = <T>(fn: (tx: Tx) => Promise<T>) => withTenant(all(), fn);
 const code = (p: Promise<unknown>) =>
@@ -81,6 +85,7 @@ const hire = (fullName: string, joinDate = '2026-01-01') =>
 
 async function member(key: string, roleKeys: string[], employeeId: string | null, isOwner = false) {
 	const u = await createUser();
+	emails[key] = u.email;
 	const id = await withTenant(systemCtx(tenant.id), async (tx) => {
 		const membershipId = await addMember(tx, tenant.id, u.id, roleKeys);
 		await tx.update(memberships).set({ employeeId }).where(eq(memberships.id, membershipId));
@@ -139,7 +144,10 @@ beforeAll(async () => {
 		await startTaxYear(who.adm, { fy });
 });
 
-afterAll(closePools);
+afterAll(async () => {
+	await closeQueues();
+	await closePools();
+});
 
 describe('payroll runs', () => {
 	it('computes pay, needs a second person and confirmed tax to approve, and settles everything when paid', async () => {
@@ -261,6 +269,18 @@ describe('payroll runs', () => {
 		expect(settled.expense.paidByUserId).toBe(who.fin.user.userId);
 		expect(await code(payRun(who.fin, { runId }))).toBe('locked');
 		expect(await code(reopenRun(who.owner, { runId }))).toBe('locked');
+
+		const mail = (await queue('mail').getJob(`payslip-mail-${ana.id}`))!.data;
+		expect([mail.to, mail.subject]).toEqual([emails.ana, `Your payslip for ${P}`]);
+		expect(mail.text).toContain(`/t/${tenant.slug}/payslips`);
+		expect(mail.text).not.toContain('৳');
+		expect(await myPayslips(who.ana)).toEqual([{ id: ana.id, period: P, runType: 'regular', net: 4_500_000 }]);
+		expect(await myPayslips(who.fin)).toEqual([]);
+		const pdf = await openPayslipPdf(who.ana, ana.id);
+		expect([pdf.fileName, Buffer.from(pdf.body).toString('latin1').slice(0, 5)]).toEqual([`payslip-${P}.pdf`, '%PDF-']);
+		expect(await code(openPayslipPdf(who.ana, ben.id))).toBe('not_found');
+		expect(await code(openPayslipPdf(who.fin, ana.id))).toBe('not_found');
+		expect(await code(openPayslipPdf(who.ana, 'nope'))).toBe('not_found');
 	});
 
 	it('refuses approval from the person who computed the run unless they are the only admin', async () => {
@@ -400,6 +420,7 @@ describe('payroll runs', () => {
 		const cal = await slipOf(runId, ids.cal);
 		expect(cal.amounts.OVERTIME).toBeUndefined();
 		expect(cal.amounts.PF).toBeGreaterThan(0);
+		expect(await code(openPayslipPdf(who.ana, (await slipOf(runId, ids.ana)).id))).toBe('not_found');
 	});
 
 	it('blocks approval while a payslip has a problem and keeps payslips private to their owner', async () => {

@@ -161,8 +161,7 @@ export const payslips = pgTable(
 		notes: text()
 			.array()
 			.notNull()
-			.default(sql`'{}'::text[]`),
-		pdfKey: text()
+			.default(sql`'{}'::text[]`)
 	},
 	(t) => [
 		tenantKey('payslips', t),
