@@ -289,6 +289,70 @@
 	</section>
 {/if}
 
+{#if data.exitInterview}
+	{@const iv = data.exitInterview}
+	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Exit interview">
+		<h2 class="font-semibold text-slate-900">Exit interview</h2>
+		{#if form && 'interviewSaved' in form}<Alert tone="info" message="Exit interview saved." />{/if}
+		{#if iv.answers}
+			<dl class="mt-3 space-y-1 text-sm" data-testid="exit-interview">
+				<div class="flex gap-3">
+					<dt class="w-40 text-slate-500">Main reason</dt>
+					<dd>{iv.answers.primaryReason.replace('_', ' ')}</dd>
+				</div>
+				<div class="flex gap-3">
+					<dt class="w-40 text-slate-500">Overall experience</dt>
+					<dd>{iv.answers.rating} of 5</dd>
+				</div>
+				<div class="flex gap-3">
+					<dt class="w-40 text-slate-500">Would recommend</dt>
+					<dd>{iv.answers.wouldRecommend ? 'yes' : 'no'}</dd>
+				</div>
+				<div class="flex gap-3">
+					<dt class="w-40 text-slate-500">Would come back</dt>
+					<dd>{iv.answers.wouldRejoin ? 'yes' : 'no'}</dd>
+				</div>
+				{#if iv.answers.comments}
+					<div class="flex gap-3">
+						<dt class="w-40 text-slate-500">Comments</dt>
+						<dd class="whitespace-pre-line">{iv.answers.comments}</dd>
+					</div>
+				{/if}
+			</dl>
+		{:else if iv.submitted}
+			<p class="mt-3 text-sm text-slate-700" data-testid="exit-interview-done">
+				Thank you, the exit interview is filled in.
+			</p>
+		{:else}
+			<form method="POST" action="?/exitInterview" class="mt-4 grid gap-3 sm:grid-cols-2">
+				<label class="text-sm text-slate-700">
+					Main reason for leaving
+					<select name="primaryReason" required class="{field} mt-1 block w-full">
+						{#each iv.reasons as r (r)}<option value={r}>{r.replace('_', ' ')}</option>{/each}
+					</select>
+				</label>
+				<label class="text-sm text-slate-700">
+					Overall experience (1 to 5)
+					<select name="rating" required class="{field} mt-1 block w-full">
+						{#each [5, 4, 3, 2, 1] as n (n)}<option value={n}>{n}</option>{/each}
+					</select>
+				</label>
+				<label class="flex items-center gap-2 text-sm text-slate-700">
+					<input type="checkbox" name="wouldRecommend" /> Would recommend working here
+				</label>
+				<label class="flex items-center gap-2 text-sm text-slate-700">
+					<input type="checkbox" name="wouldRejoin" /> Would come back
+				</label>
+				<label class="text-sm text-slate-700 sm:col-span-2">
+					Anything else?
+					<textarea name="comments" maxlength={2000} class="{field} mt-1 block w-full"></textarea>
+				</label>
+				<div class="sm:col-span-2"><Button type="submit">Submit exit interview</Button></div>
+			</form>
+		{/if}
+	</section>
+{/if}
+
 {#if data.exit.canRehire}
 	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Rehire">
 		<h2 class="font-semibold text-slate-900">Rehire</h2>

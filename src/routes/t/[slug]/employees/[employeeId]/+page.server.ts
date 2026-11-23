@@ -2,6 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import { z } from 'zod';
 import { cancelChange, CHANGE_LABELS, ownPendingChange, requestChange } from '#lib/server/change-requests.ts';
 import { DOCUMENT_CATEGORIES, EXIT_TYPES } from '#lib/server/db/schema/org.ts';
+import { exitInterviewView, submitExitInterview } from '#lib/server/exit-interviews.ts';
 import { exitRights, recordExit, rehire, withdrawExit } from '#lib/server/exits.ts';
 import { deleteDocument, listDocuments, uploadDocument } from '#lib/server/documents.ts';
 import { employeeChoices, getEmployee, updateEmployee } from '#lib/server/employees.ts';
@@ -27,6 +28,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			changeLabels: CHANGE_LABELS,
 			exit: await exitRights(tx, m.access, record.employee),
 			exitTypes: EXIT_TYPES,
+			exitInterview: await exitInterviewView(tx, m.access, record.employee),
 			resignation:
 				m.access.employeeId === record.employee.id
 					? { pending: await ownResignation(tx, m.access, record.employee.id), terms: await noticeTerms(tx) }
@@ -69,6 +71,15 @@ export const actions: Actions = {
 			return profileError(err, locals.requestId);
 		}
 		return { exitWithdrawn: true };
+	},
+	exitInterview: async ({ request, locals, params }) => {
+		const m = requireMember(locals);
+		try {
+			await submitExitInterview(m, params.employeeId, formFields(await request.formData()));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { interviewSaved: true };
 	},
 	rehire: async ({ request, locals, params }) => {
 		const m = requirePerm(locals, 'employee.create');

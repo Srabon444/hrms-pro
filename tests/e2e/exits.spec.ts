@@ -45,8 +45,17 @@ test('HR records an exit, the leaver keeps only their own records, and HR rehire
 	await lee.goto(profile);
 	await expect(lee.getByTestId('fact-Status')).toHaveText('exited');
 	await expect(lee.getByRole('link', { name: 'Lifecycle' })).toHaveCount(0);
+	const interview = lee.getByRole('region', { name: 'Exit interview' });
+	await interview.getByLabel('Main reason for leaving').selectOption('growth');
+	await interview.getByLabel('Would come back').check();
+	await interview.getByLabel('Anything else?').fill('Thanks for everything');
+	await interview.getByRole('button', { name: 'Submit exit interview' }).click();
+	await expect(interview.getByTestId('exit-interview-done')).toBeVisible();
 	expect((await lee.goto(`/t/${slug}/employees/${f.users.peer.employeeId}`))!.status()).toBe(404);
 	await ctx.close();
+
+	await page.reload();
+	await expect(page.getByTestId('exit-interview')).toContainText('Thanks for everything');
 
 	const rehire = page.getByRole('region', { name: 'Rehire' });
 	await rehire.getByLabel('New join date').fill(inDays(1));

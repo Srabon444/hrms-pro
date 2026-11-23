@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	boolean,
 	check,
 	date,
 	index,
@@ -291,5 +292,39 @@ export const resignations = pgTable(
 			sql`coalesce(length(${t.managerNote}), 0) <= 500 and coalesce(length(${t.decisionNote}), 0) <= 500`
 		),
 		check('resignations_last_day_ck', sql`${t.requestedLastDay} >= ${t.submittedOn}`)
+	]
+);
+
+export const EXIT_REASONS = [
+	'compensation',
+	'growth',
+	'management',
+	'work_life',
+	'relocation',
+	'studies',
+	'health',
+	'other'
+] as const;
+
+export const exitInterviews = pgTable(
+	'exit_interviews',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		exitDate: date({ mode: 'string' }).notNull(),
+		primaryReason: text().notNull(),
+		rating: smallint().notNull(),
+		wouldRecommend: boolean().notNull(),
+		wouldRejoin: boolean().notNull(),
+		comments: text(),
+		submittedByUserId: uuid().notNull()
+	},
+	(t) => [
+		tenantKey('exit_interviews', t),
+		tfk('exit_interviews_employee_fk', t, t.employeeId, employees, 'restrict'),
+		unique('exit_interviews_one_uq').on(t.tenantId, t.employeeId, t.exitDate),
+		check('exit_interviews_reason_ck', inList(t.primaryReason, EXIT_REASONS)),
+		check('exit_interviews_rating_ck', sql`${t.rating} between 1 and 5`),
+		check('exit_interviews_comments_ck', sql`${t.comments} is null or length(${t.comments}) <= 2000`)
 	]
 );
