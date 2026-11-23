@@ -65,11 +65,15 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('expense_claims', 'plain', '{id,tenant_id,employee_id,title,status,total,pay_via,submitted_by_user_id,decided_by_user_id,decided_at,decision_note,paid_at,paid_by_user_id,payroll_run_id}'),
 	('expense_items', 'plain', '{id,tenant_id,claim_id,category_id,spent_on,description,amount,receipt_key,receipt_name,receipt_type,receipt_size}'),
 	('loans', 'row_only', '{}'),
-	('loan_instalments', 'row_only', '{}')
+	('loan_instalments', 'row_only', '{}'),
+	('tax_years', 'plain', '{id,tenant_id,fy,minimum_tax,exemption_cap,exemption_divisor,confirmed_by_user_id,confirmed_at}'),
+	('tax_slabs', 'plain', '{id,tenant_id,tax_year_id,category,seq,width,rate_bp}'),
+	('employee_tax_profiles', 'row_only', '{}')
 on conflict (table_name) do update set mode = excluded.mode, plain_columns = excluded.plain_columns;
 
 insert into owner_row_tables (table_name, flag) values
 	('salary_changes', 'salary_all'),
 	('employee_salaries', 'salary_all'),
-	('employee_salary_lines', 'salary_all')
+	('employee_salary_lines', 'salary_all'),
+	('employee_tax_profiles', 'payroll_all')
 on conflict (table_name) do update set flag = excluded.flag;

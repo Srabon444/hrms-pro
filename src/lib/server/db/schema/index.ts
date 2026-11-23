@@ -6,3 +6,4 @@ export * from './meal';
 export * from './payroll';
 export * from './expense';
 export * from './loan';
+export * from './tax';

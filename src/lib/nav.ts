@@ -23,6 +23,7 @@ export const NAV: NavItem[] = [
 	{ href: 'settings/leave-types', label: 'Leave types', perm: 'leave.manage' },
 	{ href: 'settings/shifts', label: 'Shifts', perm: 'attendance.manage' },
 	{ href: 'settings/meals', label: 'Meal setup', perm: 'meal.manage' },
+	{ href: 'settings/tax', label: 'Income tax', perm: ['settings.manage', 'payroll.run'] },
 	{ href: 'settings/audit', label: 'Audit log', perm: 'audit.read' },
 	{ href: 'settings/organisation', label: 'Settings', perm: 'settings.manage' }
 ];
