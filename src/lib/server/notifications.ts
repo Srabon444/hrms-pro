@@ -6,7 +6,8 @@ import type { Tx } from './tenancy';
 
 export const NOTIFICATION_CATEGORIES = {
 	access: 'Access and roles',
-	approvals: 'Approvals'
+	approvals: 'Approvals',
+	profile: 'Profile changes'
 } as const;
 
 export type NotificationCategory = keyof typeof NOTIFICATION_CATEGORIES;
@@ -18,21 +19,24 @@ export async function notify(
 	tenantId: string,
 	membershipIds: string[],
 	n: NewNotification,
-	tenantSlug: string
+	tenantSlug: string,
+	opts: { ignoreOptOut?: boolean } = {}
 ): Promise<Mail[]> {
 	const ids = [...new Set(membershipIds)];
 	if (!ids.length) return [];
 	await tx.insert(notifications).values(ids.map((membershipId) => ({ tenantId, membershipId, ...n })));
-	const optedOut = await tx
-		.select({ id: notificationPrefs.membershipId })
-		.from(notificationPrefs)
-		.where(
-			and(
-				inArray(notificationPrefs.membershipId, ids),
-				eq(notificationPrefs.category, n.category),
-				eq(notificationPrefs.email, false)
-			)
-		);
+	const optedOut = opts.ignoreOptOut
+		? []
+		: await tx
+				.select({ id: notificationPrefs.membershipId })
+				.from(notificationPrefs)
+				.where(
+					and(
+						inArray(notificationPrefs.membershipId, ids),
+						eq(notificationPrefs.category, n.category),
+						eq(notificationPrefs.email, false)
+					)
+				);
 	const skip = new Set(optedOut.map((r) => r.id));
 	const recipients = ids.filter((id) => !skip.has(id));
 	if (!recipients.length) return [];

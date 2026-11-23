@@ -1,5 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { z } from 'zod';
+import { cancelChange, CHANGE_LABELS, ownPendingChange, requestChange } from '#lib/server/change-requests.ts';
 import { DOCUMENT_CATEGORIES } from '#lib/server/db/schema/org.ts';
 import { deleteDocument, listDocuments, uploadDocument } from '#lib/server/documents.ts';
 import { employeeChoices, getEmployee, updateEmployee } from '#lib/server/employees.ts';
@@ -20,6 +21,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			choices: record.canUpdate ? await employeeChoices(tx) : null,
 			documents: await listDocuments(tx, m.access, record.employee.id),
 			lists: await profileLists(tx, m.access, record.employee.id, record.employee.status),
+			pendingChange: await ownPendingChange(tx, m.access, record.employee.id),
+			changeLabels: CHANGE_LABELS,
 			documentCategories: DOCUMENT_CATEGORIES
 		};
 	});
@@ -40,6 +43,24 @@ export const actions: Actions = {
 			return profileError(err, locals.requestId);
 		}
 		return { ownSaved: true };
+	},
+	requestChange: async ({ request, locals, params }) => {
+		const m = requireMember(locals);
+		try {
+			await requestChange(m, params.employeeId, formFields(await request.formData()));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { changeRequested: true };
+	},
+	cancelChange: async ({ request, locals }) => {
+		const m = requireMember(locals);
+		try {
+			await cancelChange(m, field(await request.formData(), 'requestId'));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { changeCancelled: true };
 	},
 	addEntry: async ({ request, locals, params }) => {
 		const m = requireMember(locals);
@@ -65,7 +86,7 @@ export const actions: Actions = {
 		const m = requirePerm(locals, 'employee.update');
 		const values = formFields(await request.formData());
 		try {
-			await updateEmployee(userCtx(m), m.access, params.employeeId, values);
+			await updateEmployee(userCtx(m), m.access, params.employeeId, values, m.tenant.slug);
 		} catch (err) {
 			return employeeActionError(err, locals.requestId, values);
 		}

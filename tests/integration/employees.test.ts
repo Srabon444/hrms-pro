@@ -135,23 +135,35 @@ describe('employee records', () => {
 	it('a department head cannot move people out of their department or touch bank details', async () => {
 		const deptHead = access(ids.head, { 'employee.read': ['department'], 'employee.update': ['department'] });
 		const base = person('Dev One', { departmentId: dept.web, managerId: ids.head });
-		expect(await code(updateEmployee(ctx, deptHead, ids.dev, { ...base, departmentId: dept.sales }))).toBe(
+		expect(await code(updateEmployee(ctx, deptHead, ids.dev, { ...base, departmentId: dept.sales }, 'acme'))).toBe(
 			'out_of_scope'
 		);
-		expect(await code(updateEmployee(ctx, deptHead, ids.dev, { ...base, bankAccountNumber: '999' }))).toBe(
+		expect(await code(updateEmployee(ctx, deptHead, ids.dev, { ...base, bankAccountNumber: '999' }, 'acme'))).toBe(
 			'sensitive_denied'
 		);
-		expect(await code(updateEmployee(ctx, deptHead, ids.sales, person('Sam Sales')))).toBe('not_found');
-		expect(await code(updateEmployee(ctx, deptHead, ids.dev, { ...base, phone: '01700000000' }))).toBe('ok');
+		expect(await code(updateEmployee(ctx, deptHead, ids.sales, person('Sam Sales'), 'acme'))).toBe('not_found');
+		expect(await code(updateEmployee(ctx, deptHead, ids.dev, { ...base, phone: '01700000000' }, 'acme'))).toBe('ok');
 	});
 
 	it('refuses reporting loops and records history with names', async () => {
 		expect(
 			await code(
-				updateEmployee(ctx, hr, ids.head, person('Hana Head', { departmentId: dept.eng, managerId: ids.junior }))
+				updateEmployee(
+					ctx,
+					hr,
+					ids.head,
+					person('Hana Head', { departmentId: dept.eng, managerId: ids.junior }),
+					'acme'
+				)
 			)
 		).toBe('manager_cycle');
-		await updateEmployee(ctx, hr, ids.junior, person('Junior Two', { departmentId: dept.eng, managerId: ids.head }));
+		await updateEmployee(
+			ctx,
+			hr,
+			ids.junior,
+			person('Junior Two', { departmentId: dept.eng, managerId: ids.head }),
+			'acme'
+		);
 		const rec = await withTenant(ctx, (tx) => getEmployee(tx, hr, ids.junior));
 		const changes = rec!.history.map((h) => `${h.field}:${h.oldValue}->${h.newValue}`).sort();
 		expect(changes).toEqual([

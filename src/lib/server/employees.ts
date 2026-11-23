@@ -12,11 +12,13 @@ import {
 	employees,
 	GENDERS,
 	grades,
+	memberships,
 	tenantSettings
 } from './db/schema';
 import { FK_VIOLATION, pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { AppError } from './errors';
 import { advisoryLock, LOCK } from './locks';
+import { notify, sendAll } from './notifications';
 import type { Access } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import type { TenantCtx, Tx } from './tenancy';
@@ -70,6 +72,27 @@ export const SENSITIVE_FIELDS = {
 };
 
 const SENSITIVE_KEYS = Object.keys(SENSITIVE_FIELDS) as (keyof typeof SENSITIVE_FIELDS)[];
+export const BANK_KEYS = ['bankName', 'bankAccountName', 'bankAccountNumber'] as const;
+
+export async function bankChangeAlert(tx: Tx, tenantId: string, employeeId: string, tenantSlug: string) {
+	const owners = await tx
+		.select({ id: memberships.id })
+		.from(memberships)
+		.where(eq(memberships.employeeId, employeeId));
+	return notify(
+		tx,
+		tenantId,
+		owners.map((o) => o.id),
+		{
+			category: 'profile',
+			title: 'Your bank details were changed',
+			body: 'The bank account on your employee record was changed. If you did not expect this, tell HR right away.',
+			link: `employees/${employeeId}`
+		},
+		tenantSlug,
+		{ ignoreOptOut: true }
+	);
+}
 const baseSchema = z.object({ ...PROFILE_FIELDS, ...EMPLOYMENT_FIELDS });
 const sensitiveSchema = z.object(SENSITIVE_FIELDS).partial();
 
@@ -171,13 +194,19 @@ async function insertEmployee(tx: Tx, tenantId: string, access: Access, form: Em
 export const createEmployee = (ctx: TenantCtx, access: Access, form: EmployeeForm): Promise<string> =>
 	withTenant(ctx, (tx) => insertEmployee(tx, ctx.tenantId, access, form));
 
-export async function updateEmployee(ctx: TenantCtx, access: Access, employeeId: string, form: EmployeeForm) {
+export async function updateEmployee(
+	ctx: TenantCtx,
+	access: Access,
+	employeeId: string,
+	form: EmployeeForm,
+	tenantSlug: string
+) {
 	const targetId = z.uuid().parse(employeeId);
 	const input = baseSchema.parse(form);
 	const sensitive = sensitiveSchema.parse(
 		Object.fromEntries(SENSITIVE_KEYS.filter((k) => k in form).map((k) => [k, form[k]]))
 	);
-	await withTenant(ctx, async (tx) => {
+	const mails = await withTenant(ctx, async (tx) => {
 		const [current] = await tx.select().from(employees).where(eq(employees.id, targetId)).for('update');
 		if (!current || !inScope(await resolveScope(tx, access, 'employee.read'), targetId))
 			throw new AppError('not_found', 'That employee does not exist.', 404);
@@ -212,7 +241,10 @@ export async function updateEmployee(ctx: TenantCtx, access: Access, employeeId:
 		}
 		if (!inScope(await resolveScope(tx, access, 'employee.update'), targetId))
 			throw new AppError('out_of_scope', 'That change would move this person outside your scope.', 403);
+		const bankChanged = sensitiveChanged && BANK_KEYS.some((k) => k in sensitive && sensitive[k] !== current[k]);
+		return bankChanged ? bankChangeAlert(tx, ctx.tenantId, targetId, tenantSlug) : [];
 	});
+	await sendAll(mails);
 }
 
 const SORTS = {

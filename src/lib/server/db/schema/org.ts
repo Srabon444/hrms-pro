@@ -4,14 +4,16 @@ import {
 	date,
 	index,
 	integer,
+	jsonb,
 	pgTable,
 	smallint,
 	text,
 	unique,
+	uniqueIndex,
 	uuid,
 	type PgTableExtraConfigValue
 } from 'drizzle-orm/pg-core';
-import { citext, tenantBase, tenantKey, tfk } from './_helpers';
+import { citext, tenantBase, tenantKey, tfk, tstz } from './_helpers';
 
 const nameCheck = (table: string, col: unknown) =>
 	check(`${table}_name_ck`, sql`length(trim(${col})) between 1 and 120`);
@@ -222,5 +224,31 @@ export const employeeExperience = pgTable(
 		textCheck('employee_experience_company_ck', t.company, 160),
 		textCheck('employee_experience_title_ck', t.title, 160),
 		check('employee_experience_dates_ck', sql`${t.endDate} is null or ${t.endDate} >= ${t.startDate}`)
+	]
+);
+
+export const CHANGE_REQUEST_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'] as const;
+
+export const changeRequests = pgTable(
+	'change_requests',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		requestedByUserId: uuid().notNull(),
+		changes: jsonb().$type<Record<string, string | null>>().notNull(),
+		status: text().notNull().default('pending'),
+		decidedByUserId: uuid(),
+		decidedAt: tstz(),
+		decisionNote: text()
+	},
+	(t) => [
+		tenantKey('change_requests', t),
+		tfk('change_requests_employee_fk', t, t.employeeId, employees, 'restrict'),
+		uniqueIndex('change_requests_one_pending_uq')
+			.on(t.tenantId, t.employeeId)
+			.where(sql`${t.status} = 'pending'`),
+		index('change_requests_status_idx').on(t.tenantId, t.status),
+		check('change_requests_status_ck', inList(t.status, CHANGE_REQUEST_STATUSES)),
+		check('change_requests_note_ck', sql`${t.decisionNote} is null or length(${t.decisionNote}) <= 500`)
 	]
 );

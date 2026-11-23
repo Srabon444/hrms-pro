@@ -136,6 +136,41 @@
 	</form>
 {/if}
 
+{#if lists.canEditSelf}
+	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Request a change">
+		<h2 class="font-semibold text-slate-900">Request a change</h2>
+		{#if form && 'changeRequested' in form}<Alert tone="info" message="Your request was sent to HR." />{/if}
+		{#if form && 'changeCancelled' in form}<Alert tone="info" message="Request cancelled." />{/if}
+		{#if data.pendingChange}
+			<p class="mt-3 text-sm text-slate-700" data-testid="pending-change">
+				Waiting for HR: {data.pendingChange.summary}
+			</p>
+			<form method="POST" action="?/cancelChange" class="mt-3">
+				<input type="hidden" name="requestId" value={data.pendingChange.id} />
+				<Button type="submit">Cancel request</Button>
+			</form>
+		{:else}
+			<p class="mt-1 text-sm text-slate-600">
+				Name, date of birth, identity and bank details change only after HR approves.
+			</p>
+			<form method="POST" action="?/requestChange" class="mt-4 grid gap-3 sm:grid-cols-2">
+				{#each Object.entries(data.changeLabels) as [name, label] (name)}
+					<label class="text-sm text-slate-700">
+						{label}
+						<input
+							{name}
+							type={name === 'dateOfBirth' ? 'date' : 'text'}
+							maxlength={160}
+							class="{field} mt-1 block w-full"
+						/>
+					</label>
+				{/each}
+				<div class="sm:col-span-2"><Button type="submit">Send to HR</Button></div>
+			</form>
+		{/if}
+	</section>
+{/if}
+
 {#each listSections as section (section.kind)}
 	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label={section.title}>
 		<h2 class="font-semibold text-slate-900">{section.title}</h2>

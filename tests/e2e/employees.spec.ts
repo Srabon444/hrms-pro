@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { waitForMail } from '../mailpit';
 import { fixture, signIn } from './fixtures';
 
 test('HR adds an employee, moves them and finds them in the list', async ({ page, request }) => {
@@ -74,6 +75,43 @@ test('an employee keeps their own contact details and emergency contacts', async
 	await expect(contacts.getByTestId('entry-contact')).toHaveText(/Rina Akter \(Sister\)/);
 	await contacts.getByRole('button', { name: /^Remove Rina Akter/ }).click();
 	await expect(contacts.getByTestId('entry-contact')).toHaveCount(0);
+});
+
+test('an employee asks for a bank change that HR approves and the employee is emailed', async ({
+	page,
+	request,
+	browser
+}) => {
+	const f = await fixture(request, {
+		tenant: {},
+		users: [
+			{ key: 'staff', employee: true },
+			{ key: 'hr', roles: ['hr_admin'] }
+		]
+	});
+	await signIn(page, f.users.staff.email);
+	await page.goto(`/t/${f.tenant!.slug}/employees/${f.users.staff.employeeId}`);
+	const ask = page.getByRole('region', { name: 'Request a change' });
+	await ask.getByLabel('Bank account number').fill('0011223344');
+	await ask.getByRole('button', { name: 'Send to HR' }).click();
+	await expect(page.getByRole('status')).toHaveText('Your request was sent to HR.');
+	await expect(page.getByTestId('pending-change')).toContainText('Bank account number');
+
+	const hr = await browser.newPage();
+	await signIn(hr, f.users.hr.email);
+	await hr.getByRole('link', { name: 'Approvals' }).click();
+	await hr.getByRole('link', { name: /Bank account number/ }).click();
+	await expect(hr.getByTestId('change-row')).toContainText('0011223344');
+	await hr.getByRole('button', { name: 'Approve' }).click();
+	await expect(hr.getByRole('status')).toHaveText('Decision saved.');
+	await hr.goto(`/t/${f.tenant!.slug}/employees/${f.users.staff.employeeId}`);
+	await expect(hr.getByText('0011223344').first()).toBeVisible();
+
+	expect((await waitForMail(f.users.staff.email, 15_000, 'Your bank details were changed')).text).toContain(
+		'tell HR right away'
+	);
+	await page.reload();
+	await expect(page.getByTestId('pending-change')).toHaveCount(0);
 });
 
 test('HR links a member to an employee record and the member then sees it', async ({ page, request }) => {
