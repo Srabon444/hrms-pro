@@ -3,7 +3,7 @@ import { Redis } from 'ioredis';
 import { config } from './config';
 import { log } from './log';
 
-export type QueueName = 'mail' | 'lifecycle';
+export type QueueName = 'mail' | 'lifecycle' | 'meal-bills';
 
 const queues = new Map<QueueName, Queue>();
 let producer: Redis | undefined;

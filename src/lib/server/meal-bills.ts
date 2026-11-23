@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { mealCharge, poishaOf, taka } from '../money';
 import { now } from './clock';
+import { authPool } from './db';
 import { addDays } from './dates';
 import {
 	employees,
@@ -13,15 +14,21 @@ import {
 	mealPayments,
 	mealTypes,
 	mealVendors,
+	tenants,
 	tenantSettings
 } from './db/schema';
 import { AppError } from './errors';
 import { advisoryLock, LOCK } from './locks';
+import { log } from './log';
+import { sendMail } from './mail';
+import { renderBillPdf } from './meal-bill-pdf';
 import { tenantToday } from './lifecycle';
 import { unlockedDays } from './meal-orders';
-import { userCtx, type Access, type requireMember } from './rbac/access';
+import { can, userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
-import { withTenant, type Tx } from './tenancy';
+import { putObject } from './storage';
+import { systemCtx, withTenant, type Tx } from './tenancy';
+import { queue } from './queue';
 
 type Member = ReturnType<typeof requireMember>;
 
@@ -169,9 +176,18 @@ export async function generateBills(m: Member, raw: Record<string, string>) {
 	});
 }
 
+export type BillJob = { tenantId: string; billId: string };
+
+const enqueueBills = (tenantId: string, ids: string[], attempt = '') =>
+	Promise.all(
+		ids.map((billId) =>
+			queue('meal-bills').add('send', { tenantId, billId }, { jobId: `meal-bill-${billId}${attempt}` })
+		)
+	).catch((err) => log.warn({ tenantId, err: (err as Error).message }, 'meal bill jobs not queued'));
+
 export async function issueBills(m: Member, raw: Record<string, string>) {
 	const { period } = periodInput.parse(raw);
-	return withTenant(userCtx(m), async (tx) => {
+	const ids = await withTenant(userCtx(m), async (tx) => {
 		await billingScope(tx, m.access);
 		await advisoryLock(tx, LOCK.mealBilling, m.tenant.id);
 		await draftBills(tx, m.tenant.id, period);
@@ -180,8 +196,10 @@ export async function issueBills(m: Member, raw: Record<string, string>) {
 			.set({ status: 'issued', issuedAt: now(), issuedByUserId: m.user.userId })
 			.where(and(eq(mealBills.period, period), eq(mealBills.status, 'draft')))
 			.returning({ id: mealBills.id });
-		return issued.length;
+		return issued.map((b) => b.id);
 	});
+	await enqueueBills(m.tenant.id, ids);
+	return ids.length;
 }
 
 const billInput = z.object({ billId: z.uuid({ error: 'Choose a bill.' }) });
@@ -333,4 +351,106 @@ export async function mealStatement(tx: Tx, raw: string) {
 	});
 	const sum = (k: 'cost' | 'staff' | 'company') => rows.reduce((n, r) => n + r[k], 0);
 	return { rows, cost: sum('cost'), staff: sum('staff'), company: sum('company') };
+}
+
+export async function billDocument(tx: Tx, billId: string) {
+	const [bill] = await tx
+		.select({
+			id: mealBills.id,
+			tenantId: mealBills.tenantId,
+			employeeId: mealBills.employeeId,
+			period: mealBills.period,
+			status: mealBills.status,
+			billingMode: mealBills.billingMode,
+			total: mealBills.total,
+			paid: mealBills.paid,
+			employee: employees.fullName,
+			code: employees.code,
+			workEmail: employees.workEmail,
+			personalEmail: employees.personalEmail,
+			legalName: sql<string | null>`(select ${tenantSettings.legalName} from ${tenantSettings})`
+		})
+		.from(mealBills)
+		.innerJoin(employees, eq(employees.id, mealBills.employeeId))
+		.where(and(eq(mealBills.id, billId), inArray(mealBills.status, SETTLED)));
+	if (!bill) return null;
+	const lines = await tx
+		.select()
+		.from(mealBillLines)
+		.where(eq(mealBillLines.billId, bill.id))
+		.orderBy(asc(mealBillLines.date), asc(mealBillLines.meal), asc(mealBillLines.kind));
+	const [tenant] = await authPool()
+		.db.select({ name: tenants.name })
+		.from(tenants)
+		.where(eq(tenants.id, bill.tenantId));
+	return { ...bill, company: bill.legalName ?? tenant.name, lines };
+}
+
+export async function sendMealBill({ tenantId, billId }: BillJob) {
+	const ctx = systemCtx(tenantId);
+	const doc = await withTenant(ctx, (tx) => billDocument(tx, billId));
+	if (!doc) return;
+	const key = `t/${tenantId}/meal-bills/${billId}.pdf`;
+	await putObject(key, await renderBillPdf(doc), 'application/pdf');
+	const rows = await withTenant(ctx, (tx) =>
+		tx.execute<{ email: string }>(
+			sql`select email from tenant_users where employee_id = ${doc.employeeId} and membership_status = 'active' limit 1`
+		)
+	);
+	const to = rows[0]?.email ?? doc.workEmail ?? doc.personalEmail;
+	if (to)
+		await sendMail(
+			{
+				to,
+				subject: `Meal bill for ${doc.period}`,
+				text: [
+					`Hello ${doc.employee},`,
+					'',
+					`Your meal bill for ${doc.period} from ${doc.company} is attached.`,
+					`Total: ৳${taka(doc.total)}.`,
+					doc.billingMode === 'payroll'
+						? 'It will be deducted from your salary.'
+						: 'Please pay it directly to the meal manager.'
+				].join('\n'),
+				attachments: [{ filename: `meal-bill-${doc.period}.pdf`, key, contentType: 'application/pdf' }]
+			},
+			`meal-bill-mail-${billId}`
+		);
+	else log.warn({ tenantId, billId }, 'meal bill has no recipient');
+	await withTenant(ctx, (tx) => tx.update(mealBills).set({ pdfKey: key }).where(eq(mealBills.id, billId)));
+}
+
+export async function sweepMealBills() {
+	const list = await authPool().db.select({ id: tenants.id }).from(tenants).where(eq(tenants.status, 'active'));
+	for (const t of list) {
+		const stuck = await withTenant(systemCtx(t.id), (tx) =>
+			tx
+				.select({ id: mealBills.id })
+				.from(mealBills)
+				.where(
+					and(
+						inArray(mealBills.status, SETTLED),
+						isNull(mealBills.pdfKey),
+						lt(mealBills.issuedAt, new Date(now().getTime() - 3_600_000))
+					)
+				)
+		);
+		await enqueueBills(
+			t.id,
+			stuck.map((b) => b.id),
+			`-retry-${Math.floor(now().getTime() / 3_600_000)}`
+		);
+	}
+}
+
+export async function openBillPdf(m: Member, billId: string) {
+	const valid = billInput.safeParse({ billId }).success;
+	return withTenant(userCtx(m), async (tx) => {
+		const doc = valid ? await billDocument(tx, billId) : null;
+		const own = doc?.employeeId === m.access.employeeId && can(m.access, 'meal.order');
+		const managed =
+			doc && can(m.access, 'meal.billing') && inScope(await resolveScope(tx, m.access, 'meal.billing'), doc.employeeId);
+		if (!doc || !(own || managed)) throw new AppError('not_found', 'That bill does not exist.', 404);
+		return { fileName: `meal-bill-${doc.period}.pdf`, body: await renderBillPdf(doc) };
+	});
 }

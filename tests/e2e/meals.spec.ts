@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { waitForMail } from '../mailpit';
 import { fixture, signIn } from './fixtures';
 
 test('a meal manager sets up lunch and chooses it with guests', async ({ page, request }) => {
@@ -36,4 +37,39 @@ test('a meal manager sets up lunch and chooses it with guests', async ({ page, r
 	await expect(day.getByRole('combobox')).toHaveValue('opted_out');
 	await expect(day.getByLabel('Guests')).toHaveValue('2');
 	await expect(page.getByRole('region', { name: 'Daily meals' })).toBeVisible();
+});
+
+test('issuing meal bills emails each employee their own bill as a PDF', async ({ page, request }) => {
+	const f = await fixture(request, {
+		tenant: {},
+		mealMonth: '2026-10',
+		users: [
+			{ key: 'mm', roles: ['meal_manager', 'employee'], employee: true },
+			{ key: 'ana', roles: ['employee'], employee: true }
+		]
+	});
+	await signIn(page, f.users.mm.email);
+	await page.goto(`/t/${f.tenant!.slug}/meals/bills?period=2026-10`);
+	await page.getByRole('button', { name: 'Issue bills for 2026-10' }).click();
+	await expect(page.getByRole('status')).toHaveText('2 bills issued.');
+	const row = page.getByTestId('meal-bill').filter({ hasText: 'ana' });
+	await expect(row).toContainText('Issued');
+	await expect(row).toContainText('৳840.00');
+
+	const mail = await waitForMail(f.users.ana.email, 20_000, 'Meal bill for 2026-10');
+	expect(mail.text).toContain('Total: ৳840.00.');
+	expect(mail.attachments).toEqual(['meal-bill-2026-10.pdf']);
+
+	await page.context().clearCookies();
+	await signIn(page, f.users.ana.email);
+	await page.goto(`/t/${f.tenant!.slug}/meals`);
+	const bill = page.getByTestId('my-meal-bill');
+	await expect(bill).toHaveText('2026-10 · Issued · ৳840.00');
+	await bill.click();
+	const download = page.waitForEvent('download');
+	await page.getByRole('link', { name: 'Download PDF of 2026-10' }).click();
+	const file = await download;
+	expect(file.suggestedFilename()).toBe('meal-bill-2026-10.pdf');
+	const bytes = await (await file.createReadStream()).toArray();
+	expect(Buffer.concat(bytes).subarray(0, 5).toString()).toBe('%PDF-');
 });

@@ -87,6 +87,11 @@
 									<Button type="submit">Record payment from {bill.name}</Button>
 								</form>
 							{/if}
+							{#if bill.status !== 'draft' && bill.status !== 'void'}
+								<a href="/t/{data.tenant.slug}/meals/bills/{bill.id}/pdf" class="text-indigo-700 hover:underline">
+									PDF of {bill.name}
+								</a>
+							{/if}
 							{#if bill.status === 'issued' && !bill.paid}
 								<form method="POST" action="?/void">
 									<input type="hidden" name="billId" value={bill.id} />

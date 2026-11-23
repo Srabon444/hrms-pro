@@ -49,5 +49,5 @@ export async function notify(
 }
 
 export const sendAll = async (mails: Mail[]): Promise<void> => {
-	await Promise.all(mails.map(sendMail));
+	await Promise.all(mails.map((m) => sendMail(m)));
 };

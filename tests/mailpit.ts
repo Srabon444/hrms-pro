@@ -1,6 +1,6 @@
 const base = () => process.env.MAILPIT_URL ?? 'http://localhost:58025';
 
-export type ReceivedMail = { subject: string; text: string };
+export type ReceivedMail = { subject: string; text: string; attachments: string[] };
 
 export async function waitForMail(to: string, timeoutMs = 15_000, subject?: string): Promise<ReceivedMail> {
 	const deadline = Date.now() + timeoutMs;
@@ -11,8 +11,15 @@ export async function waitForMail(to: string, timeoutMs = 15_000, subject?: stri
 		const found = (await res.json()) as { messages: { ID: string; Subject: string }[] };
 		const latest = found.messages?.[0];
 		if (latest) {
-			const msg = (await (await fetch(`${base()}/api/v1/message/${latest.ID}`)).json()) as { Text: string };
-			return { subject: latest.Subject, text: msg.Text };
+			const msg = (await (await fetch(`${base()}/api/v1/message/${latest.ID}`)).json()) as {
+				Text: string;
+				Attachments?: { FileName: string }[];
+			};
+			return {
+				subject: latest.Subject,
+				text: msg.Text,
+				attachments: (msg.Attachments ?? []).map((a) => a.FileName)
+			};
 		}
 		await new Promise((r) => setTimeout(r, 250));
 	}

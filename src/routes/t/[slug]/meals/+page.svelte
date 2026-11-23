@@ -105,6 +105,12 @@
 								{/each}
 							</tbody>
 						</table>
+						<a
+							href="/t/{data.tenant.slug}/meals/bills/{bill.id}/pdf"
+							class="mt-1 inline-block text-indigo-700 hover:underline"
+						>
+							Download PDF of {bill.period}
+						</a>
 					</details>
 				</li>
 			{/each}

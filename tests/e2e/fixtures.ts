@@ -12,6 +12,7 @@ export async function fixture(
 	request: APIRequestContext,
 	body: {
 		tenant?: { name?: string; require2fa?: boolean };
+		mealMonth?: string;
 		users: {
 			key: string;
 			roles?: string[];

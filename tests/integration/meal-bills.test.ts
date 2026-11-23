@@ -1,7 +1,9 @@
 import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { closePools } from '../../src/lib/server/db';
+import { processors } from '../../src/lib/server/jobs';
 import { addDays } from '../../src/lib/server/dates';
+import { taka } from '../../src/lib/money';
 import {
 	employees,
 	holidays,
@@ -11,12 +13,16 @@ import {
 	mealOrders,
 	mealTypePrices,
 	mealTypes,
-	memberships
+	memberships,
+	tenantSettings
 } from '../../src/lib/server/db/schema';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib/server/employees';
 import {
 	generateBills,
 	issueBills,
+	openBillPdf,
+	sendMealBill,
+	sweepMealBills,
 	lastPeriod,
 	mealDue,
 	mealStatement,
@@ -28,9 +34,12 @@ import {
 } from '../../src/lib/server/meal-bills';
 import { adjustMeal, lockMealDay, prepareMealDay } from '../../src/lib/server/meal-orders';
 import { mealSetup, saveMealType, saveVendor } from '../../src/lib/server/meals';
+import { closeQueues, queue, startWorker } from '../../src/lib/server/queue';
+import { getObject } from '../../src/lib/server/storage';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
+import { waitForMail } from '../mailpit';
 import { createTenant, createUser } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
@@ -38,6 +47,7 @@ let tenant: { id: string; slug: string };
 let lunch = '';
 const ids: Record<string, string> = {};
 const who: Record<string, Member> = {};
+const emails: Record<string, string> = {};
 const sys = () => systemCtx(tenant.id);
 const code = (p: Promise<unknown>) =>
 	p
@@ -62,6 +72,7 @@ const hire = (fullName: string) =>
 
 async function member(key: string, roleKeys: string[], employeeId: string | null) {
 	const u = await createUser();
+	emails[key] = u.email;
 	const id = await withTenant(sys(), async (tx) => {
 		const membershipId = await addMember(tx, tenant.id, u.id, roleKeys);
 		await tx.update(memberships).set({ employeeId }).where(eq(memberships.id, membershipId));
@@ -147,7 +158,13 @@ beforeAll(async () => {
 	});
 });
 
-afterAll(closePools);
+const mailer = startWorker('mail', processors.mail);
+
+afterAll(async () => {
+	await mailer.close();
+	await closeQueues();
+	await closePools();
+});
 
 describe('meal bills', () => {
 	it('works out month ranges', () => {
@@ -201,6 +218,65 @@ describe('meal bills', () => {
 		expect(await bill('mm', '2026-02')).toBe(0);
 		expect(await issueBills(who.mm, { period: '2026-02' })).toBe(0);
 		expect(await bills('2026-02')).toHaveLength(3);
+	});
+
+	it('emails each employee their own bill as a PDF and lets only them and billing download it', async () => {
+		const [ana, ben, cat] = (await bills('2026-02')).map((b) => String(b[4]));
+		const benMail = `${ben.slice(0, 8)}@work.test`;
+		await member('ben', ['employee'], ids.ben);
+		await withTenant(sys(), async (tx) => {
+			await tx.update(memberships).set({ status: 'disabled' }).where(eq(memberships.employeeId, ids.ben));
+			await tx.update(tenantSettings).set({ legalName: 'Acme Foods Ltd' });
+		});
+		await withTenant(sys(), (tx) => tx.update(employees).set({ workEmail: benMail }).where(eq(employees.id, ids.ben)));
+		await withTenant(sys(), (tx) =>
+			tx.update(employees).set({ personalEmail: null, workEmail: null }).where(eq(employees.id, ids.cat))
+		);
+		for (const billId of [ana, ben, cat]) await sendMealBill({ tenantId: tenant.id, billId });
+
+		const got = await waitForMail(emails.ana, 15_000, 'Meal bill for 2026-02');
+		expect(got.text).toContain(`Total: ৳${taka(18 * 4026 + 2 * 8051)}.`);
+		expect(got.text).toContain('deducted from your salary');
+		expect(got.text).toContain('from Acme Foods Ltd is attached');
+		expect(got.text).not.toContain(taka(19 * 4026));
+		expect(got.attachments).toEqual(['meal-bill-2026-02.pdf']);
+		expect((await waitForMail(benMail, 15_000, 'Meal bill for 2026-02')).text).toContain(`৳${taka(19 * 4026)}`);
+
+		const keys = await withTenant(sys(), (tx) =>
+			tx.select({ id: mealBills.id, key: mealBills.pdfKey }).from(mealBills).where(eq(mealBills.period, '2026-02'))
+		);
+		expect(keys.every((k) => k.key === `t/${tenant.id}/meal-bills/${k.id}.pdf`)).toBe(true);
+		const stored = await getObject(`t/${tenant.id}/meal-bills/${ana}.pdf`);
+		expect(Buffer.from(stored).subarray(0, 5).toString()).toBe('%PDF-');
+
+		const mine = await openBillPdf(who.ana, ana);
+		expect(mine.fileName).toBe('meal-bill-2026-02.pdf');
+		expect(Buffer.from(mine.body).subarray(0, 5).toString()).toBe('%PDF-');
+		expect(await code(openBillPdf(who.ana, ben))).toBe('not_found');
+		expect(await code(openBillPdf(who.ana, 'nope'))).toBe('not_found');
+		expect(await code(openBillPdf(who.mm, ben))).toBe('ok');
+		await withTenant(sys(), (tx) => tx.update(mealBills).set({ status: 'draft' }).where(eq(mealBills.id, ben)));
+		expect(await code(openBillPdf(who.mm, ben))).toBe('not_found');
+		await sendMealBill({ tenantId: tenant.id, billId: ben });
+		await withTenant(sys(), (tx) => tx.update(mealBills).set({ status: 'issued' }).where(eq(mealBills.id, ben)));
+	});
+
+	it('queues each issued bill once and requeues bills still without a PDF after an hour', async () => {
+		const [ana, ben, cat] = (await bills('2026-02')).map((b) => String(b[4]));
+		expect((await queue('meal-bills').getJob(`meal-bill-${ana}`))?.data).toEqual({ tenantId: tenant.id, billId: ana });
+		const hourAgo = new Date(Date.now() - 3_600_000 - 60_000);
+		await withTenant(sys(), async (tx) => {
+			await tx.update(mealBills).set({ pdfKey: null, issuedAt: hourAgo }).where(eq(mealBills.id, ana));
+			await tx.update(mealBills).set({ pdfKey: null, issuedAt: new Date() }).where(eq(mealBills.id, ben));
+			await tx.update(mealBills).set({ issuedAt: hourAgo }).where(eq(mealBills.id, cat));
+		});
+		await sweepMealBills();
+		const hour = Math.floor(Date.now() / 3_600_000);
+		expect(await queue('meal-bills').getJob(`meal-bill-${ana}-retry-${hour}`)).toBeTruthy();
+		expect(await queue('meal-bills').getJob(`meal-bill-${ben}-retry-${hour}`)).toBeFalsy();
+		expect(await queue('meal-bills').getJob(`meal-bill-${cat}-retry-${hour}`)).toBeFalsy();
+		await sendMealBill({ tenantId: tenant.id, billId: ana });
+		await sendMealBill({ tenantId: tenant.id, billId: ben });
 	});
 
 	it('carries corrections to an issued month onto the next bill exactly once', async () => {
@@ -328,6 +404,7 @@ describe('meal bills', () => {
 		expect(await code(issueBills(narrow, { period: '2026-02' }))).toBe('forbidden');
 		const feb = await bills('2026-02');
 		expect(await code(voidBill(narrow, { billId: feb[0][4] as string }))).toBe('not_found');
+		expect(await code(openBillPdf(narrow, feb[0][4] as string))).toBe('not_found');
 		expect(
 			await code(
 				recordPayment(narrow, {

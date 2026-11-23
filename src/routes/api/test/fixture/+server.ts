@@ -1,13 +1,26 @@
 import { error } from '@sveltejs/kit';
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { encrypt } from '#lib/server/auth/crypto.ts';
 import { createUser } from '#lib/server/auth/users.ts';
 import { config } from '#lib/server/config.ts';
 import { authPool } from '#lib/server/db/index.ts';
-import { employees, memberships, tenantSettings, tenants, users } from '#lib/server/db/schema/index.ts';
+import { addDays } from '#lib/server/dates.ts';
+import {
+	employees,
+	mealDays,
+	mealTypePrices,
+	mealTypes,
+	mealVendors,
+	memberships,
+	tenantSettings,
+	tenants,
+	users
+} from '#lib/server/db/schema/index.ts';
 import { accrue } from '#lib/server/leave.ts';
+import { periodRange } from '#lib/server/meal-bills.ts';
+import { prepareMealDay } from '#lib/server/meal-orders.ts';
 import { addMember, seedTenant } from '#lib/server/platform/tenants.ts';
 import { systemCtx, withTenant } from '#lib/server/tenancy/index.ts';
 import type { RequestHandler } from './$types';
@@ -15,6 +28,10 @@ import type { RequestHandler } from './$types';
 const bodySchema = z.object({
 	password: z.string().min(10),
 	tenant: z.object({ name: z.string().default('E2E Org'), require2fa: z.boolean().default(false) }).optional(),
+	mealMonth: z
+		.string()
+		.regex(/^\d{4}-\d{2}$/)
+		.optional(),
 	users: z.array(
 		z.object({
 			key: z.string().regex(/^[a-z0-9]+$/),
@@ -83,6 +100,23 @@ export const POST: RequestHandler = async ({ request }) => {
 			});
 		}
 		created[u.key] = { id, email, employeeId };
+	}
+	const month = body.mealMonth;
+	if (tenant && month) {
+		const tenantId = tenant.id;
+		const { from, to } = periodRange(month);
+		await withTenant(systemCtx(tenantId), async (tx) => {
+			const [vendor] = await tx.insert(mealVendors).values({ tenantId, name: 'Rice Bowl' }).returning();
+			const [lunch] = await tx.insert(mealTypes).values({ tenantId, name: 'Lunch', vendorId: vendor.id }).returning();
+			await tx
+				.insert(mealTypePrices)
+				.values({ tenantId, mealTypeId: lunch.id, effectiveFrom: from, unitCost: 8000, subsidyPct: 50 });
+			for (let d = from; d <= to; d = addDays(d, 1)) await prepareMealDay(tx, tenantId, d);
+			await tx
+				.update(mealDays)
+				.set({ locked: true })
+				.where(and(gte(mealDays.date, from), lte(mealDays.date, to)));
+		});
 	}
 	return Response.json({ tenant, users: created });
 };
