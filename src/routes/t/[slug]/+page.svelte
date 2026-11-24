@@ -154,7 +154,7 @@
 					{home.payroll.title ?? home.payroll.period} · <span class="capitalize">{home.payroll.status}</span>
 				</p>
 				<p class="text-slate-500" data-testid="payroll">
-					{home.payroll.employees} employees · gross {home.payroll.gross} · net {home.payroll.net}
+					{home.payroll.employees} employees · gross ৳{home.payroll.gross} · net ৳{home.payroll.net}
 				</p>
 			</Card>
 		{/if}
