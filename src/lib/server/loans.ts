@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { instalmentPlan, money, poishaOf } from '../money';
 import { activeMemberships, singleAdmin } from './approval-chain';
 import type { ApprovalItem } from './approvals';
+import type { AttachmentRules } from './attachments';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { employees, LOAN_KINDS, loanInstalments, loans, MAX_INSTALMENTS } from './db/schema';
 import { addMonths } from './dates';
@@ -227,3 +228,16 @@ export async function loanApprovals(tx: Tx, access: Access): Promise<ApprovalIte
 		link: 'loans'
 	}));
 }
+
+export const loanAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		const [l] = await tx.select({ employeeId: loans.employeeId }).from(loans).where(eq(loans.id, id));
+		if (!l) return false;
+		return l.employeeId === access.employeeId || inScope(await resolveScope(tx, access, 'loan.approve'), l.employeeId);
+	},
+	async canEdit(tx, access, id, lock) {
+		const q = tx.select({ employeeId: loans.employeeId, status: loans.status }).from(loans).where(eq(loans.id, id));
+		const [l] = lock ? await q.for('update') : await q;
+		return !!l && l.status === 'requested' && l.employeeId === access.employeeId;
+	}
+};

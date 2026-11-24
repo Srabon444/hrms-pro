@@ -146,6 +146,17 @@
 			<p class="mt-3 text-sm text-slate-700" data-testid="pending-change">
 				Waiting for HR: {data.pendingChange.summary}
 			</p>
+			{#if data.changeFiles}
+				<Attachments
+					slug={data.tenant.slug}
+					attachments={data.changeFiles}
+					{form}
+					action="?/changeFiles"
+					ownerId={data.pendingChange.id}
+					title="Supporting documents"
+					compact
+				/>
+			{/if}
 			<form method="POST" action="?/cancelChange" class="mt-3">
 				<input type="hidden" name="requestId" value={data.pendingChange.id} />
 				<Button type="submit">Cancel request</Button>

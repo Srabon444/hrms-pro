@@ -96,12 +96,20 @@ test('an employee asks for a bank change that HR approves and the employee is em
 	await ask.getByRole('button', { name: 'Send to HR' }).click();
 	await expect(page.getByRole('status')).toHaveText('Your request was sent to HR.');
 	await expect(page.getByTestId('pending-change')).toContainText('Bank account number');
+	const sBox = ask.getByRole('group', { name: 'Supporting documents' });
+	await sBox.getByText('Supporting documents (0)').click();
+	await sBox
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'cheque.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 cheque.pdf') });
+	await sBox.getByRole('button', { name: 'Attach files' }).click();
+	await expect(sBox.getByTestId('attachment')).toContainText('cheque.pdf');
 
 	const hr = await browser.newPage();
 	await signIn(hr, f.users.hr.email);
 	await hr.getByRole('link', { name: 'Approvals' }).click();
 	await hr.getByRole('link', { name: /Bank account number/ }).click();
 	await expect(hr.getByTestId('change-row')).toContainText('0011223344');
+	await expect(hr.getByTestId('attachment')).toContainText('cheque.pdf');
 	await hr.getByRole('button', { name: 'Approve' }).click();
 	await expect(hr.getByRole('status')).toHaveText('Decision saved.');
 	await hr.goto(`/t/${f.tenant!.slug}/employees/${f.users.staff.employeeId}`);

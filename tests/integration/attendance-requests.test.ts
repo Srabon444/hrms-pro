@@ -13,6 +13,7 @@ import { withTestNow } from '../../src/lib/server/clock';
 import { compDays, expireCompOff } from '../../src/lib/server/comp-off';
 import { runLeaveAccrual } from '../../src/lib/server/leave';
 import { fiscalYearOf } from '../../src/lib/server/leave-days';
+import { addFiles, openFile } from '../../src/lib/server/attachments';
 import { closePools } from '../../src/lib/server/db';
 import {
 	attendanceDays,
@@ -78,6 +79,7 @@ async function member(key: string, roleKeys: string[], employeeId: string) {
 
 const at = <T>(iso: string, fn: () => Promise<T>) => withTestNow(`${iso}+06:00`, fn);
 const LATER = '2026-03-20T10:00:00';
+const pdf = (name: string) => new File([`%PDF-1.7 ${name}`], name, { type: 'application/pdf' });
 const later = <T>(fn: () => Promise<T>) => at(LATER, fn);
 const ask = (key: string, raw: Record<string, string>) => later(() => code(requestAttendance(who[key], raw)));
 const decide = (key: string, id: string, raw: Record<string, string>) =>
@@ -248,7 +250,12 @@ describe('attendance requests', () => {
 		expect(await later(() => code(cancelAttendanceRequest(who.boss, next.id)))).toBe('forbidden');
 		expect(await ask('staff', { kind: 'wfh', date: '2026-03-19', reason })).toBe('ok');
 		const pending = await latest(ids.staff);
+		const [bill] = await addFiles(who.staff, 'attendance_request', pending.id, [pdf('bill.pdf')]);
+		expect((await openFile(who.boss, bill)).fileName).toBe('bill.pdf');
+		expect(await code(openFile(who.peer, bill))).toBe('not_found');
+		expect(await code(addFiles(who.boss, 'attendance_request', pending.id, [pdf('x.pdf')]))).toBe('forbidden');
 		expect(await later(() => code(cancelAttendanceRequest(who.staff, pending.id)))).toBe('ok');
+		expect(await code(addFiles(who.staff, 'attendance_request', pending.id, [pdf('x.pdf')]))).toBe('forbidden');
 		expect((await latest(ids.staff)).status).toBe('cancelled');
 		expect(await later(() => code(cancelAttendanceRequest(who.staff, next.id)))).toBe('ok');
 		await at('2026-03-23T19:00:00', () => recomputeTenantAttendance(tenant.id));

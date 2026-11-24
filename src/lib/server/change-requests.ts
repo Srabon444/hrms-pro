@@ -9,6 +9,7 @@ import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { withTenant, type Tx } from './tenancy';
 import type { ApprovalItem } from './approvals';
+import type { AttachmentRules } from './attachments';
 
 type Member = ReturnType<typeof requireMember>;
 
@@ -218,3 +219,25 @@ export async function decideChange(m: Member, requestId: string, raw: Record<str
 	});
 	await sendAll(mails);
 }
+
+export const changeAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		const [r] = await tx
+			.select({ employeeId: changeRequests.employeeId })
+			.from(changeRequests)
+			.where(eq(changeRequests.id, id));
+		if (!r) return false;
+		return (
+			r.employeeId === access.employeeId ||
+			inScope(await resolveScope(tx, access, 'employee.sensitive.update'), r.employeeId)
+		);
+	},
+	async canEdit(tx, access, id, lock) {
+		const q = tx
+			.select({ employeeId: changeRequests.employeeId, status: changeRequests.status })
+			.from(changeRequests)
+			.where(eq(changeRequests.id, id));
+		const [r] = lock ? await q.for('update') : await q;
+		return !!r && r.status === 'pending' && r.employeeId === access.employeeId;
+	}
+};

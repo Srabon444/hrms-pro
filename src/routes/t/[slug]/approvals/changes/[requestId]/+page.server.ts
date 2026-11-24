@@ -1,5 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { z } from 'zod';
+import { listFiles } from '#lib/server/attachments.ts';
 import { decideChange, getChange } from '#lib/server/change-requests.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError } from '#lib/server/http/forms.ts';
@@ -9,9 +10,12 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const m = requirePerm(locals, 'employee.sensitive.update');
-	const change = await withTenant(userCtx(m), (tx) => getChange(tx, m.access, params.requestId));
+	const { change, attachments } = await withTenant(userCtx(m), async (tx) => ({
+		change: await getChange(tx, m.access, params.requestId),
+		attachments: await listFiles(tx, m.access, 'change_request', params.requestId)
+	}));
 	if (!change) error(404, 'Not found');
-	return { change };
+	return { change, attachments };
 };
 
 export const actions: Actions = {

@@ -36,13 +36,15 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		const record = await getEmployee(tx, m.access, params.employeeId);
 		if (!record) error(404, 'Not found');
 		const checklists = await employeeChecklists(tx, m.access, record.employee);
+		const pendingChange = await ownPendingChange(tx, m.access, record.employee.id);
 		return {
 			...record,
 			choices: record.canUpdate ? await employeeChoices(tx) : null,
 			documents: await listDocuments(tx, m.access, record.employee.id),
 			hiring: await hiringFiles(tx, m.access, record.employee.id),
 			lists: await profileLists(tx, m.access, record.employee.id, record.employee.status),
-			pendingChange: await ownPendingChange(tx, m.access, record.employee.id),
+			pendingChange,
+			changeFiles: pendingChange ? await listFiles(tx, m.access, 'change_request', pendingChange.id) : null,
 			changeLabels: CHANGE_LABELS,
 			exit: await exitRights(tx, m.access, record.employee),
 			exitTypes: EXIT_TYPES,
@@ -72,6 +74,11 @@ const profileError = (err: unknown, requestId: string) => {
 };
 
 export const actions: Actions = {
+	changeFiles: async ({ request, locals }) => {
+		const m = requireMember(locals);
+		const form = await request.formData();
+		return attachmentAction(m, form, 'change_request', field(form, 'ownerId'), locals.requestId);
+	},
 	taskFiles: async ({ request, locals }) => {
 		const m = requireMember(locals);
 		const form = await request.formData();

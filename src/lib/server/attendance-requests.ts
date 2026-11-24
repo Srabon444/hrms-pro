@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { activeMemberships, approvers, deciderWhere, rightsOver, singleAdmin } from './approval-chain';
 import type { ApprovalItem } from './approvals';
+import type { AttachmentRules } from './attachments';
 import { calendar, employeeZone, punchDay, recomputeAttendance } from './attendance';
 import { compDays, creditCompOff } from './comp-off';
 import { zonedInstant } from './attendance-day';
@@ -344,3 +345,17 @@ export async function attendanceApprovals(tx: Tx, access: Access): Promise<Appro
 			link: `approvals/attendance/${r.id}`
 		}));
 }
+
+export const attendanceAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		return !!(await load(tx, access, id, false));
+	},
+	async canEdit(tx, access, id, lock) {
+		const q = tx
+			.select({ employeeId: attendanceRequests.employeeId, status: attendanceRequests.status })
+			.from(attendanceRequests)
+			.where(eq(attendanceRequests.id, id));
+		const [r] = lock ? await q.for('update') : await q;
+		return !!r && r.status === 'pending' && r.employeeId === access.employeeId;
+	}
+};

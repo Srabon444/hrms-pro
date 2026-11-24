@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { addFiles, openFile } from '../../src/lib/server/attachments';
 import { closePools } from '../../src/lib/server/db';
 import { employees, loanInstalments, loans, memberships, tenantSettings } from '../../src/lib/server/db/schema';
 import { addMonths } from '../../src/lib/server/dates';
@@ -17,6 +18,7 @@ let month: string;
 const ids: Record<string, string> = {};
 const who: Record<string, Member> = {};
 const sys = () => systemCtx(tenant.id);
+const pdf = (name: string) => new File([`%PDF-1.7 ${name}`], name, { type: 'application/pdf' });
 const code = (p: Promise<unknown>) =>
 	p
 		.then(() => 'ok')
@@ -136,6 +138,20 @@ describe('requesting', () => {
 			tx.update(employees).set({ status: 'active', exitDate: null }).where(eq(employees.id, ids.ben))
 		);
 		expect(await code(ask('fin2'))).toBe('no_employee');
+	});
+});
+
+describe('documents', () => {
+	it('lets the requester attach documents while waiting that only approvers and the requester open', async () => {
+		const id = await ask('ana');
+		const [quote] = await addFiles(who.ana, 'loan', id, [pdf('quote.pdf')]);
+		expect((await openFile(who.fin, quote)).fileName).toBe('quote.pdf');
+		expect(await code(openFile(who.ben, quote))).toBe('not_found');
+		expect(await code(addFiles(who.fin, 'loan', id, [pdf('x.pdf')]))).toBe('forbidden');
+		await cancelLoan(who.ana, { loanId: id });
+		expect(await code(addFiles(who.ana, 'loan', id, [pdf('x.pdf')]))).toBe('forbidden');
+		expect((await openFile(who.ana, quote)).fileName).toBe('quote.pdf');
+		await withTenant(sys(), (tx) => tx.delete(loans).where(eq(loans.employeeId, ids.ana)));
 	});
 });
 

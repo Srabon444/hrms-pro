@@ -2,11 +2,14 @@ import { and, asc, count, eq } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { assetAttachments } from './assets';
+import { attendanceAttachments } from './attendance-requests';
+import { changeAttachments } from './change-requests';
 import { checklistItemAttachments } from './checklists';
 import { auditEvent } from './audit';
 import { discardFiles } from './file-store';
 import { ticketAttachments } from './helpdesk';
 import { leaveAttachments } from './leave-requests';
+import { loanAttachments } from './loans';
 import { files, MAX_ATTACHMENTS, MAX_DOCUMENT_BYTES, type AttachmentOwner } from './db/schema';
 import { AppError } from './errors';
 import { log } from './log';
@@ -26,10 +29,13 @@ type Stored = { key: string; filename: string; mime: string; size: number; sha25
 
 const owners = (): Record<AttachmentOwner, AttachmentRules> => ({
 	asset: assetAttachments,
+	attendance_request: attendanceAttachments,
+	change_request: changeAttachments,
 	candidate: candidateAttachments,
 	checklist_item: checklistItemAttachments,
 	interview_feedback: feedbackAttachments,
 	leave_request: leaveAttachments,
+	loan: loanAttachments,
 	offer: offerAttachments,
 	resignation: resignationAttachments,
 	ticket: ticketAttachments

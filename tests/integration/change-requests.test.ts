@@ -8,6 +8,7 @@ import {
 	ownPendingChange,
 	requestChange
 } from '../../src/lib/server/change-requests';
+import { addFiles, openFile } from '../../src/lib/server/attachments';
 import { closePools } from '../../src/lib/server/db';
 import {
 	changeRequests,
@@ -33,6 +34,7 @@ let tenant: { id: string; slug: string };
 const ids: Record<string, string> = {};
 const who: Record<string, Member> = {};
 
+const pdf = (name: string) => new File([`%PDF-1.7 ${name}`], name, { type: 'application/pdf' });
 const code = (p: Promise<unknown>) =>
 	p
 		.then(() => 'ok')
@@ -108,6 +110,16 @@ describe('change requests', () => {
 			{ key: 'bankAccountNumber', label: 'Bank account number', current: '', requested: '0123' }
 		]);
 		expect(await code(decideChange(who.other, id, { decision: 'approve', note: '' }))).toBe('not_found');
+	});
+
+	it('lets the requester attach proof to a waiting change that only HR can open', async () => {
+		const req = (await pending(ids.me))!;
+		const [nid] = await addFiles(who.me, 'change_request', req.id, [pdf('nid.pdf')]);
+		expect((await openFile(who.hr, nid)).fileName).toBe('nid.pdf');
+		expect(await code(openFile(who.other, nid))).toBe('not_found');
+		expect(await code(openFile(who.manager, nid))).toBe('not_found');
+		expect(await code(addFiles(who.hr, 'change_request', req.id, [pdf('x.pdf')]))).toBe('forbidden');
+		expect(await code(addFiles(who.other, 'change_request', req.id, [pdf('x.pdf')]))).toBe('not_found');
 	});
 
 	it('applies an approved change once and tells the employee', async () => {

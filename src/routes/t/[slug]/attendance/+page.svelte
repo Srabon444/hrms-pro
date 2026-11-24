@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import { enhance } from '$app/forms';
 	import { whileBusy } from '#lib/busy.ts';
 	import Alert from '#lib/components/ui/Alert.svelte';
@@ -144,10 +145,23 @@
 		{#if data.requests.length}
 			<ul class="mt-4 divide-y divide-slate-100 text-sm">
 				{#each data.requests as r (r.id)}
-					<li class="flex items-center gap-3 py-2">
-						<span class="flex-1 text-slate-800" data-testid="attendance-request">
-							{r.title} · {r.status}{r.approvedMinutes !== null ? ` · ${r.approvedMinutes} min approved` : ''}
-						</span>
+					<li class="flex flex-wrap items-start gap-3 py-2">
+						<div class="min-w-0 flex-1">
+							<span class="text-slate-800" data-testid="attendance-request">
+								{r.title} · {r.status}{r.approvedMinutes !== null ? ` · ${r.approvedMinutes} min approved` : ''}
+							</span>
+							{#if r.status === 'pending' || data.requestFiles[r.id]?.length}
+								<Attachments
+									slug={data.tenant.slug}
+									attachments={{ files: data.requestFiles[r.id] ?? [], canEdit: r.status === 'pending' }}
+									{form}
+									action="?/requestFiles"
+									ownerId={r.id}
+									title="Proof"
+									compact
+								/>
+							{/if}
+						</div>
 						{#if r.cancellable}
 							<form method="POST" action="?/cancelRequest">
 								<input type="hidden" name="requestId" value={r.id} />

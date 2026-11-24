@@ -21,11 +21,19 @@ test('an employee asks for a loan and finance approves the repayment plan', asyn
 	await form.getByRole('button', { name: 'Send request' }).click();
 	await expect(page.getByRole('status')).toHaveText('Request sent for approval.');
 	await expect(page.getByTestId('my-loan')).toContainText('Loan ৳10000.50 · Waiting for approval');
+	const dBox = page.getByTestId('my-loan').getByRole('group', { name: 'Documents' });
+	await dBox.getByText('Documents (0)').click();
+	await dBox
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'bills.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 bills.pdf') });
+	await dBox.getByRole('button', { name: 'Attach files' }).click();
+	await expect(dBox.getByTestId('attachment')).toContainText('bills.pdf');
 
 	await page.context().clearCookies();
 	await signIn(page, f.users.fin.email);
 	await page.goto(`/t/${f.tenant!.slug}/approvals`);
 	await page.getByRole('link', { name: /৳10000\.50 over 3 month\(s\)/ }).click();
+	await expect(page.getByTestId('loan-to-decide').getByTestId('attachment')).toContainText('bills.pdf');
 	await page.getByRole('button', { name: /^Approve request of ana/ }).click();
 	await expect(page.getByRole('status')).toHaveText('Request approved.');
 	await expect(page.getByTestId('active-loan')).toContainText('৳10000.50৳0.00৳10000.50');

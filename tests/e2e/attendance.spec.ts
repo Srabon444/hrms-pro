@@ -103,6 +103,13 @@ test('an employee asks to work from home, the manager approves and the employee 
 	await expect(page.getByRole('status')).toHaveText('Request sent.');
 	const mine = ask.getByTestId('attendance-request');
 	await expect(mine).toHaveText([`Work from home on ${date} · pending`]);
+	const pBox = ask.getByRole('group', { name: 'Proof' });
+	await pBox.getByText('Proof (0)').click();
+	await pBox
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'plumber.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 plumber.pdf') });
+	await pBox.getByRole('button', { name: 'Attach files' }).click();
+	await expect(pBox.getByTestId('attachment')).toContainText('plumber.pdf');
 
 	const ctx = await browser.newContext();
 	const boss = await ctx.newPage();
@@ -110,6 +117,8 @@ test('an employee asks to work from home, the manager approves and the employee 
 	await boss.goto(`/t/${slug}/approvals`);
 	await boss.getByRole('link', { name: new RegExp(`Work from home on ${date}`) }).click();
 	await expect(boss.getByRole('heading', { level: 1 })).toHaveText(/Work from home for ela/);
+	await expect(boss.getByTestId('attachment')).toContainText('plumber.pdf');
+	await expect(boss.getByRole('button', { name: 'Attach files' })).toHaveCount(0);
 	await boss.getByRole('button', { name: 'Approve' }).click();
 	await expect(boss.getByRole('status')).toHaveText('Decision saved.');
 	await ctx.close();

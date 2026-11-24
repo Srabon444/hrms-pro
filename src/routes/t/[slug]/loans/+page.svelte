@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { money, unit } from '#lib/money.ts';
@@ -37,6 +38,17 @@
 						{money(l.amount, data.currency)} · {l.instalments} instalment(s) from {l.startPeriod}
 					</p>
 					<p class="text-slate-500">{l.reason}</p>
+					{#if data.loanFiles[l.id]?.length}
+						<Attachments
+							slug={data.tenant.slug}
+							attachments={{ files: data.loanFiles[l.id], canEdit: false }}
+							{form}
+							action="?/loanFiles"
+							ownerId={l.id}
+							title="Documents"
+							compact
+						/>
+					{/if}
 					<form method="POST" action="?/decide" class="mt-2 flex flex-wrap items-center gap-2">
 						<input type="hidden" name="loanId" value={l.id} />
 						<input name="note" maxlength="300" aria-label={`Note for ${l.name}`} class={`${input} w-64`} />
@@ -120,6 +132,17 @@
 								.map((s) => `${s.period} ${money(s.amount, data.currency)}${s.status === 'paid' ? ' (paid)' : ''}`)
 								.join(', ')}
 						</p>
+					{/if}
+					{#if l.status === 'requested' || data.loanFiles[l.id]?.length}
+						<Attachments
+							slug={data.tenant.slug}
+							attachments={{ files: data.loanFiles[l.id] ?? [], canEdit: l.status === 'requested' }}
+							{form}
+							action="?/loanFiles"
+							ownerId={l.id}
+							title="Documents"
+							compact
+						/>
 					{/if}
 					{#if l.status === 'requested'}
 						<form method="POST" action="?/cancel" class="mt-2">
