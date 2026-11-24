@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import AnnouncementFields from '#lib/components/AnnouncementFields.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
@@ -24,3 +25,5 @@
 		<Button type="submit" variant="secondary">Delete announcement</Button>
 	</form>
 </section>
+
+<Attachments slug={data.tenant.slug} attachments={data.attachments} {form} />

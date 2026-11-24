@@ -1,7 +1,9 @@
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { ANNOUNCEMENT_AUDIENCES, announcements, branches, departments, employees } from './db/schema';
+import type { AttachmentRules } from './attachments';
 import { AppError } from './errors';
+import { discardFiles, dropFiles, filesFor } from './file-store';
 import { tenantToday } from './lifecycle';
 import { scopesOf, userCtx, type Access, type requireMember } from './rbac/access';
 import { withTenant, type Tx } from './tenancy';
@@ -80,10 +82,12 @@ export async function saveAnnouncement(m: Member, raw: Record<string, string>) {
 export async function deleteAnnouncement(m: Member, raw: Record<string, string>) {
 	const id = z.uuid({ error: 'Choose an announcement.' }).parse(raw.announcementId);
 	onlyManagers(m.access);
-	await withTenant(userCtx(m), async (tx) => {
+	const keys = await withTenant(userCtx(m), async (tx) => {
 		const gone = await tx.delete(announcements).where(eq(announcements.id, id)).returning({ id: announcements.id });
 		if (!gone.length) throw notFound();
+		return dropFiles(tx, 'announcement', [id]);
 	});
+	await discardFiles(keys);
 }
 
 async function audienceOf(tx: Tx, employeeId: string | null) {
@@ -118,23 +122,47 @@ const fields = {
 	target: sql<string | null>`coalesce(${departments.name}, ${branches.name})`
 };
 
-export async function announcementFeed(tx: Tx, access: Access, limit = 50) {
+async function liveFor(tx: Tx, access: Access) {
 	const today = await tenantToday(tx);
-	return tx
+	return and(
+		lte(announcements.publishOn, today),
+		or(isNull(announcements.expiresOn), gte(announcements.expiresOn, today)),
+		await audienceOf(tx, access.employeeId)
+	);
+}
+
+export async function announcementFeed(tx: Tx, access: Access, limit = 50) {
+	const rows = await tx
 		.select(fields)
 		.from(announcements)
 		.leftJoin(departments, eq(departments.id, announcements.departmentId))
 		.leftJoin(branches, eq(branches.id, announcements.branchId))
-		.where(
-			and(
-				lte(announcements.publishOn, today),
-				or(isNull(announcements.expiresOn), gte(announcements.expiresOn, today)),
-				await audienceOf(tx, access.employeeId)
-			)
-		)
+		.where(await liveFor(tx, access))
 		.orderBy(desc(announcements.pinned), desc(announcements.publishOn), desc(announcements.createdAt))
 		.limit(limit);
+	const attached = await filesFor(
+		tx,
+		'announcement',
+		rows.map((r) => r.id)
+	);
+	return rows.map((r) => ({ ...r, files: attached.get(r.id) ?? [] }));
 }
+
+export const announcementAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		const live = canRunAnnouncements(access) ? undefined : await liveFor(tx, access);
+		const found = await tx
+			.select({ id: announcements.id })
+			.from(announcements)
+			.where(and(eq(announcements.id, id), live));
+		return found.length > 0;
+	},
+	async canEdit(tx, access, id, lock) {
+		if (!canRunAnnouncements(access)) return false;
+		const q = tx.select({ id: announcements.id }).from(announcements).where(eq(announcements.id, id));
+		return (lock ? await q.for('update') : await q).length > 0;
+	}
+};
 
 export async function announcementAdmin(tx: Tx) {
 	const today = await tenantToday(tx);

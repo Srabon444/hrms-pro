@@ -55,7 +55,7 @@
 
 <section class="mt-6 max-w-3xl space-y-3" aria-label="For you">
 	<h2 class="section-title">For you</h2>
-	{#each data.feed as a (a.id)}<AnnouncementCard {a} />{:else}<p class="text-sm text-slate-600">
+	{#each data.feed as a (a.id)}<AnnouncementCard {a} slug={data.tenant.slug} />{:else}<p class="text-sm text-slate-600">
 			Nothing to read right now.
 		</p>{/each}
 </section>

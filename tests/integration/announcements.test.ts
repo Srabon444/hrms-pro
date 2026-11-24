@@ -1,8 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { addFiles, openFile } from '../../src/lib/server/attachments';
 import { withTestNow } from '../../src/lib/server/clock';
 import { closePools } from '../../src/lib/server/db';
-import { announcements, branches, departments, memberships } from '../../src/lib/server/db/schema';
+import { announcements, branches, departments, files, memberships } from '../../src/lib/server/db/schema';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib/server/employees';
 import {
 	announcementAdmin,
@@ -12,6 +13,7 @@ import {
 } from '../../src/lib/server/announcements';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
+import { getObject } from '../../src/lib/server/storage';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
 import { createTenant, createUser } from './helpers';
 
@@ -28,6 +30,7 @@ const code = (p: () => Promise<unknown>) =>
 		.catch((e: { code?: string; issues?: { message: string }[] }) =>
 			e.issues ? `invalid: ${e.issues[0].message}` : (e.code ?? String(e))
 		);
+const pdf = (name: string) => new File([`%PDF-1.7 ${name}`], name, { type: 'application/pdf' });
 const blanks = Object.fromEntries(Object.keys({ ...PROFILE_FIELDS, ...EMPLOYMENT_FIELDS }).map((k) => [k, '']));
 const creator = {
 	membershipId: '',
@@ -187,5 +190,38 @@ describe('announcements', () => {
 		);
 		const left = await withTenant(sys(), (tx) => tx.select().from(announcements).where(eq(announcements.id, last)));
 		expect(left).toEqual([]);
+	});
+
+	it('attaches files that only the audience opens and drops them with the announcement', async () => {
+		expect(
+			await save('hr', {
+				title: 'Backend policy',
+				audience: 'department',
+				departmentId: org.be,
+				publishOn: '2026-11-24'
+			})
+		).toBe('ok');
+		expect(await save('hr', { title: 'Coming soon', publishOn: '2026-12-01' })).toBe('ok');
+		const policy = await idOf('Backend policy');
+		const soon = await idOf('Coming soon');
+		const [handbook] = await at(() => addFiles(who.hr, 'announcement', policy, [pdf('handbook.pdf')]));
+		const [draft] = await at(() => addFiles(who.hr, 'announcement', soon, [pdf('draft.pdf')]));
+		expect(await code(() => addFiles(who.bo, 'announcement', policy, [pdf('x.pdf')]))).toBe('forbidden');
+		expect((await at(() => openFile(who.bo, handbook))).fileName).toBe('handbook.pdf');
+		expect(await code(() => openFile(who.sa, handbook))).toBe('not_found');
+		expect(await code(() => openFile(who.bo, draft))).toBe('not_found');
+		expect((await at(() => openFile(who.hr, draft))).fileName).toBe('draft.pdf');
+		const mine = await at(() => withTenant(userCtx(who.bo), (tx) => announcementFeed(tx, who.bo.access)));
+		expect(mine.find((a) => a.id === policy)!.files.map((f) => f.filename)).toEqual(['handbook.pdf']);
+
+		const [row] = await withTenant(sys(), (tx) => tx.select().from(files).where(eq(files.id, handbook)));
+		expect(await code(() => deleteAnnouncement(who.hr, { announcementId: policy }))).toBe('ok');
+		expect(await withTenant(sys(), (tx) => tx.select().from(files).where(eq(files.id, handbook)))).toEqual([]);
+		expect(
+			await getObject(row.key).then(
+				() => 'kept',
+				() => 'gone'
+			)
+		).toBe('gone');
 	});
 });

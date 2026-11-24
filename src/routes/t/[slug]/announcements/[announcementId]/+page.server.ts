@@ -1,6 +1,8 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { announcementAdmin, deleteAnnouncement, saveAnnouncement } from '#lib/server/announcements.ts';
+import { listFiles } from '#lib/server/attachments.ts';
+import { attachmentAction } from '#lib/server/http/attachments.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError } from '#lib/server/http/forms.ts';
 import { requirePerm, scopesOf, userCtx } from '#lib/server/rbac/access.ts';
@@ -10,10 +12,13 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const m = requirePerm(locals, 'announcement.manage');
 	if (!scopesOf(m.access, 'announcement.manage').includes('all')) error(403, 'You do not have permission to do that.');
-	const admin = await withTenant(userCtx(m), (tx) => announcementAdmin(tx));
+	const { admin, attachments } = await withTenant(userCtx(m), async (tx) => ({
+		admin: await announcementAdmin(tx),
+		attachments: await listFiles(tx, m.access, 'announcement', params.announcementId)
+	}));
 	const announcement = admin.rows.find((r) => r.id === params.announcementId);
-	if (!announcement) error(404, 'That announcement does not exist.');
-	return { announcement, departments: admin.departments, branches: admin.branches };
+	if (!announcement || !attachments) error(404, 'That announcement does not exist.');
+	return { announcement, attachments, departments: admin.departments, branches: admin.branches };
 };
 
 const run =
@@ -31,4 +36,11 @@ const run =
 		redirect(303, `/t/${m.tenant.slug}/announcements`);
 	};
 
-export const actions: Actions = { save: run(saveAnnouncement), delete: run(deleteAnnouncement) };
+export const actions: Actions = {
+	save: run(saveAnnouncement),
+	delete: run(deleteAnnouncement),
+	files: async ({ request, locals, params }) => {
+		const m = requirePerm(locals, 'announcement.manage');
+		return attachmentAction(m, await request.formData(), 'announcement', params.announcementId, locals.requestId);
+	}
+};

@@ -1,6 +1,7 @@
 import { and, asc, count, eq } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { announcementAttachments } from './announcements';
 import { assetAttachments } from './assets';
 import { attendanceAttachments } from './attendance-requests';
 import { changeAttachments } from './change-requests';
@@ -28,6 +29,7 @@ export type AttachmentRules = {
 type Stored = { key: string; filename: string; mime: string; size: number; sha256: string };
 
 const owners = (): Record<AttachmentOwner, AttachmentRules> => ({
+	announcement: announcementAttachments,
 	asset: assetAttachments,
 	attendance_request: attendanceAttachments,
 	change_request: changeAttachments,

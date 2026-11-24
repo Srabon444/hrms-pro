@@ -166,7 +166,7 @@
 				Announcements
 				<a class="ml-2 text-sm font-normal text-brand-700 underline" href={`${base}/announcements`}>See all</a>
 			</h2>
-			{#each home.announcements as a (a.id)}<AnnouncementCard {a} />{/each}
+			{#each home.announcements as a (a.id)}<AnnouncementCard {a} slug={data.tenant.slug} />{/each}
 		</section>
 	{/if}
 {/if}

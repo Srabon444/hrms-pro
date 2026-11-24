@@ -35,6 +35,14 @@ test('HR publishes announcements and employees see only the live ones on their h
 	await page.getByLabel('Title').fill('Plan for 2099');
 	await page.getByRole('button', { name: 'Save' }).click();
 	await expect(page.getByTestId('announcement-row').first()).toContainText('Plan for 2099');
+	await page.getByRole('link', { name: '📌 Office closed Friday' }).click();
+	const files = page.getByRole('region', { name: 'Attachments' });
+	await files
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'rota.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 rota') });
+	await files.getByRole('button', { name: 'Attach files' }).click();
+	await expect(files.getByTestId('attachment')).toContainText('rota.pdf');
+	await page.goto(`/t/${slug}/announcements`);
 
 	const ctx = await browser.newContext();
 	const ela = await ctx.newPage();
@@ -42,6 +50,7 @@ test('HR publishes announcements and employees see only the live ones on their h
 	await expect(ela).toHaveURL(/\/t\//);
 	await ela.goto(`/t/${slug}`);
 	await expect(ela.getByTestId('announcement')).toHaveText([/📌 Office closed Friday.*Enjoy the long weekend\./s]);
+	await expect(ela.getByTestId('announcement-file')).toHaveText(['rota.pdf']);
 	await ela.getByRole('link', { name: 'See all' }).click();
 	await expect(ela.getByRole('region', { name: 'New announcement' })).toHaveCount(0);
 	await expect(ela.getByTestId('announcement')).toHaveCount(1);

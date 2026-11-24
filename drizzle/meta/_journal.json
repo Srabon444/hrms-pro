@@ -414,6 +414,13 @@
       "when": 1795529732309,
       "tag": "0058_attach_ticket_comments",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795530084802,
+      "tag": "0059_attach_announcements",
+      "breakpoints": true
     }
   ]
 }
