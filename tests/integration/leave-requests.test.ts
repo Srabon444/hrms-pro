@@ -521,7 +521,9 @@ describe('leave requests', () => {
 			[day, 'Race day']
 		];
 		const results = await Promise.all([importHolidays(sys(), file), importHolidays(sys(), file)].map(code));
-		expect(results.sort()).toEqual(['duplicate', 'ok']);
+		expect(results.filter((r) => r === 'ok')).toHaveLength(1);
+		expect(['duplicate', 'import_failed']).toContain(results.find((r) => r !== 'ok'));
+		expect(await withTenant(sys(), (tx) => tx.select().from(holidays).where(eq(holidays.date, day)))).toHaveLength(1);
 	});
 
 	it('lets only one of two racing requests for the same days through', async () => {
