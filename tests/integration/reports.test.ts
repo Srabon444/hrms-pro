@@ -3,8 +3,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withTestNow } from '../../src/lib/server/clock';
 import { closePools } from '../../src/lib/server/db';
 import {
+	attendanceDays,
 	departments,
 	employees,
+	leaveRequestDays,
+	leaveRequests,
+	leaveTypes,
 	memberships,
 	reportShares,
 	rolePermissions,
@@ -198,7 +202,11 @@ describe('headcount report', () => {
 		expect(await fails('emp', 'headcount', october)).toBe('not_found');
 		expect(await fails('hr', 'nope', october)).toBe('not_found');
 		expect(reportsFor(who.emp)).toEqual([]);
-		expect(reportsFor(who.hr)).toEqual([{ id: 'headcount', title: 'Headcount and attrition' }]);
+		expect(reportsFor(who.hr)).toEqual([
+			{ id: 'headcount', title: 'Headcount and attrition' },
+			{ id: 'attendance', title: 'Attendance' },
+			{ id: 'leave', title: 'Leave taken' }
+		]);
 	});
 
 	it('exports the same projection as CSV and PDF', async () => {
@@ -318,5 +326,196 @@ describe('sharing reports', () => {
 		const revoked = { ...who.boss, grants: {} };
 		expect(await at(now, () => withTenant(sys(), (tx) => shareList(tx, revoked)))).toEqual([]);
 		expect(await outcome(at(now, () => openShare({ ...mem.boss, access: revoked }, id)))).toContain('not_found');
+	});
+});
+
+async function grant(roleKey: string, permission: 'report.attendance' | 'report.leave', scope: string) {
+	await withTenant(sys(), async (tx) => {
+		const [r] = await tx.select().from(roles).where(eq(roles.key, roleKey));
+		await tx.insert(rolePermissions).values({ tenantId: tenant.id, roleId: r.id, permission, scope });
+	});
+	for (const key of Object.keys(who).filter((k) => who[k].roleKeys.includes(roleKey))) {
+		who[key] = await loadAccess(tenant.id, {
+			id: who[key].membershipId,
+			status: 'active',
+			employeeId: who[key].employeeId
+		});
+		mem[key] = { ...mem[key], access: who[key] } as Member;
+	}
+}
+
+describe('attendance and leave reports', () => {
+	beforeAll(async () => {
+		const day = (employeeId: string, date: string, status: string, workedMinutes = 0, lateMinutes = 0) => ({
+			tenantId: tenant.id,
+			employeeId,
+			date,
+			status,
+			workedMinutes,
+			lateMinutes
+		});
+		await withTenant(sys(), async (tx) => {
+			await tx
+				.insert(attendanceDays)
+				.values([
+					day(ids.ana, '2026-09-30', 'present', 480),
+					day(ids.ana, '2026-10-01', 'present', 480),
+					day(ids.ana, '2026-10-02', 'late', 465, 15),
+					day(ids.ana, '2026-10-03', 'weekend'),
+					day(ids.ana, '2026-10-04', 'absent'),
+					day(ids.ana, '2026-11-01', 'absent'),
+					day(ids.bo, '2026-10-10', 'wfh', 504),
+					day(ids.bo, '2026-10-11', 'half_day', 240),
+					day(ids.bo, '2026-10-12', 'on_leave'),
+					day(ids.ab, '2026-10-15', 'late', 450, 10),
+					day(ids.ab, '2026-10-16', 'late', 420, 30),
+					day(ids.gi, '2026-10-02', 'holiday')
+				]);
+			const type = Object.fromEntries((await tx.select().from(leaveTypes)).map((t) => [t.code, t.id]));
+			const leave = async (employeeId: string, code: string, status: string, days: [string, string][]) => {
+				const [r] = await tx
+					.insert(leaveRequests)
+					.values({
+						tenantId: tenant.id,
+						employeeId,
+						leaveTypeId: type[code],
+						startDate: days[0][0],
+						endDate: days.at(-1)![0],
+						session: days.length === 1 ? days[0][1] : 'full',
+						days: days.length,
+						status,
+						requestedByUserId: mem.hr.user.userId
+					})
+					.returning({ id: leaveRequests.id });
+				await tx.insert(leaveRequestDays).values(
+					days.map(([date, session]) => ({
+						tenantId: tenant.id,
+						requestId: r.id,
+						employeeId,
+						date,
+						session,
+						fiscalYear: 2026,
+						status
+					}))
+				);
+			};
+			await leave(ids.ana, 'casual', 'approved', [
+				['2026-10-05', 'full'],
+				['2026-10-06', 'full']
+			]);
+			await leave(ids.ana, 'sick', 'approved', [['2026-10-07', 'am']]);
+			await leave(ids.ana, 'casual', 'approved', [
+				['2026-10-30', 'full'],
+				['2026-10-31', 'full'],
+				['2026-11-01', 'full']
+			]);
+			await leave(ids.ana, 'casual', 'approved', [['2026-09-29', 'full']]);
+			await leave(ids.bo, 'casual', 'pending', [['2026-10-20', 'full']]);
+			await leave(ids.bo, 'unpaid', 'rejected', [['2026-10-21', 'full']]);
+			await leave(ids.bo, 'unpaid', 'cancelled', [['2026-10-22', 'full']]);
+			await leave(ids.ab, 'sick', 'approved', [['2026-10-16', 'full']]);
+		});
+		await grant('team_reports', 'report.attendance', 'team');
+		await grant('dept_reports', 'report.leave', 'department');
+	});
+
+	it('counts attendance days by status, late minutes and worked hours', async () => {
+		const r = await run('hr', 'attendance', october);
+		const zero = { present: 0, late: 0, half_day: 0, absent: 0, on_leave: 0, wfh: 0, lateMinutes: 0, workedHours: 0 };
+		expect(table(r, 'employees')).toEqual([
+			{
+				name: 'Ab',
+				code: expect.any(String),
+				department: 'Operations',
+				...zero,
+				late: 2,
+				lateMinutes: 40,
+				workedHours: 14.5
+			},
+			{
+				name: 'Ana',
+				code: expect.any(String),
+				department: 'Engineering',
+				...zero,
+				present: 1,
+				late: 1,
+				absent: 1,
+				lateMinutes: 15,
+				workedHours: 15.8
+			},
+			{
+				name: 'Bo',
+				code: expect.any(String),
+				department: 'Engineering',
+				...zero,
+				half_day: 1,
+				on_leave: 1,
+				wfh: 1,
+				workedHours: 12.4
+			},
+			{ name: 'Gi', code: expect.any(String), department: null, ...zero }
+		]);
+		expect(r.sections.find((s) => s.key === 'employees')!.rows.map((row) => row.employeeId)).toEqual([
+			ids.ab,
+			ids.ana,
+			ids.bo,
+			ids.gi
+		]);
+		expect(table(r, 'departments')).toEqual([
+			{
+				department: 'Engineering',
+				...zero,
+				present: 1,
+				late: 1,
+				half_day: 1,
+				absent: 1,
+				on_leave: 1,
+				wfh: 1,
+				lateMinutes: 15,
+				workedHours: 28.2
+			},
+			{ department: 'No department', ...zero },
+			{ department: 'Operations', ...zero, late: 2, lateMinutes: 40, workedHours: 14.5 },
+			{
+				department: 'All departments',
+				...zero,
+				present: 1,
+				late: 3,
+				half_day: 1,
+				absent: 1,
+				on_leave: 1,
+				wfh: 1,
+				lateMinutes: 55,
+				workedHours: 42.7
+			}
+		]);
+		expect(names(await run('hr', 'attendance', { ...october, department: dept.Operations }), 'employees')).toEqual([
+			'Ab'
+		]);
+		expect(names(await run('lead', 'attendance', october), 'employees')).toEqual(['Ana', 'Bo']);
+		expect(await fails('dh', 'attendance', october)).toBe('not_found');
+	});
+
+	it('sums approved leave days per type inside the period', async () => {
+		const r = await run('hr', 'leave', october);
+		const cols = r.sections.find((s) => s.key === 'employees')!.columns.map((c) => c.label);
+		expect(cols).toEqual(['Name', 'Code', 'Department', 'Casual leave', 'Sick leave', 'Total days']);
+		const [casual, sick] = r.sections[1].columns.slice(3).map((c) => c.key);
+		expect(table(r, 'employees')).toEqual([
+			{ name: 'Ab', code: expect.any(String), department: 'Operations', [casual]: 0, [sick]: 1, total: 1 },
+			{ name: 'Ana', code: expect.any(String), department: 'Engineering', [casual]: 4, [sick]: 0.5, total: 4.5 }
+		]);
+		expect(table(r, 'departments')).toEqual([
+			{ department: 'Engineering', [casual]: 4, [sick]: 0.5, total: 4.5 },
+			{ department: 'Operations', [casual]: 0, [sick]: 1, total: 1 },
+			{ department: 'All departments', [casual]: 4, [sick]: 1.5, total: 5.5 }
+		]);
+		expect(names(await run('dh', 'leave', october), 'employees')).toEqual(['Ana']);
+		expect(names(await run('hr', 'leave', { ...october, department: dept.Operations }), 'employees')).toEqual(['Ab']);
+		expect(table(await run('hr', 'leave', { from: '2026-11-01', to: '2026-11-24' }), 'employees')).toEqual([
+			{ name: 'Ana', code: expect.any(String), department: 'Engineering', [casual]: 1, total: 1 }
+		]);
+		expect(await fails('lead', 'leave', october)).toBe('not_found');
+		expect(reportsFor(who.dh).map((r) => r.id)).toEqual(['headcount', 'leave']);
 	});
 });

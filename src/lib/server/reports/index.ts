@@ -7,9 +7,10 @@ import { can, type Access } from '../rbac/access';
 import { resolveScope } from '../rbac/scope';
 import type { Tx } from '../tenancy';
 import { headcountReport } from './people';
+import { attendanceReport, leaveReport } from './time';
 import type { Report, ReportDef, ReportParams } from './types';
 
-export const REPORTS: ReportDef[] = [headcountReport];
+export const REPORTS: ReportDef[] = [headcountReport, attendanceReport, leaveReport];
 
 export const MAX_REPORT_DAYS = 366;
 
