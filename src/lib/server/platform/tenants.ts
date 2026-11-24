@@ -19,6 +19,7 @@ import { sendMail } from '../mail';
 import { seedPayComponents } from '../salaries';
 import { seedShift } from '../shifts';
 import { seedTicketCategories } from '../helpdesk';
+import { seedLetterTemplates } from '../letters';
 import { systemCtx, withTenant, type Tx } from '../tenancy';
 
 export const tenantInputSchema = z.object({
@@ -36,6 +37,7 @@ export async function seedTenant(tx: Tx, tenantId: string): Promise<Record<strin
 	await seedLeaveTypes(tx, tenantId);
 	await seedShift(tx, tenantId);
 	await seedTicketCategories(tx, tenantId);
+	await seedLetterTemplates(tx, tenantId);
 	await seedPayComponents(tx, tenantId);
 	const created = await tx
 		.insert(roles)

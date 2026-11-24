@@ -7,7 +7,8 @@ export const LOCK = {
 	leaveBalance: 3,
 	attendance: 5,
 	orgTree: 6,
-	helpdesk: 7
+	helpdesk: 7,
+	letters: 8
 } as const;
 
 export const advisoryLock = (tx: Tx, ns: (typeof LOCK)[keyof typeof LOCK], key: string) =>

@@ -94,7 +94,9 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('ticket_comments', 'plain', '{id,tenant_id,ticket_id,author_membership_id,internal}'),
 	('announcements', 'plain', '{id,tenant_id,title,audience,department_id,branch_id,pinned,publish_on,expires_on,created_by_user_id}'),
 	('policies', 'plain', '{id,tenant_id,title,version,requires_ack,active,file_name,sha256,published_on,created_by_user_id}'),
-	('policy_acknowledgements', 'plain', '{id,tenant_id,policy_id,employee_id,version,sha256,acknowledged_at}')
+	('policy_acknowledgements', 'plain', '{id,tenant_id,policy_id,employee_id,version,sha256,acknowledged_at}'),
+	('letter_templates', 'plain', '{id,tenant_id,kind,name,subject,active}'),
+	('letters', 'plain', '{id,tenant_id,number,employee_id,template_id,kind,subject,sha256,issued_on,issued_by_user_id}')
 on conflict (table_name) do update set mode = excluded.mode, plain_columns = excluded.plain_columns;
 
 insert into owner_row_tables (table_name, flag) values
