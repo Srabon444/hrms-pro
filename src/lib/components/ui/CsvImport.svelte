@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import { whileBusy } from '#lib/busy.ts';
 	import Button from './Button.svelte';
 
 	let {
@@ -21,15 +23,22 @@
 	const href = $derived(
 		`data:text/csv;charset=utf-8,${encodeURIComponent(`${columns.join(',')}\r\n${example.join(',')}\r\n`)}`
 	);
+	let busy = $state(false);
 	const errors = $derived(Array.isArray(rows) ? (rows as { line: number; message: string }[]) : []);
 </script>
 
-<form method="POST" {action} enctype="multipart/form-data" class="mt-4 flex flex-wrap items-end gap-3">
+<form
+	method="POST"
+	{action}
+	enctype="multipart/form-data"
+	use:enhance={whileBusy((b) => (busy = b))}
+	class="mt-4 flex flex-wrap items-end gap-3"
+>
 	<label class="text-sm text-slate-700">
 		{label} <span class="text-slate-500">(CSV: {columns.join(',')})</span>
 		<input name="file" type="file" accept=".csv,text/csv" required class="mt-1 block text-sm" />
 	</label>
-	<Button type="submit" variant="secondary">{button}</Button>
+	<Button type="submit" variant="secondary" disabled={busy}>{busy ? 'Importing…' : button}</Button>
 	<a {href} download={file} class="text-sm text-brand-600 hover:underline">Download template</a>
 </form>
 {#if errors.length}

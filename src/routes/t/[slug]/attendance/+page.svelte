@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import { whileBusy } from '#lib/busy.ts';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import type { PageProps } from './$types';
@@ -6,6 +8,7 @@
 	let { data, form }: PageProps = $props();
 	const field = 'mt-1 block w-full input';
 	let kind = $state('regularization');
+	let importing = $state(false);
 	const rowErrors = $derived(form && 'rows' in form ? (form.rows as { line: number; message: string }[]) : []);
 	const tz = $derived(data.now?.timeZone ?? data.month?.timeZone ?? 'UTC');
 	const time = (d: Date | null, zone?: string | null) =>
@@ -224,13 +227,16 @@
 				method="POST"
 				action="?/importPunches"
 				enctype="multipart/form-data"
+				use:enhance={whileBusy((b) => (importing = b))}
 				class="mt-4 flex flex-wrap items-end gap-3"
 			>
 				<label class="text-sm text-slate-700">
 					Device punches (CSV with employee_code,timestamp)
 					<input name="file" type="file" accept=".csv,text/csv" required class="mt-1 block text-sm" />
 				</label>
-				<Button type="submit" variant="secondary">Import punches</Button>
+				<Button type="submit" variant="secondary" disabled={importing}>
+					{importing ? 'Importing…' : 'Import punches'}
+				</Button>
 			</form>
 		{/if}
 	</section>

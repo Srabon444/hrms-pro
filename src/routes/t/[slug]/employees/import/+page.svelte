@@ -1,9 +1,12 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import { whileBusy } from '#lib/busy.ts';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	let busy = $state(false);
 	const rowErrors = $derived(form && 'rows' in form ? (form.rows as { line: number; message: string }[]) : []);
 </script>
 
@@ -17,9 +20,14 @@
 </p>
 <code class="mt-2 block max-w-3xl rounded bg-slate-100 p-3 text-xs break-all">{data.columns.join(',')}</code>
 
-<form method="POST" enctype="multipart/form-data" class="mt-6 flex flex-wrap max-w-3xl items-end gap-3">
+<form
+	method="POST"
+	enctype="multipart/form-data"
+	use:enhance={whileBusy((b) => (busy = b))}
+	class="mt-6 flex flex-wrap max-w-3xl items-end gap-3"
+>
 	<input name="file" type="file" accept=".csv,text/csv" required aria-label="CSV file" class="text-sm" />
-	<Button type="submit">Import</Button>
+	<Button type="submit" disabled={busy}>{busy ? 'Importing…' : 'Import'}</Button>
 </form>
 
 <div class="mt-4 max-w-3xl space-y-2">
