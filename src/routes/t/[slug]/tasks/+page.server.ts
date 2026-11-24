@@ -1,3 +1,5 @@
+import { filesFor } from '#lib/server/attachments.ts';
+import { attachmentAction } from '#lib/server/http/attachments.ts';
 import { myTasks, roleNames, setTaskDone } from '#lib/server/checklists.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { requireMember, userCtx } from '#lib/server/rbac/access.ts';
@@ -12,12 +14,24 @@ export const load: PageServerLoad = async ({ locals }) => {
 		const scope = await resolveScope(tx, m.access, 'employee.read');
 		return {
 			tasks: tasks.map((t) => ({ ...t, readable: inScope(scope, t.employeeId) })),
+			taskFiles: Object.fromEntries(
+				await filesFor(
+					tx,
+					'checklist_item',
+					tasks.map((t) => t.id)
+				)
+			),
 			roleNames: await roleNames(tx)
 		};
 	});
 };
 
 export const actions: Actions = {
+	taskFiles: async ({ request, locals }) => {
+		const m = requireMember(locals);
+		const form = await request.formData();
+		return attachmentAction(m, form, 'checklist_item', field(form, 'ownerId'), locals.requestId);
+	},
 	task: async ({ request, locals }) => {
 		const m = requireMember(locals);
 		const form = await request.formData();

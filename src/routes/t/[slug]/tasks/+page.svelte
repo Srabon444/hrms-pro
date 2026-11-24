@@ -15,5 +15,12 @@
 	{#if form && 'taskSaved' in form}<Alert tone="info" message="Task done." />{/if}
 </div>
 <section class="mt-4 max-w-3xl panel" aria-label="Open tasks">
-	<TaskList tasks={data.tasks} slug={data.tenant.slug} roleNames={data.roleNames} action="?/task" />
+	<TaskList
+		tasks={data.tasks}
+		slug={data.tenant.slug}
+		roleNames={data.roleNames}
+		action="?/task"
+		files={data.taskFiles}
+		{form}
+	/>
 </section>

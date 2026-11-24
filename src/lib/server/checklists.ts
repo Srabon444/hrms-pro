@@ -1,5 +1,7 @@
 import { and, asc, count, eq, inArray, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
+import type { AttachmentRules } from './attachments';
+import { dropFiles } from './file-store';
 import { addDays } from './dates';
 import {
 	CHECKLIST_KINDS,
@@ -169,15 +171,23 @@ export async function moveOffboarding(tx: Tx, employeeId: string, from: string, 
 }
 
 export async function dropOffboarding(tx: Tx, employeeId: string, anchorDate: string) {
-	await tx
-		.delete(checklists)
-		.where(
-			and(
-				eq(checklists.employeeId, employeeId),
-				eq(checklists.kind, 'offboarding'),
-				eq(checklists.anchorDate, anchorDate)
-			)
-		);
+	const doomed = and(
+		eq(checklists.employeeId, employeeId),
+		eq(checklists.kind, 'offboarding'),
+		eq(checklists.anchorDate, anchorDate)
+	);
+	const items = await tx
+		.select({ id: checklistItems.id })
+		.from(checklistItems)
+		.innerJoin(checklists, eq(checklists.id, checklistItems.checklistId))
+		.where(doomed);
+	const keys = await dropFiles(
+		tx,
+		'checklist_item',
+		items.map((i) => i.id)
+	);
+	await tx.delete(checklists).where(doomed);
+	return keys;
 }
 
 function assignedTo(access: Access): SQL {
@@ -267,24 +277,44 @@ export async function employeeChecklists(tx: Tx, access: Access, e: { id: string
 	}));
 }
 
+async function taskRow(tx: Tx, itemId: string, lock: boolean) {
+	const q = tx
+		.select({ item: checklistItems, e: { id: employees.id, managerId: employees.managerId } })
+		.from(checklistItems)
+		.innerJoin(checklists, eq(checklists.id, checklistItems.checklistId))
+		.innerJoin(employees, eq(employees.id, checklists.employeeId))
+		.where(eq(checklistItems.id, itemId));
+	const [row] = lock ? await q.for('update', { of: checklistItems }) : await q;
+	return row;
+}
+
+type TaskRow = NonNullable<Awaited<ReturnType<typeof taskRow>>>;
+
+async function taskRights(tx: Tx, access: Access, row: TaskRow) {
+	const doer = inScope(await resolveScope(tx, access, 'employee.update'), row.e.id) || canDo(access, row.item, row.e);
+	return { doer, seen: doer || inScope(await resolveScope(tx, access, 'employee.read'), row.e.id) };
+}
+
+export const checklistItemAttachments: AttachmentRules = {
+	async canRead(tx, access, itemId) {
+		const row = await taskRow(tx, itemId, false);
+		return !!row && (await taskRights(tx, access, row)).seen;
+	},
+	async canEdit(tx, access, itemId, lock) {
+		const row = await taskRow(tx, itemId, lock);
+		return !!row && (await taskRights(tx, access, row)).doer;
+	}
+};
+
 export async function setTaskDone(m: Member, itemId: string, done: boolean) {
 	const parsed = id.safeParse(itemId);
 	if (!parsed.success) throw new AppError('not_found', 'That task does not exist.', 404);
 	await withTenant(userCtx(m), async (tx) => {
-		const [row] = await tx
-			.select({ item: checklistItems, e: { id: employees.id, managerId: employees.managerId } })
-			.from(checklistItems)
-			.innerJoin(checklists, eq(checklists.id, checklistItems.checklistId))
-			.innerJoin(employees, eq(employees.id, checklists.employeeId))
-			.where(eq(checklistItems.id, parsed.data))
-			.for('update', { of: checklistItems });
+		const row = await taskRow(tx, parsed.data, true);
 		if (!row) throw new AppError('not_found', 'That task does not exist.', 404);
-		const hr = inScope(await resolveScope(tx, m.access, 'employee.update'), row.e.id);
-		if (!hr && !canDo(m.access, row.item, row.e)) {
-			const seen = inScope(await resolveScope(tx, m.access, 'employee.read'), row.e.id);
-			if (!seen) throw new AppError('not_found', 'That task does not exist.', 404);
-			throw new AppError('forbidden', 'This task is for someone else.', 403);
-		}
+		const rights = await taskRights(tx, m.access, row);
+		if (!rights.seen) throw new AppError('not_found', 'That task does not exist.', 404);
+		if (!rights.doer) throw new AppError('forbidden', 'This task is for someone else.', 403);
 		await tx
 			.update(checklistItems)
 			.set(done ? { doneAt: new Date(), doneByUserId: m.user.userId } : { doneAt: null, doneByUserId: null })

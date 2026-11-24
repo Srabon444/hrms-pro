@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { assetsOut } from './assets';
+import { discardFiles } from './file-store';
 import { dropOffboarding, moveOffboarding, startChecklists } from './checklists';
 import { accrue } from './leave';
 import { now } from './clock';
@@ -192,12 +193,12 @@ export async function recordExit(m: Member, employeeId: string, raw: Record<stri
 }
 
 export async function withdrawExit(m: Member, employeeId: string) {
-	await withTenant(userCtx(m), async (tx) => {
+	const keys = await withTenant(userCtx(m), async (tx) => {
 		const e = await lockEmployee(tx, m.access, employeeId);
 		await assertCanExit(tx, m, e);
 		if (e.status !== 'notice' || !e.exitDate)
 			throw new AppError('no_pending_exit', 'This person has no upcoming exit.', 409);
-		await dropOffboarding(tx, e.id, e.exitDate);
+		const dropped = await dropOffboarding(tx, e.id, e.exitDate);
 		await tx
 			.update(employees)
 			.set({ status: 'active', exitDate: null, exitType: null, exitReason: null })
@@ -210,7 +211,9 @@ export async function withdrawExit(m: Member, employeeId: string) {
 			newValue: 'active',
 			changedByUserId: m.user.userId
 		});
+		return dropped;
 	});
+	await discardFiles(keys);
 }
 
 const rehireSchema = z.object({ joinDate: z.iso.date('Enter the new join date.') });

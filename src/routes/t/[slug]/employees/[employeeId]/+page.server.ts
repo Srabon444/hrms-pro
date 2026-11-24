@@ -5,7 +5,7 @@ import { cancelChange, CHANGE_LABELS, ownPendingChange, requestChange } from '#l
 import { DOCUMENT_CATEGORIES, EXIT_TYPES } from '#lib/server/db/schema/org.ts';
 import { exitInterviewView, submitExitInterview } from '#lib/server/exit-interviews.ts';
 import { exitRights, recordExit, rehire, withdrawExit } from '#lib/server/exits.ts';
-import { listFiles } from '#lib/server/attachments.ts';
+import { filesFor, listFiles } from '#lib/server/attachments.ts';
 import { deleteDocument, listDocuments, uploadDocument } from '#lib/server/documents.ts';
 import { employeeChoices, getEmployee, updateEmployee } from '#lib/server/employees.ts';
 import { attachmentAction } from '#lib/server/http/attachments.ts';
@@ -35,6 +35,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	return withTenant(userCtx(m), async (tx) => {
 		const record = await getEmployee(tx, m.access, params.employeeId);
 		if (!record) error(404, 'Not found');
+		const checklists = await employeeChecklists(tx, m.access, record.employee);
 		return {
 			...record,
 			choices: record.canUpdate ? await employeeChoices(tx) : null,
@@ -50,7 +51,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				m.access.employeeId === record.employee.id ? await ownResignationView(tx, m.access, record.employee.id) : null,
 			leave: await leaveBalances(tx, m.access, record.employee),
 			shift: await employeeShift(tx, m.access, record.employee, await tenantToday(tx)),
-			checklists: await employeeChecklists(tx, m.access, record.employee),
+			checklists,
+			taskFiles: Object.fromEntries(
+				await filesFor(
+					tx,
+					'checklist_item',
+					checklists.flatMap((c) => c.items.map((i) => i.id))
+				)
+			),
 			roleNames: await roleNames(tx),
 			documentCategories: DOCUMENT_CATEGORIES
 		};
@@ -64,6 +72,11 @@ const profileError = (err: unknown, requestId: string) => {
 };
 
 export const actions: Actions = {
+	taskFiles: async ({ request, locals }) => {
+		const m = requireMember(locals);
+		const form = await request.formData();
+		return attachmentAction(m, form, 'checklist_item', field(form, 'ownerId'), locals.requestId);
+	},
 	saveOwn: async ({ request, locals, params }) => {
 		const m = requireMember(locals);
 		try {

@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { addFiles, openFile, removeFile } from '../../src/lib/server/attachments';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	addTemplateItem,
@@ -11,12 +12,13 @@ import {
 	setTemplateActive
 } from '../../src/lib/server/checklists';
 import { closePools } from '../../src/lib/server/db';
-import { memberships } from '../../src/lib/server/db/schema';
+import { files, memberships } from '../../src/lib/server/db/schema';
 import { addDays, dateIn } from '../../src/lib/server/dates';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib/server/employees';
 import { recordExit, rehire, withdrawExit } from '../../src/lib/server/exits';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
+import { getObject } from '../../src/lib/server/storage';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
 import { createTenant, createUser } from './helpers';
 
@@ -24,6 +26,7 @@ type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
 const ids: Record<string, string> = {};
 const who: Record<string, Member> = {};
+const pdf = (name: string) => new File([`%PDF-1.7 ${name}`], name, { type: 'application/pdf' });
 const today = dateIn(new Date(), 'Asia/Dhaka');
 const sys = () => systemCtx(tenant.id);
 const ctx = () => ({ tenantId: tenant.id, actor: 'user' as const });
@@ -156,6 +159,19 @@ describe('checklist tasks', () => {
 		expect(await mine('boss')).toEqual([]);
 	});
 
+	it('lets whoever can do a task attach proof that its readers can download', async () => {
+		const laptop = await itemId(ids.joiner, 'Issue laptop');
+		const [receipt] = await addFiles(who.it, 'checklist_item', laptop, [pdf('handover.pdf')]);
+		expect((await openFile(who.hr, receipt)).fileName).toBe('handover.pdf');
+		expect((await openFile(who.boss, receipt)).fileName).toBe('handover.pdf');
+		expect(await code(openFile(who.stranger, receipt))).toBe('not_found');
+		expect(await code(addFiles(who.boss, 'checklist_item', laptop, [pdf('x.pdf')]))).toBe('forbidden');
+		expect(await code(addFiles(who.stranger, 'checklist_item', laptop, [pdf('x.pdf')]))).toBe('not_found');
+		expect(await code(removeFile(who.joiner, { type: 'checklist_item', id: laptop }, receipt))).toBe('forbidden');
+		await addFiles(who.hr, 'checklist_item', laptop, [pdf('signed.pdf')]);
+		await removeFile(who.it, { type: 'checklist_item', id: laptop }, receipt);
+	});
+
 	it('starts offboarding on exit, moves it with the last day and drops it on withdraw', async () => {
 		const exit = (exitDate: string) =>
 			recordExit(who.hr, ids.staff, { exitDate, exitType: 'resignation', exitReason: '' });
@@ -170,8 +186,13 @@ describe('checklist tasks', () => {
 			['Collect laptop', addDays(today, 20), false]
 		]);
 		expect(await mine('it')).toEqual(['Issue laptop/Jo Joiner', 'Collect laptop/Sam Staff']);
+		const collect = await itemId(ids.staff, 'Collect laptop');
+		await addFiles(who.it, 'checklist_item', collect, [pdf('returned.pdf')]);
+		const [proof] = await withTenant(sys(), (tx) => tx.select().from(files).where(eq(files.ownerId, collect)));
 		expect(await code(withdrawExit(who.hr, ids.staff))).toBe('ok');
 		expect(await lists('hr', ids.staff)).toEqual([]);
+		expect(await withTenant(sys(), (tx) => tx.select().from(files).where(eq(files.ownerId, collect)))).toEqual([]);
+		expect(await code(getObject(proof.key))).not.toBe('ok');
 	});
 
 	it('runs offboarding for a same-day exit and onboarding again on rehire', async () => {

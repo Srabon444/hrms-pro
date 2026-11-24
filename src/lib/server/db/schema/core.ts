@@ -374,7 +374,8 @@ export const ATTACHMENT_OWNERS = [
 	'asset',
 	'candidate',
 	'offer',
-	'interview_feedback'
+	'interview_feedback',
+	'checklist_item'
 ] as const;
 export type AttachmentOwner = (typeof ATTACHMENT_OWNERS)[number];
 export const MAX_ATTACHMENTS = 5;

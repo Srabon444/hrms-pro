@@ -74,5 +74,12 @@
 
 <section class="mt-6 max-w-4xl panel" aria-label="Checklist tasks">
 	<h2 class="section-title">Open checklist tasks</h2>
-	<TaskList tasks={data.tasks} slug={data.tenant.slug} roleNames={data.roleNames} action="?/task" />
+	<TaskList
+		tasks={data.tasks}
+		slug={data.tenant.slug}
+		roleNames={data.roleNames}
+		action="?/task"
+		files={data.taskFiles}
+		{form}
+	/>
 </section>

@@ -77,6 +77,13 @@ test('a joiner gets the checklist, each assignee ticks off their task and HR tra
 	await it.getByRole('link', { name: 'Tasks' }).click();
 	const mine = it.getByRole('region', { name: 'Open tasks' });
 	await expect(mine.getByTestId('task')).toHaveText([/Issue laptop.*Nia New.*IT\/Asset Manager/s]);
+	const proof = mine.getByRole('group', { name: 'Proof' });
+	await proof.getByText('Proof (0)').click();
+	await proof
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'handover.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 handover') });
+	await proof.getByRole('button', { name: 'Attach files' }).click();
+	await expect(proof.getByTestId('attachment')).toContainText('handover.pdf');
 	await mine.getByRole('button', { name: 'Done: Issue laptop for Nia New' }).click();
 	await expect(it.getByRole('status')).toHaveText('Task done.');
 	await expect(mine).toContainText('No open tasks.');
@@ -84,6 +91,7 @@ test('a joiner gets the checklist, each assignee ticks off their task and HR tra
 
 	await page.goto(profile);
 	const checklist = page.getByRole('region', { name: 'Checklists' });
+	await expect(checklist.getByTestId('attachment')).toContainText('handover.pdf');
 	await checklist.getByRole('button', { name: 'Undo: Issue laptop' }).click();
 	await expect(page.getByRole('status')).toHaveText('Checklist saved.');
 	await expect(checklist.getByRole('button', { name: 'Done: Issue laptop' })).toBeVisible();

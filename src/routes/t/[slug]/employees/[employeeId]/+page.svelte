@@ -499,7 +499,7 @@
 			<h3 class="mt-4 text-sm font-medium text-slate-800">{c.name} · {c.kind} from {c.anchorDate}</h3>
 			<ul class="mt-2 divide-y divide-slate-100 text-sm">
 				{#each c.items as i (i.id)}
-					<li class="flex items-center gap-3 py-2" data-testid="checklist-item">
+					<li class="flex flex-wrap items-center gap-3 py-2" data-testid="checklist-item">
 						<span class={i.done ? 'text-slate-400 line-through' : 'text-slate-800'}>{i.title}</span>
 						<span class="text-slate-500">{data.roleNames[i.assigneeRole] ?? i.assigneeRole} · due {i.dueDate}</span>
 						{#if i.canComplete}
@@ -514,6 +514,19 @@
 									{i.done ? 'Undo' : 'Mark done'}
 								</button>
 							</form>
+						{/if}
+						{#if i.canComplete || data.taskFiles[i.id]?.length}
+							<div class="w-full">
+								<Attachments
+									slug={data.tenant.slug}
+									attachments={{ files: data.taskFiles[i.id] ?? [], canEdit: i.canComplete }}
+									{form}
+									action="?/taskFiles"
+									ownerId={i.id}
+									title="Proof"
+									compact
+								/>
+							</div>
 						{/if}
 					</li>
 				{/each}
