@@ -13,3 +13,4 @@ export * from './projects';
 export * from './assets';
 export * from './helpdesk';
 export * from './announcements';
+export * from './policies';

@@ -6,6 +6,7 @@ export const NAV: NavItem[] = [
 	{ href: '', label: 'Home' },
 	{ href: 'notifications', label: 'Notifications' },
 	{ href: 'announcements', label: 'Announcements', active: true },
+	{ href: 'policies', label: 'Policies', active: true },
 	{ href: 'approvals', label: 'Approvals' },
 	{ href: 'tasks', label: 'Tasks' },
 	{ href: 'leave', label: 'Leave', perm: 'leave.request' },
