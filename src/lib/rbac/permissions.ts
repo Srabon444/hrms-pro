@@ -85,6 +85,10 @@ export const isPermission = (value: string): value is Permission => (PERMISSIONS
 
 const at = (scope: Scope, ...perms: Permission[]): Grant[] => perms.map((p) => [p, scope] as const);
 
+export const RETIRED_SYSTEM_GRANTS: readonly (readonly [string, Permission, Scope])[] = [
+	['employee', 'report.weekly', 'own']
+];
+
 export type SystemRole = { key: string; name: string; description: string; locked?: boolean; grants: Grant[] };
 
 export const SYSTEM_ROLES: SystemRole[] = [

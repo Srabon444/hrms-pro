@@ -131,6 +131,17 @@ export const rolePermissions = pgTable(
 	]
 );
 
+export const systemGrants = pgTable(
+	'system_grants',
+	{
+		...tenantBase(),
+		roleKey: text().notNull(),
+		permission: text().notNull(),
+		scope: text().notNull()
+	},
+	(t) => [tenantKey('system_grants', t), unique('system_grants_uq').on(t.tenantId, t.roleKey, t.permission, t.scope)]
+);
+
 export const membershipRoles = pgTable(
 	'membership_roles',
 	{

@@ -7,7 +7,7 @@ import { migrateDatabase } from './lib/server/db/migrate';
 import { tenants, users } from './lib/server/db/schema';
 import { inviteLink } from './lib/server/invitations';
 import { log } from './lib/server/log';
-import { addMember, provisionTenant, seedTenant } from './lib/server/platform/tenants';
+import { addMember, provisionTenant, seedTenant, syncSystemRoles } from './lib/server/platform/tenants';
 import { closeQueues } from './lib/server/queue';
 import { closeRedis } from './lib/server/redis';
 import { ensureBucket } from './lib/server/storage';
@@ -46,6 +46,10 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 	async migrate() {
 		await migrateDatabase();
 		await ensureBucket();
+		for (const t of await authPool().db.select({ id: tenants.id, slug: tenants.slug }).from(tenants)) {
+			const changed = await withTenant(systemCtx(t.id), (tx) => syncSystemRoles(tx, t.id));
+			if (changed.added || changed.removed) log.info({ tenant: t.slug, ...changed }, 'system roles synced');
+		}
 		log.info('migrations applied');
 	},
 

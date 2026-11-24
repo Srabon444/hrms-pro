@@ -1,6 +1,6 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, or } from 'drizzle-orm';
 import { z } from 'zod';
-import { SYSTEM_ROLES } from '../../rbac/permissions';
+import { RETIRED_SYSTEM_GRANTS, SYSTEM_ROLES } from '../../rbac/permissions';
 import { emailSchema } from '../auth/users';
 import { authPool } from '../db';
 import {
@@ -9,6 +9,7 @@ import {
 	platformAudit,
 	rolePermissions,
 	roles,
+	systemGrants,
 	tenantSettings,
 	tenants
 } from '../db/schema';
@@ -62,6 +63,7 @@ export async function seedTenant(tx: Tx, tenantId: string): Promise<Record<strin
 		}))
 	);
 	if (grants.length) await tx.insert(rolePermissions).values(grants).onConflictDoNothing();
+	await syncSystemRoles(tx, tenantId);
 	const all = await tx
 		.select({ id: roles.id, key: roles.key })
 		.from(roles)
@@ -124,4 +126,73 @@ export async function setTenantStatus(tenantId: string, status: 'active' | 'susp
 	await authPool()
 		.db.insert(platformAudit)
 		.values({ actorUserId, action: `tenant.${status}`, target: tenantId });
+}
+
+const grantKey = (g: { roleKey: string; permission: string; scope: string }) =>
+	`${g.roleKey}|${g.permission}|${g.scope}`;
+
+export async function syncSystemRoles(tx: Tx, tenantId: string) {
+	const system = await tx.select({ id: roles.id, key: roles.key }).from(roles).where(eq(roles.isSystem, true));
+	const roleIds = new Map(system.map((r) => [r.key, r.id]));
+	const wanted = new Map(
+		SYSTEM_ROLES.filter((r) => roleIds.has(r.key)).flatMap((r) =>
+			r.grants.map(([permission, scope]) => {
+				const g = { roleKey: r.key, permission, scope };
+				return [grantKey(g), g] as const;
+			})
+		)
+	);
+	let seen = await tx.select().from(systemGrants);
+	if (!seen.length) {
+		const retired = new Set(
+			RETIRED_SYSTEM_GRANTS.map(([roleKey, permission, scope]) => grantKey({ roleKey, permission, scope }))
+		);
+		const current = (
+			await tx
+				.select({ roleKey: roles.key, permission: rolePermissions.permission, scope: rolePermissions.scope })
+				.from(rolePermissions)
+				.innerJoin(roles, eq(roles.id, rolePermissions.roleId))
+		).filter((g) => wanted.has(grantKey(g)) || retired.has(grantKey(g)));
+		if (current.length)
+			seen = await tx
+				.insert(systemGrants)
+				.values(current.map((g) => ({ tenantId, ...g })))
+				.returning();
+	}
+	const known = new Set(seen.map(grantKey));
+	const fresh = [...wanted].filter(([k]) => !known.has(k)).map(([, g]) => g);
+	const dropped = seen.filter((g) => !wanted.has(grantKey(g)));
+	if (fresh.length) {
+		await tx
+			.insert(rolePermissions)
+			.values(
+				fresh.map((g) => ({ tenantId, roleId: roleIds.get(g.roleKey)!, permission: g.permission, scope: g.scope }))
+			)
+			.onConflictDoNothing();
+		await tx.insert(systemGrants).values(fresh.map((g) => ({ tenantId, ...g })));
+	}
+	if (dropped.length) {
+		const owned = dropped.filter((g) => roleIds.has(g.roleKey));
+		if (owned.length)
+			await tx
+				.delete(rolePermissions)
+				.where(
+					or(
+						...owned.map((g) =>
+							and(
+								eq(rolePermissions.roleId, roleIds.get(g.roleKey)!),
+								eq(rolePermissions.permission, g.permission),
+								eq(rolePermissions.scope, g.scope)
+							)
+						)
+					)
+				);
+		await tx.delete(systemGrants).where(
+			inArray(
+				systemGrants.id,
+				dropped.map((g) => g.id)
+			)
+		);
+	}
+	return { added: fresh.length, removed: dropped.length };
 }
