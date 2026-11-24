@@ -356,6 +356,48 @@ describe('sharing reports', () => {
 		expect(await outcome(at(now, () => openShare({ ...mem.boss, access: revoked }, id)))).toContain('not_found');
 	});
 
+	it('sends the weekly recruitment section only to people who may see recruitment', async () => {
+		await withTenant(sys(), async (tx) => {
+			const [r] = await tx
+				.insert(roles)
+				.values({ tenantId: tenant.id, key: 'weekly_only', name: 'Weekly only' })
+				.returning({ id: roles.id });
+			await tx
+				.insert(rolePermissions)
+				.values({ tenantId: tenant.id, roleId: r.id, permission: 'report.weekly', scope: 'all' });
+		});
+		await member('wk', ['weekly_only'], null);
+		await member('hr2', ['hr_admin'], null);
+		const full = await run('hr', 'weekly', {});
+		const spec = (keep: (key: string) => boolean, recipient: string) => {
+			const sections = full.sections.filter((s) => keep(s.key));
+			return {
+				filters: {},
+				sections: sections.map((s) => s.key),
+				columns: sections.flatMap((s) => s.columns.map((c) => `${s.key}:${c.key}`)),
+				employees: [],
+				recipients: [who[recipient].membershipId]
+			};
+		};
+		const shareWeekly = (keep: (key: string) => boolean, recipient: string) =>
+			at(now, () => shareReport(mem.hr, 'weekly', spec(keep, recipient)));
+		expect(await outcome(shareWeekly(() => true, 'wk'))).toBe(
+			'invalid: Someone you chose cannot see every section you picked. Leave those sections out.'
+		);
+		const { id } = await shareWeekly((k) => k !== 'recruitment', 'wk');
+		expect((await at(now, () => openShare(mem.wk, id))).report.sections.map((s) => s.key)).toEqual([
+			'attendance',
+			'short_hours',
+			'new_hires',
+			'issues',
+			'plan'
+		]);
+		const { id: whole } = await shareWeekly(() => true, 'hr2');
+		expect((await at(now, () => openShare(mem.hr2, whole))).report.sections.map((s) => s.key)).toContain('recruitment');
+		const weeklyOnly = { ...mem.hr2, access: { ...who.hr2, grants: { 'report.weekly': ['all'] } } } as Member;
+		expect(await outcome(at(now, () => openShare(weeklyOnly, whole)))).toContain('not_found');
+	});
+
 	it('shares every report in full with someone who sees everything', async () => {
 		await member('own1', ['owner'], null);
 		await member('own2', ['owner'], null);

@@ -1,6 +1,6 @@
 import { and, arrayContains, desc, eq, gte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import type { Scope } from '../../rbac/permissions';
+import type { Permission, Scope } from '../../rbac/permissions';
 import { auditEvent } from '../audit';
 import { addDays } from '../dates';
 import { reportShares, type ShareSpec } from '../db/schema';
@@ -75,13 +75,13 @@ export function applySpec(report: Report, spec: Pick<ShareSpec, 'sections' | 'co
 const covers = (outer: Awaited<ReturnType<typeof resolveScope>>, inner: typeof outer) =>
 	outer.kind === 'all' || (inner.kind === 'ids' && inner.ids.every((id) => outer.ids.includes(id)));
 
-export async function shareRecipients(tx: Tx, access: Access, def: ReportDef) {
-	const sharer = await resolveScope(tx, access, def.permission);
+async function coveredBy(tx: Tx, access: Access, permission: Permission) {
+	const sharer = await resolveScope(tx, access, permission);
 	const rows = await tx.execute<{ membership_id: string; employee_id: string | null; name: string; scope: Scope }>(sql`
 		select tu.membership_id, tu.employee_id, tu.name, rp.scope
 		from tenant_users tu
 		join membership_roles mr on mr.membership_id = tu.membership_id
-		join role_permissions rp on rp.role_id = mr.role_id and rp.permission = ${def.permission}
+		join role_permissions rp on rp.role_id = mr.role_id and rp.permission = ${permission}
 		where tu.membership_status = 'active' and tu.membership_id <> ${access.membershipId}::uuid
 		order by tu.name, tu.membership_id`);
 	const byMember = new Map<string, { employeeId: string | null; name: string; scopes: Scope[] }>();
@@ -94,10 +94,25 @@ export async function shareRecipients(tx: Tx, access: Access, def: ReportDef) {
 	for (const [membershipId, m] of byMember) {
 		const scope = await resolveScope(
 			tx,
-			{ membershipId, employeeId: m.employeeId, grants: { [def.permission]: m.scopes }, roleKeys: [], isOwner: false },
-			def.permission
+			{ membershipId, employeeId: m.employeeId, grants: { [permission]: m.scopes }, roleKeys: [], isOwner: false },
+			permission
 		);
 		if (covers(scope, sharer)) eligible.push({ membershipId, name: m.name });
+	}
+	return eligible;
+}
+
+const permissionsFor = (def: ReportDef, sections: string[]) => [
+	def.permission,
+	...sections.flatMap((s) => def.sectionPermissions?.[s] ?? [])
+];
+
+export async function shareRecipients(tx: Tx, access: Access, def: ReportDef, sections: string[] = []) {
+	const [first, ...rest] = permissionsFor(def, sections);
+	let eligible = await coveredBy(tx, access, first);
+	for (const p of rest) {
+		const ids = new Set((await coveredBy(tx, access, p)).map((r) => r.membershipId));
+		eligible = eligible.filter((r) => ids.has(r.membershipId));
 	}
 	return eligible;
 }
@@ -120,8 +135,13 @@ export async function shareReport(
 		return await withTenant(reportCtx(m, reportId), async (tx) => {
 			const full = await runReport(tx, m.access, reportId, raw.filters);
 			const report = applySpec(full, spec);
-			const eligible = new Set((await shareRecipients(tx, m.access, def)).map((r) => r.membershipId));
-			if (spec.recipients.some((r) => !eligible.has(r))) throw invalid('Choose recipients from the list.');
+			const ids = async (sections: string[]) =>
+				new Set((await shareRecipients(tx, m.access, def, sections)).map((r) => r.membershipId));
+			const listed = await ids([]);
+			if (spec.recipients.some((r) => !listed.has(r))) throw invalid('Choose recipients from the list.');
+			const cleared = await ids(spec.sections);
+			if (spec.recipients.some((r) => !cleared.has(r)))
+				throw invalid('Someone you chose cannot see every section you picked. Leave those sections out.');
 			await put(`${base}.json`, new TextEncoder().encode(JSON.stringify(report)), 'application/json');
 			const attachments: NonNullable<Mail['attachments']> = [];
 			if (!def.sensitive) {
@@ -174,9 +194,9 @@ export async function shareReport(
 	}
 }
 
-const holds = (access: Access, reportId: string) => {
+const holds = (access: Access, reportId: string, sections: string[]) => {
 	const def = REPORTS.find((r) => r.id === reportId);
-	return !!def && can(access, def.permission);
+	return !!def && permissionsFor(def, sections).every((p) => can(access, p));
 };
 
 export async function shareList(tx: Tx, access: Access) {
@@ -188,6 +208,7 @@ export async function shareList(tx: Tx, access: Access) {
 			title: reportShares.title,
 			period: reportShares.period,
 			sharedByMembershipId: reportShares.sharedByMembershipId,
+			spec: reportShares.spec,
 			createdAt: reportShares.createdAt,
 			expiresOn: reportShares.expiresOn,
 			sharer: sql<string>`(select tu.name from tenant_users tu where tu.membership_id = ${reportShares.sharedByMembershipId})`
@@ -205,8 +226,8 @@ export async function shareList(tx: Tx, access: Access) {
 		.orderBy(desc(reportShares.createdAt))
 		.limit(100);
 	return rows
-		.filter((r) => holds(access, r.reportId))
-		.map((r) => ({ ...r, mine: r.sharedByMembershipId === access.membershipId }));
+		.filter((r) => holds(access, r.reportId, r.spec.sections))
+		.map(({ spec: _spec, ...r }) => ({ ...r, mine: r.sharedByMembershipId === access.membershipId }));
 }
 
 export async function openShare(m: Member, id: string) {
@@ -221,7 +242,7 @@ export async function openShare(m: Member, id: string) {
 			!(
 				row.sharedByMembershipId === m.access.membershipId || row.recipientMembershipIds.includes(m.access.membershipId)
 			) ||
-			!holds(m.access, row.reportId)
+			!holds(m.access, row.reportId, row.spec.sections)
 		)
 			throw notFound();
 		await auditEvent(tx, ctx, 'report_shares', row.id, 'report_share.open');

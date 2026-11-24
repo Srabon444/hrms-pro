@@ -15,5 +15,6 @@ export type ReportDef = {
 	permission: Permission;
 	sensitive?: true;
 	defaultPeriod?: 'week';
+	sectionPermissions?: Record<string, Permission>;
 	build: (tx: Tx, input: { scope: ScopeSet; params: ReportParams; access: Access }) => Promise<Section[]>;
 };

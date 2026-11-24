@@ -27,6 +27,7 @@ export const weeklyReport: ReportDef = {
 	title: 'Weekly management report',
 	permission: 'report.weekly',
 	defaultPeriod: 'week',
+	sectionPermissions: { recruitment: 'report.recruitment' },
 	async build(tx, input) {
 		const {
 			scope,
@@ -129,12 +130,12 @@ export const weeklyReport: ReportDef = {
 				)
 			)
 			.orderBy(asc(workPlanItems.weekStart), asc(employees.fullName), asc(workPlanItems.createdAt));
-		const recruitment = can(input.access, 'report.recruitment')
+		const recruitment = can(input.access, weeklyReport.sectionPermissions!.recruitment)
 			? [
 					pick(
 						await recruitmentReport.build(tx, {
 							...input,
-							scope: await resolveScope(tx, input.access, 'report.recruitment')
+							scope: await resolveScope(tx, input.access, weeklyReport.sectionPermissions!.recruitment)
 						}),
 						'openings',
 						'recruitment',
