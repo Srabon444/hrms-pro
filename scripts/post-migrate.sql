@@ -242,6 +242,9 @@ begin
 	) then
 		raise exception 'invitation_invalid' using errcode = 'P0001';
 	end if;
+	if not exists (select 1 from public.tenants where id = inv.tenant_id and status = 'active') then
+		raise exception 'invitation_invalid' using errcode = 'P0001';
+	end if;
 	select * into usr from public.users where id = p_user_id and status = 'active';
 	if not found or usr.email <> inv.email then
 		raise exception 'invitation_email_mismatch' using errcode = 'P0001';
@@ -251,7 +254,11 @@ begin
 	values (inv.tenant_id, p_user_id, inv.employee_id, 'active')
 	on conflict (tenant_id, user_id) do update
 		set status = 'active', employee_id = coalesce(excluded.employee_id, public.memberships.employee_id), ex_access_until = null
+		where public.memberships.status <> 'ex_employee'
 	returning id into mid;
+	if mid is null then
+		raise exception 'invitation_invalid' using errcode = 'P0001';
+	end if;
 
 	insert into public.membership_roles (tenant_id, membership_id, role_id)
 	select inv.tenant_id, mid, r.id

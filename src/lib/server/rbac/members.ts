@@ -168,10 +168,14 @@ export async function inviteMember(
 		const wanted = await rolesWithGrants(tx, roleIds);
 		if (wanted.length !== roleIds.length) throw new AppError('role_not_found', 'One or more roles do not exist.');
 		assertCanHandOut(actor.access, wanted);
-		const existing = await tx.execute<{ id: string }>(
-			sql`select membership_id as id from tenant_users where email = ${email} and membership_status = 'active'`
+		const [existing] = await tx.execute<{ id: string; status: string }>(
+			sql`select membership_id as id, membership_status as status from tenant_users where email = ${email}`
 		);
-		if (existing.length) throw new AppError('already_member', 'That person is already a member.', 409);
+		if (existing?.status === 'active') throw new AppError('already_member', 'That person is already a member.', 409);
+		if (existing?.status === 'ex_employee')
+			throw new AppError('ex_employee', 'Former employees are managed through the exit process.', 409);
+		if (existing)
+			assertCanHandOut(actor.access, await rolesWithGrants(tx, (await loadTarget(tx, actor, existing.id)).roleIds));
 		if (employeeId) await claimEmployee(tx, actor.access, employeeId, null);
 		return createInvitation(tx, {
 			tenantId: actor.tenant.id,
