@@ -6,7 +6,7 @@ import { calendar, employeeZone, punchDay, recomputeAttendance } from './attenda
 import { compDays, creditCompOff } from './comp-off';
 import { zonedInstant } from './attendance-day';
 import { now } from './clock';
-import { addDays, dateIn } from './dates';
+import { addDays, dateIn, zoneFormat } from './dates';
 import {
 	attendanceDays,
 	attendancePunches,
@@ -35,7 +35,7 @@ export const KIND_LABELS: Record<string, string> = {
 const ACTIVE = ['pending', 'approved'];
 const notFound = () => new AppError('not_found', 'That attendance request does not exist.', 404);
 const stamp = (at: Date, timeZone: string) =>
-	new Intl.DateTimeFormat('sv-SE', { timeZone, dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23' }).format(at);
+	zoneFormat(timeZone, { dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23' }, 'sv-SE').format(at);
 const roundDown = (minutes: number) => Math.floor(minutes / 15) * 15;
 const reason = z.string().trim().min(1, 'Say why.').max(500, 'Keep the reason under 500 characters.');
 const minutes = (message: string) => z.coerce.number(message).int(message).min(15, message).max(1440, message);

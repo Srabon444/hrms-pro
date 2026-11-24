@@ -1,4 +1,4 @@
-import { addDays, dateIn } from './dates';
+import { addDays, dateIn, zoneFormat } from './dates';
 
 export const DAY_STATUSES = ['present', 'late', 'half_day', 'absent', 'on_leave', 'holiday', 'weekend', 'wfh'] as const;
 export type DayStatus = (typeof DAY_STATUSES)[number];
@@ -35,17 +35,18 @@ export type DayResult = {
 const clockMinutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 const dayNumber = (isoDate: string) => Date.parse(`${isoDate}T00:00:00Z`) / 86_400_000;
 
+const CLOCK: Intl.DateTimeFormatOptions = {
+	hourCycle: 'h23',
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit'
+};
+
 export function localMinutes(at: Date, date: string, timeZone: string) {
 	const p = Object.fromEntries(
-		new Intl.DateTimeFormat('en-CA', {
-			timeZone,
-			hourCycle: 'h23',
-			year: 'numeric',
-			month: '2-digit',
-			day: '2-digit',
-			hour: '2-digit',
-			minute: '2-digit'
-		})
+		zoneFormat(timeZone, CLOCK)
 			.formatToParts(at)
 			.map((x) => [x.type, x.value])
 	);
