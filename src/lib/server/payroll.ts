@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import {
@@ -911,6 +911,20 @@ export async function approveRun(m: Member, form: Record<string, string>) {
 		if (run.status !== 'computed') throw new AppError('locked', 'That run is not waiting for approval.', 409);
 		if (run.computedByUserId === m.user.userId && !(await singleAdmin(tx)))
 			throw new AppError('own_run', 'Someone other than the person who computed the run must approve it.', 403);
+		const [earlier] = await tx
+			.select({ period: payrollRuns.period })
+			.from(payrollRuns)
+			.where(
+				and(eq(payrollRuns.runType, 'regular'), eq(payrollRuns.status, 'computed'), lt(payrollRuns.period, run.period))
+			)
+			.orderBy(asc(payrollRuns.period))
+			.limit(1);
+		if (earlier)
+			throw new AppError(
+				'earlier_open',
+				`Approve or void the ${earlier.period} payroll first; tax for later months depends on it.`,
+				409
+			);
 		const { inputs, slips } = await compute(tx, run);
 		const [year] = await tx
 			.select({ confirmedAt: taxYears.confirmedAt })

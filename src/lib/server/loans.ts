@@ -87,6 +87,9 @@ export async function decideLoan(m: Member, form: Record<string, string>) {
 		if (l.employeeId === m.access.employeeId && !(await singleAdmin(tx)))
 			throw new AppError('own_loan', 'Someone else must decide your own request.', 403);
 		const approved = input.decision === 'approve';
+		const [e] = await tx.select({ status: employees.status }).from(employees).where(eq(employees.id, l.employeeId));
+		if (approved && e?.status === 'exited')
+			throw new AppError('exited', 'This person has left, so the loan cannot be approved. Reject it instead.', 409);
 		const thisMonth = (await tenantToday(tx)).slice(0, 7);
 		const start = l.startPeriod < thisMonth ? thisMonth : l.startPeriod;
 		await tx

@@ -202,15 +202,23 @@ export async function issueBills(m: Member, raw: Record<string, string>) {
 	return ids.length;
 }
 
+async function unclaimedBill(tx: Tx, m: Member, billId: string) {
+	await advisoryLock(tx, LOCK.payroll, m.tenant.id);
+	await advisoryLock(tx, LOCK.mealBilling, m.tenant.id);
+	const [bill] = await tx.select().from(mealBills).where(eq(mealBills.id, billId));
+	if (!bill || !inScope(await resolveScope(tx, m.access, 'meal.billing'), bill.employeeId))
+		throw new AppError('not_found', 'That bill does not exist.', 404);
+	if (bill.payrollRunId)
+		throw new AppError('claimed', 'An approved payroll run already deducts this bill. Reopen that run first.', 409);
+	return bill;
+}
+
 const billInput = z.object({ billId: z.uuid({ error: 'Choose a bill.' }) });
 
 export async function voidBill(m: Member, raw: Record<string, string>) {
 	const { billId } = billInput.parse(raw);
 	await withTenant(userCtx(m), async (tx) => {
-		await advisoryLock(tx, LOCK.mealBilling, m.tenant.id);
-		const [bill] = await tx.select().from(mealBills).where(eq(mealBills.id, billId));
-		if (!bill || !inScope(await resolveScope(tx, m.access, 'meal.billing'), bill.employeeId))
-			throw new AppError('not_found', 'That bill does not exist.', 404);
+		const bill = await unclaimedBill(tx, m, billId);
 		if (bill.status !== 'issued' || bill.paid)
 			throw new AppError('not_voidable', 'Only an issued bill with no payment can be voided.', 409);
 		await tx.update(mealBills).set({ status: 'void' }).where(eq(mealBills.id, bill.id));
@@ -308,10 +316,7 @@ const paymentInput = z.object({
 export async function recordPayment(m: Member, raw: Record<string, string>) {
 	const input = paymentInput.parse(raw);
 	await withTenant(userCtx(m), async (tx) => {
-		await advisoryLock(tx, LOCK.mealBilling, m.tenant.id);
-		const [bill] = await tx.select().from(mealBills).where(eq(mealBills.id, input.billId));
-		if (!bill || !inScope(await resolveScope(tx, m.access, 'meal.billing'), bill.employeeId))
-			throw new AppError('not_found', 'That bill does not exist.', 404);
+		const bill = await unclaimedBill(tx, m, input.billId);
 		if (bill.billingMode !== 'direct' || !['issued', 'partially_paid'].includes(bill.status))
 			throw new AppError('not_payable', 'Only an issued bill paid in cash can take a payment.', 409);
 		if (input.amount > bill.total - bill.paid)
