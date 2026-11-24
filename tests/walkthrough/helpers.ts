@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 
 export const PASSWORD = process.env.SEED_PASSWORD ?? '';
 
-export async function caption(page: Page, title: string, detail = '') {
+export async function caption(page: Page, title: string, detail = '', ms = 3800) {
 	await page.evaluate(
 		([t, d]) => {
 			document.getElementById('walk-caption')?.remove();
@@ -15,7 +15,24 @@ export async function caption(page: Page, title: string, detail = '') {
 		},
 		[title, detail]
 	);
-	await page.waitForTimeout(3200);
+	await page.waitForTimeout(ms);
+}
+
+export async function chapter(page: Page, title: string, detail: string) {
+	await page.evaluate(
+		([t, d]) => {
+			document.getElementById('walk-caption')?.remove();
+			const box = document.createElement('div');
+			box.id = 'walk-chapter';
+			box.style.cssText =
+				'position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(10,34,28,.94);color:#fff;font:600 44px/1.2 system-ui,sans-serif;text-align:center;padding:0 10%';
+			box.innerHTML = `<div>${t}</div><div style="font-weight:400;font-size:22px;opacity:.85;max-width:900px">${d}</div>`;
+			document.body.append(box);
+		},
+		[title, detail]
+	);
+	await page.waitForTimeout(3500);
+	await page.evaluate(() => document.getElementById('walk-chapter')?.remove());
 }
 
 export async function pause(page: Page, ms = 1500) {
