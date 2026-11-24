@@ -43,9 +43,19 @@ export function parseCsv(text: string): string[][] {
 
 export type ImportRowError = { line: number; message: string };
 
+const SHOWN_ERRORS = 50;
+
 export class ImportFailed extends AppError {
-	constructor(public rows: ImportRowError[]) {
-		super('import_failed', 'Nothing was imported. Fix the rows below and upload the file again.', 400);
+	rows: ImportRowError[];
+	constructor(rows: ImportRowError[]) {
+		super(
+			'import_failed',
+			rows.length > SHOWN_ERRORS
+				? `Nothing was imported. ${rows.length} rows have problems; the first ${SHOWN_ERRORS} are below. Fix them and upload the file again.`
+				: 'Nothing was imported. Fix the rows below and upload the file again.',
+			400
+		);
+		this.rows = rows.slice(0, SHOWN_ERRORS);
 	}
 }
 
@@ -80,7 +90,7 @@ export function csvRecords<K extends string>(table: string[][], columns: readonl
 				]
 			: []
 	);
-	if (ragged.length) throw new ImportFailed(ragged.slice(0, 50));
+	if (ragged.length) throw new ImportFailed(ragged);
 	return body.map((cells, i) => ({
 		line: i + 2,
 		v: Object.fromEntries(columns.map((c) => [c, unformula(cells[cols.indexOf(c)] ?? '')])) as Record<K, string>

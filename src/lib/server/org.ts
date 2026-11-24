@@ -198,7 +198,7 @@ export async function importHolidays(ctx: TenantCtx, table: string[][]): Promise
 			if (problem) errors.push({ line, message: problem });
 			else list.push(parsed.data!);
 		}
-		if (errors.length) throw new ImportFailed(errors.slice(0, 50));
+		if (errors.length) throw new ImportFailed(errors);
 		await tx.insert(holidays).values(list.map((h) => ({ tenantId: ctx.tenantId, ...h })));
 		const dates = list.map((h) => h.date);
 		await dropHolidaysFromLeave(tx, dates);

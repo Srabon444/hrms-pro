@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { csvRecords, parseCsv, toCsv } from './csv';
+import { csvRecords, ImportFailed, parseCsv, toCsv } from './csv';
 
 describe('toCsv', () => {
 	it('starts with a BOM, quotes separators and neutralises formulas', () => {
@@ -107,5 +107,18 @@ describe('csvRecords', () => {
 				{ line: 2, message: 'This row has more cells than the header. Put quotes around values that contain commas.' }
 			]);
 		}
+	});
+});
+
+describe('ImportFailed', () => {
+	it('lists the first 50 problem rows and says how many there are', () => {
+		const many = new ImportFailed(Array.from({ length: 73 }, (_, i) => ({ line: i + 2, message: 'Bad' })));
+		expect(many.rows).toHaveLength(50);
+		expect(many.message).toBe(
+			'Nothing was imported. 73 rows have problems; the first 50 are below. Fix them and upload the file again.'
+		);
+		expect(new ImportFailed([{ line: 2, message: 'Bad' }]).message).toBe(
+			'Nothing was imported. Fix the rows below and upload the file again.'
+		);
 	});
 });

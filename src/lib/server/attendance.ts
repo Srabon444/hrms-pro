@@ -345,7 +345,7 @@ export async function importPunches(m: Member, table: string[][]) {
 			if (problem) errors.push({ line, message: problem });
 			else list.push({ employeeId: e!.id, at: when!, day: day! });
 		}
-		if (errors.length) throw new ImportFailed(errors.slice(0, 50));
+		if (errors.length) throw new ImportFailed(errors);
 		let added = 0;
 		for (let i = 0; i < list.length; i += 1000)
 			added += (

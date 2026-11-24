@@ -321,7 +321,7 @@ export async function importLeaveBalances(m: Member, table: string[][]): Promise
 				}
 			}
 		}
-		if (errors.length) throw new ImportFailed(errors.slice(0, 50));
+		if (errors.length) throw new ImportFailed(errors);
 		await insertLedger(tx, list);
 		return changed;
 	});

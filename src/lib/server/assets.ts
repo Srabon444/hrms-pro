@@ -182,7 +182,7 @@ export async function importAssets(m: Member, table: string[][]): Promise<number
 			if (message) errors.push({ line, message });
 			else list.push({ tenantId: m.tenant.id, ...parsed.data!, createdByUserId: m.user.userId });
 		}
-		if (errors.length) throw new ImportFailed(errors.slice(0, 50));
+		if (errors.length) throw new ImportFailed(errors);
 		await tx
 			.insert(assets)
 			.values(list)
