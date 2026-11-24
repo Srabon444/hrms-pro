@@ -104,6 +104,47 @@ begin
 	return null;
 end $$;
 
+create or replace function audit_inserted_rows() returns trigger
+language plpgsql security invoker as $$
+declare
+	reg record;
+begin
+	select * into reg from public.audit_registry where table_name = TG_TABLE_NAME;
+	if not found or reg.mode = 'excluded' then
+		return null;
+	end if;
+	with src as (
+		select gen_random_uuid() as audit_id, to_jsonb(n) - 'updated_at' - 'created_at' as j from new_rows n
+	), keyed as (
+		select s.audit_id, s.j, c.changed, c.masked
+		from src s
+		cross join lateral (
+			select array_agg(k order by k) as changed, coalesce(array_agg(k order by k) filter (where not k = any(reg.plain_columns)), '{}') as masked
+			from jsonb_object_keys(s.j) k
+		) c
+	), logged as (
+		insert into public.audit_log (id, tenant_id, actor_user_id, actor_kind, table_name, row_id, op, changed_columns, new_values)
+		select
+			audit_id,
+			(j ->> 'tenant_id')::uuid,
+			nullif(current_setting('app.user_id', true), '')::uuid,
+			coalesce(nullif(current_setting('app.actor', true), ''), 'user'),
+			TG_TABLE_NAME,
+			(j ->> 'id')::uuid,
+			'INSERT',
+			changed,
+			case when reg.mode = 'row_only' then null
+				else (select jsonb_object_agg(k, case when k = any(reg.plain_columns) then j -> k else to_jsonb('***'::text) end) from unnest(changed) k)
+			end
+		from keyed
+	)
+	insert into public.audit_sensitive (tenant_id, audit_id, new_values)
+	select (j ->> 'tenant_id')::uuid, audit_id, (select jsonb_object_agg(k, j -> k) from unnest(masked) k)
+	from keyed
+	where reg.mode <> 'row_only' and cardinality(masked) > 0;
+	return null;
+end $$;
+
 do $$
 declare
 	t record;
@@ -153,9 +194,11 @@ begin
 		end if;
 
 		execute format('drop trigger if exists hrms_audit on public.%I', t.table_name);
+		execute format('drop trigger if exists hrms_audit_insert on public.%I', t.table_name);
 		select mode into reg_mode from audit_registry where table_name = t.table_name;
 		if reg_mode is not null and reg_mode <> 'excluded' then
-			execute format('create trigger hrms_audit after insert or update or delete on public.%I for each row execute function audit_row()', t.table_name);
+			execute format('create trigger hrms_audit after update or delete on public.%I for each row execute function audit_row()', t.table_name);
+			execute format('create trigger hrms_audit_insert after insert on public.%I referencing new table as new_rows for each statement execute function audit_inserted_rows()', t.table_name);
 		end if;
 	end loop;
 
