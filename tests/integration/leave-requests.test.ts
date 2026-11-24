@@ -514,6 +514,16 @@ describe('leave requests', () => {
 		expect(await withTenant(sys(), (tx) => tx.select().from(attendanceDays).where(inBetween))).toEqual([]);
 	});
 
+	it('lets only one of two racing holiday imports for the same date through', async () => {
+		const day = work(addDays(D, 170));
+		const file = [
+			['date', 'name'],
+			[day, 'Race day']
+		];
+		const results = await Promise.all([importHolidays(sys(), file), importHolidays(sys(), file)].map(code));
+		expect(results.sort()).toEqual(['duplicate', 'ok']);
+	});
+
 	it('lets only one of two racing requests for the same days through', async () => {
 		const start = work(addDays(D, 120));
 		const results = await Promise.all(

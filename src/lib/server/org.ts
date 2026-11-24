@@ -168,7 +168,7 @@ export const HOLIDAY_COLUMNS = ['date', 'name'] as const;
 
 export async function importHolidays(ctx: TenantCtx, table: string[][]): Promise<number> {
 	const rows = csvRecords(table, HOLIDAY_COLUMNS, MAX_HOLIDAY_ROWS);
-	return withTenant(ctx, async (tx) => {
+	const save = withTenant(ctx, async (tx) => {
 		const taken = new Set(
 			(
 				await tx
@@ -204,6 +204,10 @@ export async function importHolidays(ctx: TenantCtx, table: string[][]): Promise
 		await dropHolidaysFromLeave(tx, dates);
 		for (const date of dates) await recomputeAttendance(tx, ctx.tenantId, date, date);
 		return list.length;
+	});
+	return save.catch((err) => {
+		if (pgCode(err) === UNIQUE_VIOLATION) throw new AppError('duplicate', 'That date is already a holiday.', 409);
+		throw err;
 	});
 }
 
