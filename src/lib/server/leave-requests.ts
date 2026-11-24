@@ -238,6 +238,23 @@ export async function getLeaveRequest(tx: Tx, access: Access, requestId: string)
 	};
 }
 
+async function ensureCovered(tx: Tx, r: Request, e: { id: string; gender: string | null }) {
+	await tx.select({ id: employees.id }).from(employees).where(eq(employees.id, e.id)).for('update');
+	const days = await tx
+		.select({ fiscalYear: leaveRequestDays.fiscalYear, session: leaveRequestDays.session })
+		.from(leaveRequestDays)
+		.where(and(eq(leaveRequestDays.requestId, r.id), eq(leaveRequestDays.status, 'pending')));
+	for (const [fy, n] of byYear(days)) {
+		const row = (await balanceRows(tx, e, fy)).find((b) => b.id === r.leaveTypeId);
+		if (row && !row.unlimited && row.balance < n)
+			throw new AppError(
+				'insufficient',
+				`Only ${plural(row.balance)} of ${row.name} is left, so this request cannot be approved.`,
+				409
+			);
+	}
+}
+
 const decisionSchema = z.object({ decision: z.enum(['approve', 'reject']), note });
 
 export async function decideLeave(m: Member, requestId: string, raw: Record<string, string>) {
@@ -252,6 +269,7 @@ export async function decideLeave(m: Member, requestId: string, raw: Record<stri
 				? new AppError('self_approval', 'Someone else has to decide on your own leave.', 403)
 				: new AppError('forbidden', 'You cannot decide on this request.', 403);
 		const status = decision === 'approve' ? 'approved' : 'rejected';
+		if (status === 'approved') await ensureCovered(tx, r, found.e);
 		await tx
 			.update(leaveRequests)
 			.set({ status, decidedByUserId: m.user.userId, decidedAt: new Date(), decisionNote: note })

@@ -196,6 +196,9 @@ export async function adjustLeave(m: Member, employeeId: string, raw: Record<str
 		if (!t || !t.active || !appliesTo(t, e))
 			throw new AppError('unknown_type', 'Choose a leave type that applies.', 400);
 		const fy = fiscalYearOf(await tenantToday(tx), await fiscalStartMonth(tx));
+		const row = (await balanceRows(tx, e, fy)).find((b) => b.id === t.id);
+		if (row && !row.unlimited && row.balance + input.days < 0)
+			throw new AppError('negative_balance', `Only ${row.balance} day(s) of ${t.name} can be removed.`, 409);
 		await tx.insert(leaveLedger).values({
 			tenantId: m.tenant.id,
 			employeeId: e.id,
