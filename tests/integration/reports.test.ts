@@ -39,7 +39,7 @@ import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type Access, type requireMember } from '../../src/lib/server/rbac/access';
 import { reportCsv, reportPdf } from '../../src/lib/server/reports/files';
-import { reportCtx, reportsFor, runReport } from '../../src/lib/server/reports/index';
+import { REPORTS, reportCtx, reportsFor, runReport } from '../../src/lib/server/reports/index';
 import { headcountReport } from '../../src/lib/server/reports/people';
 import {
 	applySpec,
@@ -354,6 +354,23 @@ describe('sharing reports', () => {
 		const revoked = { ...who.boss, grants: {} };
 		expect(await at(now, () => withTenant(sys(), (tx) => shareList(tx, revoked)))).toEqual([]);
 		expect(await outcome(at(now, () => openShare({ ...mem.boss, access: revoked }, id)))).toContain('not_found');
+	});
+
+	it('shares every report in full with someone who sees everything', async () => {
+		await member('own1', ['owner'], null);
+		await member('own2', ['owner'], null);
+		for (const def of REPORTS) {
+			const report = await run('own1', def.id, october);
+			const spec = {
+				sections: report.sections.map((s) => s.key),
+				columns: report.sections.flatMap((s) => s.columns.map((c) => `${s.key}:${c.key}`)),
+				employees: []
+			};
+			const { id } = await at(now, () =>
+				shareReport(mem.own1, def.id, { filters: october, ...spec, recipients: [who.own2.membershipId] })
+			);
+			expect((await at(now, () => openShare(mem.own2, id))).report, def.id).toEqual(applySpec(report, spec));
+		}
 	});
 });
 
