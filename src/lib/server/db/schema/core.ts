@@ -367,7 +367,15 @@ export const notificationPrefs = pgTable(
 	]
 );
 
-export const ATTACHMENT_OWNERS = ['leave_request', 'ticket', 'resignation', 'asset'] as const;
+export const ATTACHMENT_OWNERS = [
+	'leave_request',
+	'ticket',
+	'resignation',
+	'asset',
+	'candidate',
+	'offer',
+	'interview_feedback'
+] as const;
 export type AttachmentOwner = (typeof ATTACHMENT_OWNERS)[number];
 export const MAX_ATTACHMENTS = 5;
 
@@ -389,6 +397,6 @@ export const files = pgTable(
 		unique('files_key_uq').on(t.key),
 		index('files_owner_idx').on(t.tenantId, t.ownerType, t.ownerId),
 		check('files_size_ck', sql`${t.size} > 0`),
-		check('files_owner_type_ck', sql`${t.ownerType} in ('leave_request','ticket','resignation','asset')`)
+		check('files_owner_type_ck', sql`${t.ownerType} in (${sql.raw(ATTACHMENT_OWNERS.map((o) => `'${o}'`).join(','))})`)
 	]
 );

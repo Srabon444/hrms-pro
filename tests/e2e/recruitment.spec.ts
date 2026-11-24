@@ -99,6 +99,12 @@ test('a candidate is interviewed, offered and hired into an onboarding employee 
 	await expect(page.getByRole('heading', { name: 'Nadia Karim · Applied' })).toBeVisible();
 	await page.waitForSelector('html[data-hydrated]');
 	const candidateUrl = page.url();
+	const kept = page.getByRole('region', { name: 'Candidate files' });
+	await kept
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'nid.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 nid') });
+	await kept.getByRole('button', { name: 'Attach files' }).click();
+	await expect(kept.getByTestId('attachment')).toContainText('nid.pdf');
 
 	const schedule = page.getByRole('region', { name: 'Schedule interview' });
 	await schedule.getByLabel('Interview title').fill('Portfolio review');
@@ -135,6 +141,13 @@ test('a candidate is interviewed, offered and hired into an onboarding employee 
 	await expect(page.getByTestId('offer')).toContainText('৳90000.00 a month · joins 2030-02-01 · Waiting for an answer');
 	await page.getByRole('button', { name: 'Mark accepted' }).click();
 	await expect(page.getByTestId('offer')).toContainText('Accepted');
+	const letter = page.getByTestId('offer').getByRole('group', { name: 'Offer letter' });
+	await letter.getByText('Offer letter (0)').click();
+	await letter
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'signed.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 signed') });
+	await letter.getByRole('button', { name: 'Attach files' }).click();
+	await expect(page.getByTestId('offer').getByTestId('attachment')).toContainText('signed.pdf');
 	await expect(page.getByRole('region', { name: 'Hire' })).toHaveCount(0);
 
 	await as('adm', candidateUrl.split(`/t/${slug}/`)[1]);
@@ -147,4 +160,7 @@ test('a candidate is interviewed, offered and hired into an onboarding employee 
 	await page.getByRole('link', { name: 'Open employee record' }).click();
 	await expect(page.getByRole('heading', { name: /Nadia Karim/ })).toBeVisible();
 	await expect(page.getByRole('definition').filter({ hasText: /^onboarding$/ })).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Files from hiring' }).getByTestId('attachment')).toContainText(
+		'nid.pdf'
+	);
 });

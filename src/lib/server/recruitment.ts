@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { computeFunnel } from '../domain/recruitment/funnel';
 import { poishaOf } from '../money';
 import { zonedInstant } from './attendance-day';
+import { discardFiles, dropFiles, filesFor, type AttachmentRules } from './attachments';
 import { auditEvent } from './audit';
 import { now } from './clock';
 import { authPool } from './db';
@@ -33,8 +34,9 @@ import { AppError } from './errors';
 import { tenantToday } from './lifecycle';
 import { log } from './log';
 import { notify, sendAll } from './notifications';
-import { can, userCtx, type requireMember } from './rbac/access';
+import { can, userCtx, type Access, type requireMember } from './rbac/access';
 import { inviteMember, toActor } from './rbac/members';
+import { inScope, resolveScope } from './rbac/scope';
 import { sniffType } from './sniff';
 import { deleteObject, getObject, putObject } from './storage';
 import { systemCtx, withTenant, type TenantCtx, type Tx } from './tenancy';
@@ -360,9 +362,27 @@ export async function candidateView(tx: Tx, candidateId: string, viewerMembershi
 	};
 }
 
-export async function openResume(ctx: TenantCtx, candidateId: string) {
+export async function candidateFiles(tx: Tx, view: Awaited<ReturnType<typeof candidateView>>) {
+	const openFeedback = view.interviews.flatMap((i) => i.panel.filter((p) => p.open).map((p) => p.id));
+	return {
+		candidate: (await filesFor(tx, 'candidate', [view.candidate.id])).get(view.candidate.id) ?? [],
+		offers: Object.fromEntries(
+			await filesFor(
+				tx,
+				'offer',
+				view.offers.map((o) => o.id)
+			)
+		),
+		feedback: Object.fromEntries(await filesFor(tx, 'interview_feedback', openFeedback))
+	};
+}
+
+export async function openResume(m: Member, candidateId: string) {
 	if (!z.uuid().safeParse(candidateId).success) throw candidateMissing();
+	const ctx = userCtx(m);
 	const c = await withTenant(ctx, async (tx) => {
+		if (!(await candidateAttachments.canRead(tx, m.access, candidateId)))
+			throw new AppError('not_found', 'That resume does not exist.', 404);
 		const [row] = await tx
 			.select({
 				id: candidates.id,
@@ -563,6 +583,7 @@ export async function submitFeedback(ctx: TenantCtx, membershipId: string, raw: 
 export async function myInterviews(tx: Tx, membershipId: string) {
 	return tx
 		.select({
+			feedbackId: interviewFeedback.id,
 			interviewId: interviews.id,
 			title: interviews.title,
 			scheduledAt: interviews.scheduledAt,
@@ -603,6 +624,7 @@ async function candidateInterviews(tx: Tx, candidateId: string, viewer: string |
 	const panel = list.length
 		? await tx
 				.select({
+					id: interviewFeedback.id,
 					interviewId: interviewFeedback.interviewId,
 					membershipId: interviewFeedback.membershipId,
 					name: panelName,
@@ -629,6 +651,8 @@ async function candidateInterviews(tx: Tx, candidateId: string, viewer: string |
 			panel: mine.map((p) => {
 				const open = allIn || p.membershipId === viewer;
 				return {
+					id: p.id,
+					open,
 					membershipId: p.membershipId,
 					name: p.name,
 					submitted: p.submittedAt !== null,
@@ -744,12 +768,79 @@ export async function hireCandidate(m: Member, raw: Record<string, string>) {
 	}
 }
 
+export const candidateAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		const [c] = await tx.select({ employeeId: candidates.employeeId }).from(candidates).where(eq(candidates.id, id));
+		if (!c) return false;
+		if (can(access, 'recruitment.read')) return true;
+		return !!c.employeeId && inScope(await resolveScope(tx, access, 'document.read'), c.employeeId);
+	},
+	async canEdit(tx, access, id, lock) {
+		if (!can(access, 'recruitment.manage')) return false;
+		const q = tx.select({ id: candidates.id }).from(candidates).where(eq(candidates.id, id));
+		return (lock ? await q.for('update') : await q).length > 0;
+	}
+};
+
+export const offerAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		if (!can(access, 'recruitment.read')) return false;
+		return (await tx.select({ id: offers.id }).from(offers).where(eq(offers.id, id))).length > 0;
+	},
+	async canEdit(tx, access, id, lock) {
+		if (!can(access, 'recruitment.manage')) return false;
+		const q = tx.select({ id: offers.id }).from(offers).where(eq(offers.id, id));
+		return (lock ? await q.for('update') : await q).length > 0;
+	}
+};
+
+export const feedbackAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		const [f] = await tx
+			.select({ interviewId: interviewFeedback.interviewId, membershipId: interviewFeedback.membershipId })
+			.from(interviewFeedback)
+			.where(eq(interviewFeedback.id, id));
+		if (!f) return false;
+		if (f.membershipId === access.membershipId) return true;
+		if (!can(access, 'recruitment.read')) return false;
+		const [{ pending }] = await tx
+			.select({ pending: count() })
+			.from(interviewFeedback)
+			.where(and(eq(interviewFeedback.interviewId, f.interviewId), isNull(interviewFeedback.submittedAt)));
+		return pending === 0;
+	},
+	async canEdit(tx, access, id, lock) {
+		const q = tx
+			.select({ submittedAt: interviewFeedback.submittedAt, status: interviews.status })
+			.from(interviewFeedback)
+			.innerJoin(interviews, eq(interviews.id, interviewFeedback.interviewId))
+			.where(and(eq(interviewFeedback.id, id), eq(interviewFeedback.membershipId, access.membershipId)));
+		const [f] = lock ? await q.for('update', { of: interviewFeedback }) : await q;
+		return !!f && !f.submittedAt && f.status === 'scheduled';
+	}
+};
+
+export async function hiringFiles(tx: Tx, access: Access, employeeId: string) {
+	const [c] = await tx
+		.select({ id: candidates.id, hasResume: isNotNull(candidates.resumeKey) })
+		.from(candidates)
+		.where(eq(candidates.employeeId, employeeId))
+		.limit(1);
+	if (!c || !(await candidateAttachments.canRead(tx, access, c.id))) return null;
+	return {
+		candidateId: c.id,
+		hasResume: c.hasResume,
+		files: (await filesFor(tx, 'candidate', [c.id])).get(c.id) ?? []
+	};
+}
+
 export async function purgeTenantCandidates(tenantId: string): Promise<number> {
-	const keys = await withTenant(systemCtx(tenantId), async (tx) => {
+	const { count: purged, keys } = await withTenant(systemCtx(tenantId), async (tx) => {
 		const [s] = await tx.select({ days: tenantSettings.retentionCandidatesDays }).from(tenantSettings);
 		const cutoff = new Date(now().getTime() - (s?.days ?? 365) * 86_400_000);
-		const gone = await tx
-			.delete(candidates)
+		const due = await tx
+			.select({ id: candidates.id, key: candidates.resumeKey })
+			.from(candidates)
 			.where(
 				and(
 					isNull(candidates.employeeId),
@@ -761,12 +852,34 @@ export async function purgeTenantCandidates(tenantId: string): Promise<number> {
 					)`
 				)
 			)
-			.returning({ key: candidates.resumeKey });
-		return gone.map((g) => g.key);
+			.for('update', { skipLocked: true });
+		if (!due.length) return { count: 0, keys: [] };
+		const ids = due.map((c) => c.id);
+		const offerIds = await tx.select({ id: offers.id }).from(offers).where(inArray(offers.candidateId, ids));
+		const feedbackIds = await tx
+			.select({ id: interviewFeedback.id })
+			.from(interviewFeedback)
+			.innerJoin(interviews, eq(interviews.id, interviewFeedback.interviewId))
+			.where(inArray(interviews.candidateId, ids));
+		const attached = [
+			...(await dropFiles(tx, 'candidate', ids)),
+			...(await dropFiles(
+				tx,
+				'offer',
+				offerIds.map((o) => o.id)
+			)),
+			...(await dropFiles(
+				tx,
+				'interview_feedback',
+				feedbackIds.map((f) => f.id)
+			))
+		];
+		await tx.delete(candidates).where(inArray(candidates.id, ids));
+		const resumes = due.flatMap((c) => (c.key ? [{ key: c.key }] : []));
+		return { count: due.length, keys: [...resumes, ...attached] };
 	});
-	for (const key of keys)
-		if (key) await deleteObject(key).catch((err) => log.error({ err, key }, 'purged resume delete failed'));
-	return keys.length;
+	await discardFiles(keys);
+	return purged;
 }
 
 export async function purgeCandidates() {

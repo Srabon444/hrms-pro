@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import type { PageProps } from './$types';
@@ -61,6 +62,14 @@
 						<div><Button type="submit">Send feedback</Button></div>
 					</form>
 				{/if}
+				<Attachments
+					slug={data.tenant.slug}
+					attachments={{ files: data.files[i.feedbackId] ?? [], canEdit: !i.submittedAt }}
+					{form}
+					ownerId={i.feedbackId}
+					title="Feedback files"
+					compact
+				/>
 			</li>
 		{/each}
 	</ul>

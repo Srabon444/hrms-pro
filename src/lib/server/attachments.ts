@@ -1,4 +1,4 @@
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, inArray } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { assetAttachments } from './assets';
@@ -8,6 +8,7 @@ import { leaveAttachments } from './leave-requests';
 import { files, MAX_ATTACHMENTS, MAX_DOCUMENT_BYTES, type AttachmentOwner } from './db/schema';
 import { AppError } from './errors';
 import { log } from './log';
+import { candidateAttachments, feedbackAttachments, offerAttachments } from './recruitment';
 import { resignationAttachments } from './resignations';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { safeFileName, sniffType } from './sniff';
@@ -23,7 +24,10 @@ type Stored = { key: string; filename: string; mime: string; size: number; sha25
 
 const owners = (): Record<AttachmentOwner, AttachmentRules> => ({
 	asset: assetAttachments,
+	candidate: candidateAttachments,
+	interview_feedback: feedbackAttachments,
 	leave_request: leaveAttachments,
+	offer: offerAttachments,
 	resignation: resignationAttachments,
 	ticket: ticketAttachments
 });
@@ -48,7 +52,7 @@ async function assertRoom(tx: Tx, type: AttachmentOwner, ownerId: string, adding
 		throw new AppError('too_many', `Attach at most ${MAX_ATTACHMENTS} files.`, 409);
 }
 
-export async function discardFiles(stored: Stored[]) {
+export async function discardFiles(stored: { key: string }[]) {
 	await Promise.all(
 		stored.map((s) => deleteObject(s.key).catch((err) => log.error({ err, key: s.key }, 'attachment cleanup failed')))
 	);
@@ -185,4 +189,33 @@ export async function openFile(m: Member, fileId: string) {
 		return row;
 	});
 	return { fileName: f.filename, contentType: f.mime, body: await getObject(f.key) };
+}
+
+export type FileItem = { id: string; filename: string; mime: string; size: number; createdAt: Date };
+
+export async function filesFor(tx: Tx, type: AttachmentOwner, ownerIds: string[]) {
+	const out = new Map<string, FileItem[]>();
+	if (!ownerIds.length) return out;
+	const rows = await tx
+		.select({
+			ownerId: files.ownerId,
+			id: files.id,
+			filename: files.filename,
+			mime: files.mime,
+			size: files.size,
+			createdAt: files.createdAt
+		})
+		.from(files)
+		.where(and(eq(files.ownerType, type), inArray(files.ownerId, ownerIds)))
+		.orderBy(asc(files.createdAt), asc(files.id));
+	for (const { ownerId, ...f } of rows) out.set(ownerId, [...(out.get(ownerId) ?? []), f]);
+	return out;
+}
+
+export async function dropFiles(tx: Tx, type: AttachmentOwner, ownerIds: string[]) {
+	if (!ownerIds.length) return [];
+	return tx
+		.delete(files)
+		.where(and(eq(files.ownerType, type), inArray(files.ownerId, ownerIds)))
+		.returning({ key: files.key });
 }

@@ -2,10 +2,12 @@ import { error, fail } from '@sveltejs/kit';
 import { z } from 'zod';
 import { AppError } from '#lib/server/errors.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
-import { actionError } from '#lib/server/http/forms.ts';
+import { attachmentAction } from '#lib/server/http/attachments.ts';
+import { actionError, field } from '#lib/server/http/forms.ts';
 import { can, requirePerm, userCtx } from '#lib/server/rbac/access.ts';
 import {
 	cancelInterview,
+	candidateFiles,
 	candidateView,
 	decideOffer,
 	hireCandidate,
@@ -21,13 +23,17 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const m = requirePerm(locals, 'recruitment.read');
 	const canManage = can(m.access, 'recruitment.manage');
 	try {
-		return await withTenant(userCtx(m), async (tx) => ({
-			view: await candidateView(tx, params.candidateId, m.access.membershipId),
-			interviewers: canManage ? await interviewerChoices(tx) : [],
-			canManage,
-			canHire: can(m.access, 'employee.create'),
-			canInvite: can(m.access, 'user.manage')
-		}));
+		return await withTenant(userCtx(m), async (tx) => {
+			const view = await candidateView(tx, params.candidateId, m.access.membershipId);
+			return {
+				view,
+				files: await candidateFiles(tx, view),
+				interviewers: canManage ? await interviewerChoices(tx) : [],
+				canManage,
+				canHire: can(m.access, 'employee.create'),
+				canInvite: can(m.access, 'user.manage')
+			};
+		});
 	} catch (err) {
 		if (err instanceof AppError) error(err.status, err.message);
 		throw err;
@@ -38,6 +44,15 @@ const fail400 = (err: unknown, requestId: string) =>
 	err instanceof z.ZodError ? fail(400, { message: err.issues[0].message }) : actionError(err, requestId);
 
 export const actions: Actions = {
+	files: async ({ request, locals, params }) => {
+		const m = requirePerm(locals, 'recruitment.manage');
+		return attachmentAction(m, await request.formData(), 'candidate', params.candidateId, locals.requestId);
+	},
+	offerFiles: async ({ request, locals }) => {
+		const m = requirePerm(locals, 'recruitment.manage');
+		const form = await request.formData();
+		return attachmentAction(m, form, 'offer', field(form, 'ownerId'), locals.requestId);
+	},
 	move: async ({ request, locals, params }) => {
 		const m = requirePerm(locals, 'recruitment.manage');
 		const form = formFields(await request.formData());

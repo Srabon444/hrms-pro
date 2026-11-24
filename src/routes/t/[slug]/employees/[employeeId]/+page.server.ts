@@ -17,6 +17,7 @@ import { addListEntry, profileLists, removeListEntry, updateOwnDetails } from '#
 import { requireMember, requirePerm, userCtx, type Access } from '#lib/server/rbac/access.ts';
 import { assignShift, employeeShift, removeShiftAssignment } from '#lib/server/shifts.ts';
 import { noticeTerms, ownResignation, submitResignation, withdrawResignation } from '#lib/server/resignations.ts';
+import { hiringFiles } from '#lib/server/recruitment.ts';
 import { withTenant, type Tx } from '#lib/server/tenancy/index.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -38,6 +39,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			...record,
 			choices: record.canUpdate ? await employeeChoices(tx) : null,
 			documents: await listDocuments(tx, m.access, record.employee.id),
+			hiring: await hiringFiles(tx, m.access, record.employee.id),
 			lists: await profileLists(tx, m.access, record.employee.id, record.employee.status),
 			pendingChange: await ownPendingChange(tx, m.access, record.employee.id),
 			changeLabels: CHANGE_LABELS,

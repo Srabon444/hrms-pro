@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { addFiles, listFiles, openFile, removeFile } from '../../src/lib/server/attachments';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withTestNow } from '../../src/lib/server/clock';
 import { closePools } from '../../src/lib/server/db';
@@ -11,6 +12,7 @@ import {
 	departments,
 	designations,
 	employees,
+	files,
 	invitations,
 	memberships,
 	notifications,
@@ -25,6 +27,7 @@ import {
 	candidateView,
 	decideOffer,
 	hireCandidate,
+	hiringFiles,
 	interviewerChoices,
 	makeOffer,
 	moveCandidate,
@@ -42,6 +45,7 @@ import { systemCtx, withTenant, type TenantCtx } from '../../src/lib/server/tena
 import { waitForMail } from '../mailpit';
 import { createTenant, createUser } from './helpers';
 
+type Member = ReturnType<typeof requireMember>;
 let ctx: TenantCtx;
 let other: TenantCtx;
 let dept: string;
@@ -53,6 +57,20 @@ const code = (p: Promise<unknown>) =>
 		.catch((e: { code?: string; issues?: { message: string }[] }) =>
 			e.issues ? `invalid: ${e.issues[0].message}` : (e.code ?? String(e))
 		);
+async function reader(tenantId: string, grants: Record<string, string[]> = { 'recruitment.read': ['all'] }) {
+	const u = await createUser();
+	return {
+		user: { userId: u.id },
+		tenant: { id: tenantId, slug: 'x', name: 'x' },
+		access: {
+			membershipId: crypto.randomUUID(),
+			employeeId: null,
+			grants,
+			roleKeys: [],
+			isOwner: false
+		}
+	} as unknown as Member;
+}
 const opening = { title: 'Backend engineer', departmentId: '', designationId: '', headcount: '2', description: '' };
 
 beforeAll(async () => {
@@ -161,14 +179,14 @@ it('adds candidates with a resume, moves them through stages and counts the funn
 		[null, 'Applied', '']
 	]);
 
-	const file = await openResume(ctx, rafi);
+	const file = await openResume(await reader(ctx.tenantId), rafi);
 	expect([file.fileName, file.contentType, new TextDecoder().decode(file.body)]).toEqual([
 		'cv.pdf',
 		'application/pdf',
 		'%PDF-1.7 resume'
 	]);
-	expect(await code(openResume(ctx, mina))).toBe('not_found');
-	expect(await code(openResume(other, rafi))).toBe('not_found');
+	expect(await code(openResume(await reader(ctx.tenantId), mina))).toBe('not_found');
+	expect(await code(openResume(await reader(other.tenantId), rafi))).toBe('not_found');
 	const [row] = await withTenant(ctx, (tx) => tx.select().from(candidates).where(eq(candidates.id, rafi)));
 	expect(new TextDecoder().decode(await getObject(row.resumeKey!))).toBe('%PDF-1.7 resume');
 	expect(
@@ -184,7 +202,6 @@ it('adds candidates with a resume, moves them through stages and counts the funn
 });
 
 describe('interviews, offers and hiring', () => {
-	type Member = ReturnType<typeof requireMember>;
 	let tenant: { id: string; slug: string };
 	const who: Record<string, Member> = {};
 	const email: Record<string, string> = {};
@@ -395,6 +412,71 @@ describe('interviews, offers and hiring', () => {
 			)
 		).toEqual([]);
 	});
+	it('keeps candidate and offer files with the candidate and shows them on the hired employee', async () => {
+		const zara = await addCandidate(as('rec'), { openingId, fullName: 'Zara' }, pdf('zara-cv.pdf'));
+		const [nid] = await addFiles(who.rec, 'candidate', zara, [pdf('nid.pdf')]);
+		expect(await code(addFiles(who.ivA, 'candidate', zara, [pdf()]))).toBe('forbidden');
+		expect(await code(addFiles(who.emp, 'candidate', zara, [pdf()]))).toBe('not_found');
+		expect(await code(openFile(who.emp, nid))).toBe('not_found');
+		expect((await openFile(who.ivA, nid)).fileName).toBe('nid.pdf');
+
+		await makeOffer(as('rec'), { candidateId: zara, monthlyGross: '70000', joinDate: '2030-05-01' });
+		const [o] = (await view('rec', zara)).offers;
+		const [signed] = await addFiles(who.rec, 'offer', o.id, [pdf('signed.pdf')]);
+		expect(await code(addFiles(who.ivA, 'offer', o.id, [pdf()]))).toBe('forbidden');
+		expect(await code(openFile(who.emp, signed))).toBe('not_found');
+		await decideOffer(as('rec'), { offerId: o.id, decision: 'accepted' });
+		const current = (await withTenant(as('rec'), (tx) => openingView(tx, openingId))).opening;
+		await saveOpening(as('rec'), {
+			openingId,
+			title: current.title,
+			description: '',
+			headcount: '10',
+			departmentId: current.departmentId ?? '',
+			designationId: '',
+			status: 'open'
+		});
+		const { employeeId } = await hireCandidate(who.adm, { candidateId: zara });
+
+		const docs = await reader(tenant.id, { 'document.read': ['all'] });
+		const seen = await withTenant(userCtx(docs), (tx) => hiringFiles(tx, docs.access, employeeId));
+		expect([seen?.hasResume, seen?.files.map((f) => f.filename)]).toEqual([true, ['nid.pdf']]);
+		expect((await openFile(docs, nid)).fileName).toBe('nid.pdf');
+		expect((await openResume(docs, zara)).fileName).toBe('zara-cv.pdf');
+		expect(await code(openFile(docs, signed))).toBe('not_found');
+		expect(await code(addFiles(docs, 'candidate', zara, [pdf()]))).toBe('forbidden');
+		expect(await withTenant(as('emp'), (tx) => hiringFiles(tx, who.emp.access, employeeId))).toBeNull();
+		expect(await code(openResume(who.emp, zara))).toBe('not_found');
+	});
+
+	it('lets each interviewer attach files to their own feedback until they send it', async () => {
+		const kai = await addCandidate(as('rec'), { openingId, fullName: 'Kai' }, null);
+		const [a, b] = [who.ivA, who.ivB].map((m) => m.access.membershipId);
+		await scheduleInterview(
+			as('rec'),
+			tenant.slug,
+			{ candidateId: kai, title: 'Design', scheduledAt: '2030-01-11T10:00', durationMinutes: '60' },
+			[a, b]
+		);
+		const slot = async (k: string, ms: string) =>
+			(await withTenant(as(k), (tx) => myInterviews(tx, ms))).find((i) => i.candidateName === 'Kai')!;
+		const fa = (await slot('ivA', a)).feedbackId;
+		const [notes] = await addFiles(who.ivA, 'interview_feedback', fa, [pdf('notes.pdf')]);
+		expect(await code(addFiles(who.ivB, 'interview_feedback', fa, [pdf()]))).toBe('not_found');
+		expect(await code(openFile(who.rec, notes))).toBe('not_found');
+		expect(await code(openFile(who.ivB, notes))).toBe('not_found');
+
+		const feedback = { interviewId: (await slot('ivA', a)).interviewId, rating: '5', recommendation: 'yes' };
+		await submitFeedback(as('ivA'), a, feedback);
+		expect(await code(addFiles(who.ivA, 'interview_feedback', fa, [pdf()]))).toBe('forbidden');
+		expect(await code(removeFile(who.ivA, { type: 'interview_feedback', id: fa }, notes))).toBe('forbidden');
+		expect((await openFile(who.ivA, notes)).fileName).toBe('notes.pdf');
+
+		await submitFeedback(as('ivB'), b, feedback);
+		expect((await openFile(who.rec, notes)).fileName).toBe('notes.pdf');
+		const listed = await withTenant(as('rec'), (tx) => listFiles(tx, who.rec.access, 'interview_feedback', fa));
+		expect([listed?.files.map((f) => f.filename), listed?.canEdit]).toEqual([['notes.pdf'], false]);
+	});
 });
 
 it('purges rejected candidates and those of long-closed openings after the retention period', async () => {
@@ -412,6 +494,12 @@ it('purges rejected candidates and those of long-closed openings after the reten
 		moveCandidate(sys, { candidateId, stageId: await stageOf(openingId, 'Rejected') });
 
 	const oldReject = await add(live, 'Old reject', pdf());
+	const recruiter = await reader(t.id, { 'recruitment.read': ['all'], 'recruitment.manage': ['all'] });
+	await addFiles(recruiter, 'candidate', oldReject, [pdf('nid.pdf')]);
+	await makeOffer(sys, { candidateId: oldReject, monthlyGross: '50000', joinDate: '2030-01-01' });
+	const [offer] = await withTenant(sys, (tx) => tx.select().from(offers).where(eq(offers.candidateId, oldReject)));
+	await addFiles(recruiter, 'offer', offer.id, [pdf('offer.pdf')]);
+	const attached = await withTenant(sys, (tx) => tx.select({ key: files.key }).from(files));
 	await reject(live, oldReject);
 	await add(live, 'Still waiting');
 	await add(ended, 'Leftover');
@@ -443,6 +531,9 @@ it('purges rejected candidates and those of long-closed openings after the reten
 	expect(await withTestNow(new Date(between).toISOString(), () => purgeTenantCandidates(t.id))).toBe(1);
 	expect(await left()).toEqual(['Hired one', 'Leftover', 'New reject', 'Still waiting']);
 	expect(await code(getObject(resumeKey!))).not.toBe('ok');
+	expect(attached).toHaveLength(2);
+	for (const { key } of attached) expect(await code(getObject(key))).not.toBe('ok');
+	expect(await withTenant(sys, (tx) => tx.select().from(files))).toEqual([]);
 
 	expect(
 		await withTestNow(new Date(Date.now() + 31 * 86_400_000).toISOString(), () => purgeTenantCandidates(t.id))

@@ -546,6 +546,26 @@
 	</section>
 {/if}
 
+{#if data.hiring}
+	<Attachments
+		slug={data.tenant.slug}
+		attachments={{ files: data.hiring.files, canEdit: false }}
+		form={null}
+		title="Files from hiring"
+	/>
+	{#if data.hiring.hasResume}
+		<p class="mt-2 max-w-3xl text-sm">
+			<a
+				class="text-brand-700 underline"
+				href="/t/{data.tenant.slug}/recruitment/candidates/{data.hiring.candidateId}/resume"
+				download
+			>
+				Download resume
+			</a>
+		</p>
+	{/if}
+{/if}
+
 {#if data.history.length}
 	<section class="mt-6 max-w-3xl panel" aria-label="History">
 		<h2 class="section-title">History</h2>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
@@ -75,6 +76,13 @@
 	</dl>
 </section>
 
+<Attachments
+	slug={data.tenant.slug}
+	attachments={{ files: data.files.candidate, canEdit: data.canManage }}
+	{form}
+	title="Candidate files"
+/>
+
 {#if data.canManage && !c.employeeId && targets.length}
 	<section class="mt-6 max-w-3xl panel" aria-label="Move candidate">
 		<h2 class="section-title">Move candidate</h2>
@@ -115,6 +123,16 @@
 									{p.rating}/5 · {verdict[p.recommendation ?? '']}{p.comments ? ` · ${p.comments}` : ''}
 								{:else}
 									{p.submitted ? 'Feedback sent' : 'Waiting for feedback'}
+								{/if}
+								{#if data.files.feedback[p.id]?.length}
+									<Attachments
+										slug={data.tenant.slug}
+										attachments={{ files: data.files.feedback[p.id], canEdit: false }}
+										form={null}
+										ownerId={p.id}
+										title="Feedback files"
+										compact
+									/>
 								{/if}
 							</li>
 						{/each}
@@ -179,6 +197,17 @@
 						{offerLabel[o.status]}
 					</p>
 					{#if o.note}<p class="text-slate-600">{o.note}</p>{/if}
+					{#if data.canManage || data.files.offers[o.id]?.length}
+						<Attachments
+							slug={data.tenant.slug}
+							attachments={{ files: data.files.offers[o.id] ?? [], canEdit: data.canManage }}
+							{form}
+							action="?/offerFiles"
+							ownerId={o.id}
+							title="Offer letter"
+							compact
+						/>
+					{/if}
 					{#if data.canManage && o.status === 'pending'}
 						<form method="POST" action="?/decide" class="mt-2 flex gap-2">
 							<input type="hidden" name="offerId" value={o.id} />

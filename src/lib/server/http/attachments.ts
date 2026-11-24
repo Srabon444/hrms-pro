@@ -22,7 +22,7 @@ export async function attachmentAction(
 		else await addFiles(m, type, id, pickFiles(form));
 	} catch (err) {
 		const failed = actionError(err, requestId);
-		return fail(failed.status, { fileMessage: failed.data.message });
+		return fail(failed.status, { fileMessage: failed.data.message, fileOwner: id });
 	}
-	return { fileSaved: true };
+	return { fileSaved: true, fileOwner: id };
 }
