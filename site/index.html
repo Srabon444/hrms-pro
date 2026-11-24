@@ -1,0 +1,1032 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+		<title>HRMS Pro System Design</title>
+		<meta
+			name="description"
+			content="Architecture, data model, business requirements and functional specification of HRMS Pro, a multi-tenant HR and payroll platform."
+		/>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+		/>
+		<style>
+			:root {
+				--bg: #f6f8f7;
+				--surface: #ffffff;
+				--ink: #14211d;
+				--muted: #55665f;
+				--line: #d9e3df;
+				--brand: #1f6f5c;
+				--brand-soft: #e3f1ec;
+				--brand-ink: #123a31;
+				--gate: #a15c07;
+				--gate-soft: #fbf0df;
+				--code-bg: #eef3f1;
+				--display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+				--body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+				--mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+				color-scheme: light;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root:not([data-theme='light']) {
+					--bg: #0d1513;
+					--surface: #13201c;
+					--ink: #e3ece8;
+					--muted: #93a59e;
+					--line: #26372f;
+					--brand: #6cc3a5;
+					--brand-soft: #173229;
+					--brand-ink: #c9eadf;
+					--gate: #f0b45c;
+					--gate-soft: #33260f;
+					--code-bg: #172520;
+					color-scheme: dark;
+				}
+			}
+			:root[data-theme='dark'] {
+				--bg: #0d1513;
+				--surface: #13201c;
+				--ink: #e3ece8;
+				--muted: #93a59e;
+				--line: #26372f;
+				--brand: #6cc3a5;
+				--brand-soft: #173229;
+				--brand-ink: #c9eadf;
+				--gate: #f0b45c;
+				--gate-soft: #33260f;
+				--code-bg: #172520;
+				color-scheme: dark;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				background: var(--bg);
+				color: var(--ink);
+				font: 400 16px/1.6 var(--body);
+				padding-left: max(16px, env(safe-area-inset-left, 0px));
+				padding-right: max(16px, env(safe-area-inset-right, 0px));
+				padding-block: 0 4rem;
+			}
+			img {
+				max-width: 100%;
+			}
+			.wrap {
+				max-width: 68rem;
+				margin: 0 auto;
+			}
+			.read {
+				max-width: 44rem;
+			}
+			h1,
+			h2,
+			h3 {
+				font-family: var(--display);
+				color: var(--ink);
+				text-wrap: balance;
+				line-height: 1.15;
+				margin: 0;
+			}
+			h1 {
+				font-size: clamp(2.4rem, 6vw, 4rem);
+				font-weight: 700;
+				letter-spacing: -0.02em;
+			}
+			h2 {
+				font-size: clamp(1.6rem, 3.4vw, 2.2rem);
+				font-weight: 700;
+				letter-spacing: -0.01em;
+			}
+			h3 {
+				font-size: 1.15rem;
+				font-weight: 500;
+			}
+			p {
+				margin: 0;
+			}
+			a {
+				color: var(--brand);
+				text-underline-offset: 3px;
+			}
+			a:focus-visible,
+			button:focus-visible {
+				outline: 2px solid var(--brand);
+				outline-offset: 3px;
+				border-radius: 4px;
+			}
+			code {
+				font-family: var(--mono);
+				font-size: 0.86em;
+				background: var(--code-bg);
+				padding: 0.1em 0.35em;
+				border-radius: 4px;
+			}
+			header.top {
+				padding-block: 4.5rem 3rem;
+				display: grid;
+				gap: 1.25rem;
+			}
+			.lede {
+				font-size: 1.2rem;
+				color: var(--muted);
+				max-width: 40rem;
+			}
+			.links {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.75rem;
+			}
+			.links a {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.4rem;
+				padding: 0.5rem 0.9rem;
+				border: 1px solid var(--line);
+				border-radius: 999px;
+				background: var(--surface);
+				text-decoration: none;
+				font-weight: 500;
+				color: var(--ink);
+			}
+			.links a.primary {
+				background: var(--brand);
+				border-color: var(--brand);
+				color: var(--surface);
+			}
+			.facts {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+				gap: 0;
+				border-top: 1px solid var(--line);
+				border-bottom: 1px solid var(--line);
+				margin-top: 1rem;
+			}
+			.facts div {
+				padding: 1rem 1rem 1rem 0;
+			}
+			.facts strong {
+				display: block;
+				font-family: var(--display);
+				font-size: 1.8rem;
+				font-weight: 700;
+				color: var(--brand);
+				font-variant-numeric: tabular-nums;
+			}
+			.facts span {
+				color: var(--muted);
+				font-size: 0.9rem;
+			}
+			nav.toc {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.25rem 1.25rem;
+				padding-block: 1rem;
+				font-size: 0.95rem;
+			}
+			nav.toc a {
+				color: var(--muted);
+				text-decoration: none;
+			}
+			nav.toc a:hover {
+				color: var(--brand);
+			}
+			section {
+				padding-block: 3.5rem 0;
+				display: grid;
+				gap: 1.5rem;
+			}
+			section > .intro {
+				display: grid;
+				gap: 0.75rem;
+			}
+			section > .intro p {
+				color: var(--muted);
+			}
+			.journey {
+				list-style: none;
+				margin: 0;
+				padding: 0;
+				display: grid;
+				gap: 0;
+				counter-reset: step;
+			}
+			.journey li {
+				counter-increment: step;
+				display: grid;
+				grid-template-columns: 3rem minmax(0, 1fr);
+				gap: 1rem;
+				position: relative;
+				padding-bottom: 1.4rem;
+			}
+			.journey li::before {
+				content: counter(step);
+				display: grid;
+				place-items: center;
+				width: 2.2rem;
+				height: 2.2rem;
+				border-radius: 50%;
+				background: var(--brand-soft);
+				color: var(--brand-ink);
+				font-family: var(--display);
+				font-weight: 700;
+				z-index: 1;
+			}
+			.journey li::after {
+				content: '';
+				position: absolute;
+				left: 1.1rem;
+				top: 2.2rem;
+				bottom: 0;
+				width: 2px;
+				background: var(--line);
+			}
+			.journey li:last-child::after {
+				display: none;
+			}
+			.journey li.gate::before {
+				background: var(--gate-soft);
+				color: var(--gate);
+				box-shadow: 0 0 0 2px var(--gate);
+			}
+			.journey h3 {
+				padding-top: 0.25rem;
+			}
+			.journey p {
+				color: var(--muted);
+				margin-top: 0.25rem;
+			}
+			.journey .tag {
+				display: inline-block;
+				margin-left: 0.5rem;
+				font-family: var(--body);
+				font-size: 0.75rem;
+				font-weight: 600;
+				letter-spacing: 0.04em;
+				color: var(--gate);
+				vertical-align: middle;
+			}
+			.panel {
+				background: var(--surface);
+				border: 1px solid var(--line);
+				border-radius: 14px;
+				padding: 1.5rem;
+				min-width: 0;
+			}
+			.scroll {
+				overflow-x: auto;
+			}
+			pre.mermaid {
+				background: var(--surface);
+				border: 1px solid var(--line);
+				border-radius: 14px;
+				padding: 1.25rem;
+				margin: 0;
+				overflow-x: auto;
+				text-align: center;
+			}
+			pre.mermaid svg {
+				max-width: 100%;
+				height: auto;
+			}
+			pre.code {
+				font-family: var(--mono);
+				font-size: 0.82rem;
+				line-height: 1.55;
+				background: var(--code-bg);
+				border-radius: 10px;
+				padding: 1rem 1.1rem;
+				margin: 0;
+				overflow-x: auto;
+			}
+			.cols {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+				gap: 1.25rem;
+			}
+			.cols > * {
+				min-width: 0;
+			}
+			.cols h3 {
+				margin-bottom: 0.4rem;
+			}
+			.cols p,
+			.cols li {
+				color: var(--muted);
+			}
+			ul.plain {
+				margin: 0;
+				padding-left: 1.1rem;
+				display: grid;
+				gap: 0.35rem;
+			}
+			table {
+				width: 100%;
+				border-collapse: collapse;
+				font-size: 0.93rem;
+			}
+			th,
+			td {
+				text-align: left;
+				vertical-align: top;
+				padding: 0.7rem 0.9rem 0.7rem 0;
+				border-bottom: 1px solid var(--line);
+			}
+			th {
+				font-weight: 600;
+				color: var(--muted);
+				font-size: 0.82rem;
+				letter-spacing: 0.03em;
+			}
+			td:first-child {
+				font-weight: 600;
+				white-space: nowrap;
+				color: var(--ink);
+			}
+			td {
+				color: var(--muted);
+			}
+			tbody tr:last-child td {
+				border-bottom: 0;
+			}
+			.domains {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+				gap: 1rem;
+			}
+			.domains div {
+				border-top: 3px solid var(--brand);
+				padding-top: 0.75rem;
+				min-width: 0;
+			}
+			.domains h3 {
+				font-size: 1rem;
+			}
+			.domains p {
+				color: var(--muted);
+				font-size: 0.88rem;
+				font-family: var(--mono);
+				line-height: 1.7;
+				margin-top: 0.35rem;
+				word-break: break-word;
+			}
+			.roles {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+				gap: 1rem;
+			}
+			.roles div {
+				background: var(--surface);
+				border: 1px solid var(--line);
+				border-radius: 12px;
+				padding: 1rem 1.1rem;
+				min-width: 0;
+			}
+			.roles p {
+				color: var(--muted);
+				font-size: 0.93rem;
+				margin-top: 0.3rem;
+			}
+			.stack {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+				gap: 0.5rem 1.5rem;
+			}
+			.stack div {
+				padding-block: 0.6rem;
+				border-bottom: 1px solid var(--line);
+				min-width: 0;
+			}
+			.stack strong {
+				display: block;
+			}
+			.stack span {
+				color: var(--muted);
+				font-size: 0.9rem;
+			}
+			footer {
+				margin-top: 4rem;
+				padding-top: 1.5rem;
+				border-top: 1px solid var(--line);
+				color: var(--muted);
+				font-size: 0.9rem;
+			}
+			@media (width < 40rem) {
+				header.top {
+					padding-block: 2.5rem 2rem;
+				}
+				td:first-child {
+					white-space: normal;
+				}
+			}
+			@media (prefers-reduced-motion: reduce) {
+				* {
+					scroll-behavior: auto !important;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="wrap">
+			<header class="top">
+				<h1>HRMS Pro</h1>
+				<p class="lede">
+					A multi-tenant HR and payroll platform built to run a software company end to end: people, leave, attendance,
+					payroll, meals, expenses, hiring and reviews, with every tenant's data fenced off inside Postgres itself.
+				</p>
+				<div class="links">
+					<a class="primary" href="https://github.com/Srabon444/htms-pro">Source on GitHub</a>
+					<a href="https://youtu.be/BGxO0nnjlsM" target="_blank" rel="noopener">Watch the walkthrough</a>
+					<a href="#architecture">Architecture</a>
+					<a href="#data">Data model</a>
+					<a href="#frs">Functional spec</a>
+				</div>
+				<div class="facts">
+					<div><strong>96</strong><span>Postgres tables</span></div>
+					<div><strong>89</strong><span>with forced row-level security</span></div>
+					<div><strong>178 × 4</strong><span>permissions × scopes in RBAC</span></div>
+					<div><strong>690</strong><span>automated tests (unit, integration, e2e)</span></div>
+				</div>
+			</header>
+
+			<nav class="toc" aria-label="Sections">
+				<a href="#journey">Request path</a>
+				<a href="#architecture">Architecture</a>
+				<a href="#tenancy">Tenancy and security</a>
+				<a href="#data">Data model</a>
+				<a href="#brs">Business requirements</a>
+				<a href="#frs">Functional spec</a>
+				<a href="#quality">Stack and quality</a>
+			</nav>
+
+			<section id="journey">
+				<div class="intro read">
+					<h2>What happens to one request</h2>
+					<p>
+						Isolation is enforced twice: once in application code and again in the database. A bug in a page or a
+						forgotten filter still cannot read another tenant's rows, because the database connection itself is scoped
+						before any query runs. Steps marked as a gate can stop the request.
+					</p>
+				</div>
+				<ol class="journey read">
+					<li>
+						<div>
+							<h3>Security headers and request id</h3>
+							<p>
+								Every response gets a CSP with <code>frame-ancestors 'none'</code>, <code>nosniff</code>, a strict
+								referrer policy, HSTS on HTTPS and an <code>x-request-id</code> that also lands in the structured logs.
+							</p>
+						</div>
+					</li>
+					<li class="gate">
+						<div>
+							<h3>Body type check<span class="tag">GATE</span></h3>
+							<p>A form post whose body is not form data is answered with 415 before any action runs.</p>
+						</div>
+					</li>
+					<li>
+						<div>
+							<h3>Session lookup</h3>
+							<p>
+								The cookie holds an opaque token. Only its SHA-256 hash is stored, so a leaked sessions table cannot be
+								replayed.
+							</p>
+						</div>
+					</li>
+					<li class="gate">
+						<div>
+							<h3>Rate limits in Redis<span class="tag">GATE</span></h3>
+							<p>
+								Per-user mutation limits, plus login limits per IP, per email and IP pair with exponential back-off, and
+								step-up 2FA when one email is tried from several IPs. Sign-in limits fail closed if Redis is down.
+							</p>
+						</div>
+					</li>
+					<li class="gate">
+						<div>
+							<h3>Tenant resolution<span class="tag">GATE</span></h3>
+							<p>
+								The <code>/t/&lt;slug&gt;</code> path picks the tenant. The user must hold an active membership there,
+								and tenants that require 2FA send holders of restricted permissions to enrol first.
+							</p>
+						</div>
+					</li>
+					<li class="gate">
+						<div>
+							<h3>Permission and scope check<span class="tag">GATE</span></h3>
+							<p>
+								Roles grant permissions at a scope: own, team, department or all. Services resolve the scope and filter
+								rows by it; a row outside scope reads as not found.
+							</p>
+						</div>
+					</li>
+					<li>
+						<div>
+							<h3>Scoped transaction</h3>
+							<p>
+								<code>withTenant</code> opens a transaction as the <code>hrms_app</code> role, which has no BYPASSRLS,
+								and sets <code>app.tenant_id</code>, <code>app.user_id</code>, <code>app.employee_id</code> and feature
+								flags such as <code>app.payroll_all</code> with <code>set_config</code>.
+							</p>
+						</div>
+					</li>
+					<li class="gate">
+						<div>
+							<h3>Row-level security in Postgres<span class="tag">GATE</span></h3>
+							<p>
+								A restrictive policy on every tenant table compares <code>tenant_id</code> to the session setting.
+								Personal tables add an owner-row policy, so a payslip is visible only to its employee unless the payroll
+								flag is on.
+							</p>
+						</div>
+					</li>
+					<li>
+						<div>
+							<h3>Audit trigger</h3>
+							<p>
+								Inserts, updates and deletes write who changed what. Sensitive columns such as salary go to a separate
+								table readable only with an explicit flag, and the main log shows them masked.
+							</p>
+						</div>
+					</li>
+					<li>
+						<div>
+							<h3>Side effects through the queue</h3>
+							<p>
+								Mail, payslip and meal-bill delivery are queued in BullMQ and handled by the worker, so a slow SMTP
+								server never holds a request open.
+							</p>
+						</div>
+					</li>
+				</ol>
+			</section>
+
+			<section id="architecture">
+				<div class="intro read">
+					<h2>Architecture</h2>
+					<p>
+						Two Node processes share one codebase. The web app serves pages and form actions; the worker runs queued
+						jobs and an hourly scheduler. Everything else is a managed dependency that Docker Compose brings up locally.
+					</p>
+				</div>
+				<pre class="mermaid">
+flowchart LR
+  B[Browser] -->|HTTPS| P[Reverse proxy]
+  P --> A[SvelteKit app<br/>adapter-node]
+  A -->|hrms_app role, RLS| PG[(PostgreSQL)]
+  A -->|hrms_auth role| PG
+  A -->|sessions limits queue| R[(Redis)]
+  A -->|receipts docs PDFs| S[(MinIO S3)]
+  R -->|BullMQ jobs| W[Worker]
+  W --> PG
+  W --> S
+  W -->|payslips meal bills| M[SMTP / Mailpit]
+  O[migrate job<br/>hrms_owner role] -->|schema, policies, grants| PG
+		</pre>
+				<div class="cols">
+					<div class="panel">
+						<h3>Three database roles</h3>
+						<ul class="plain">
+							<li><code>hrms_owner</code> owns the tables and runs migrations only.</li>
+							<li><code>hrms_app</code> carries all tenant traffic and is subject to every policy.</li>
+							<li>
+								<code>hrms_auth</code> sees users, sessions and invitations, and accepts invitations through a
+								security-definer function.
+							</li>
+						</ul>
+					</div>
+					<div class="panel">
+						<h3>Worker and scheduler</h3>
+						<ul class="plain">
+							<li>Queues: <code>mail</code>, <code>meal-bills</code>, <code>lifecycle</code>.</li>
+							<li>
+								Hourly run: exits and probation, leave accrual, attendance close-out, meal orders, overdue meal bills,
+								candidate data purge.
+							</li>
+							<li>Both processes stop cleanly on SIGTERM.</li>
+						</ul>
+					</div>
+					<div class="panel">
+						<h3>Operations</h3>
+						<ul class="plain">
+							<li><code>/healthz</code> and <code>/readyz</code> for the orchestrator.</li>
+							<li><code>/metrics</code> in Prometheus format behind a bearer token.</li>
+							<li>Pino JSON logs with request ids; encryption keys rotate by key id.</li>
+						</ul>
+					</div>
+				</div>
+			</section>
+
+			<section id="tenancy">
+				<div class="intro read">
+					<h2>Tenancy and security</h2>
+					<p>
+						Shared database, shared schema, tenant id on every row. Policies are generated in one migration pass for
+						every table that has a <code>tenant_id</code> column, so a new table cannot be added without them.
+					</p>
+				</div>
+				<div class="cols">
+					<div class="panel scroll">
+						<h3>The tenant policy, as generated</h3>
+						<pre class="code">
+alter table public.leave_requests enable row level security;
+alter table public.leave_requests force row level security;
+
+create policy hrms_tenant on public.leave_requests
+  as restrictive for all to hrms_app
+  using (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+  with check (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);</pre>
+					</div>
+					<div class="panel">
+						<h3>Account security</h3>
+						<ul class="plain">
+							<li>
+								Argon2id password hashing and a password strength check that rejects passwords containing the email.
+							</li>
+							<li>TOTP 2FA with recovery codes, an encrypted secret and replay protection on the last used step.</li>
+							<li>Optional Google sign-in, trusted devices and step-up verification.</li>
+							<li>Composite tenant foreign keys, so a row can never point at another tenant's parent.</li>
+							<li>Uploads are sniffed by content, not by extension, before they reach MinIO.</li>
+							<li>Retention settings purge old candidate data and audit rows per tenant.</li>
+						</ul>
+					</div>
+				</div>
+			</section>
+
+			<section id="data">
+				<div class="intro read">
+					<h2>Data model</h2>
+					<p>
+						96 tables in 13 domains. The core below shows how a login becomes a member of a tenant, how roles reach
+						permissions, and how employee records anchor the HR and payroll tables.
+					</p>
+				</div>
+				<pre class="mermaid">
+erDiagram
+  TENANTS ||--o{ MEMBERSHIPS : has
+  USERS ||--o{ MEMBERSHIPS : joins
+  MEMBERSHIPS ||--o{ MEMBERSHIP_ROLES : holds
+  ROLES ||--o{ MEMBERSHIP_ROLES : granted
+  ROLES ||--o{ ROLE_PERMISSIONS : "permission + scope"
+  MEMBERSHIPS }o--o| EMPLOYEES : "linked to"
+  DEPARTMENTS ||--o{ EMPLOYEES : groups
+  EMPLOYEES ||--o{ EMPLOYEES : manages
+  EMPLOYEES ||--o{ LEAVE_REQUESTS : files
+  LEAVE_REQUESTS ||--o{ LEAVE_REQUEST_DAYS : spans
+  EMPLOYEES ||--o{ LEAVE_LEDGER : balance
+  EMPLOYEES ||--o{ ATTENDANCE_DAYS : records
+  EMPLOYEES ||--o{ EMPLOYEE_SALARIES : earns
+  PAYROLL_RUNS ||--o{ PAYSLIPS : produces
+  EMPLOYEES ||--o{ PAYSLIPS : receives
+  PAYSLIPS ||--o{ PAYSLIP_LINES : itemises
+  EMPLOYEES ||--o{ MEAL_ORDERS : orders
+  MEAL_BILLS ||--o{ MEAL_BILL_LINES : itemises
+		</pre>
+				<div class="domains">
+					<div>
+						<h3>Platform and access</h3>
+						<p>
+							tenants users sessions memberships roles role_permissions membership_roles invitations tenant_settings
+							files
+						</p>
+					</div>
+					<div>
+						<h3>People</h3>
+						<p>
+							employees departments designations branches grades employee_history employee_documents employee_contacts
+						</p>
+					</div>
+					<div>
+						<h3>Leave</h3>
+						<p>leave_types leave_requests leave_request_days leave_ledger holidays</p>
+					</div>
+					<div>
+						<h3>Time</h3>
+						<p>
+							attendance_days attendance_punches attendance_requests shifts shift_assignments timesheets work_plan_items
+						</p>
+					</div>
+					<div>
+						<h3>Payroll and tax</h3>
+						<p>
+							payroll_runs payslips payslip_lines employee_salaries pay_components tax_years tax_slabs loans
+							loan_instalments
+						</p>
+					</div>
+					<div>
+						<h3>Meals</h3>
+						<p>meal_types meal_vendors meal_days meal_orders meal_bills meal_bill_lines meal_payments</p>
+					</div>
+					<div>
+						<h3>Money out</h3>
+						<p>expense_claims expense_items expense_categories</p>
+					</div>
+					<div>
+						<h3>Hiring</h3>
+						<p>job_openings candidates pipeline_stages interviews interview_feedback offers</p>
+					</div>
+					<div>
+						<h3>Growth</h3>
+						<p>review_cycles reviews goals projects project_members</p>
+					</div>
+					<div>
+						<h3>Lifecycle</h3>
+						<p>resignations exit_interviews checklists change_requests letters</p>
+					</div>
+					<div>
+						<h3>Workplace</h3>
+						<p>announcements policies policy_acknowledgements assets tickets notifications</p>
+					</div>
+					<div>
+						<h3>Audit</h3>
+						<p>audit_log audit_sensitive audit_registry platform_audit</p>
+					</div>
+				</div>
+			</section>
+
+			<section id="brs">
+				<div class="intro read">
+					<h2>Business requirements</h2>
+					<p>
+						The product exists so a growing software company in Bangladesh can stop running HR on spreadsheets and email
+						threads, and so one deployment can serve several companies without their data ever meeting.
+					</p>
+				</div>
+				<div class="cols">
+					<div>
+						<h3>Goals</h3>
+						<ul class="plain">
+							<li>One place for the employee record, from offer letter to exit interview.</li>
+							<li>
+								Payroll that a finance team can run, check and approve in an afternoon, with payslips emailed as PDFs.
+							</li>
+							<li>Office meals ordered daily and billed monthly to each employee without manual tallying.</li>
+							<li>Approvals that follow the reporting line, with a clear inbox for every approver.</li>
+							<li>Evidence on demand: who changed a salary, when and from what.</li>
+						</ul>
+					</div>
+					<div>
+						<h3>Constraints</h3>
+						<ul class="plain">
+							<li>
+								Money stored as whole minor units so totals never drift; each company picks its currency (BDT by
+								default) and every payroll run keeps the currency it was computed in; Bangladesh income tax slabs per
+								tax year.
+							</li>
+							<li>Bengali text must render in generated PDFs.</li>
+							<li>Runs on plain Postgres, Redis and S3-compatible storage; no vendor lock-in.</li>
+							<li>
+								A tenant can be onboarded by a platform admin in minutes, by invitation, and bring its existing records
+								in from CSV files.
+							</li>
+							<li>Branches in different countries keep attendance in their own time zone.</li>
+							<li>Usable on a phone: every list turns into labelled cards on small screens.</li>
+						</ul>
+					</div>
+				</div>
+				<h3>Who uses it</h3>
+				<div class="roles">
+					<div>
+						<h3>Owner</h3>
+						<p>Holds every permission, configures the company and decides what HR and finance may grant.</p>
+					</div>
+					<div>
+						<h3>HR admin</h3>
+						<p>Hires, onboards, maintains records, runs leave and lifecycle, writes letters and policies.</p>
+					</div>
+					<div>
+						<h3>Finance</h3>
+						<p>Sets salaries, runs and approves payroll, pays expenses, settles meal bills and loans.</p>
+					</div>
+					<div>
+						<h3>Line manager</h3>
+						<p>Approves leave, attendance fixes and timesheets for the team, reviews performance.</p>
+					</div>
+					<div>
+						<h3>Employee</h3>
+						<p>Applies for leave, punches in, orders meals, claims expenses, reads payslips and policies.</p>
+					</div>
+					<div>
+						<h3>Platform admin</h3>
+						<p>
+							Creates and suspends tenants from a separate console, behind 2FA; has no tenant data access unless
+							invited.
+						</p>
+					</div>
+				</div>
+			</section>
+
+			<section id="frs">
+				<div class="intro read">
+					<h2>Functional specification</h2>
+					<p>
+						Each module, what it lets people do, and the rules the server enforces regardless of what the browser sends.
+					</p>
+				</div>
+				<div class="panel scroll">
+					<table>
+						<thead>
+							<tr>
+								<th>Module</th>
+								<th>Users can</th>
+								<th>Rules enforced</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td>Access</td>
+								<td>Invite users, assign roles, edit custom roles in a permission matrix, read the audit log.</td>
+								<td>
+									Nobody grants a permission they lack; the owner role is locked; restricted permissions need 2FA when
+									the tenant asks for it.
+								</td>
+							</tr>
+							<tr>
+								<td>Employees</td>
+								<td>
+									Create, import by CSV, edit records and documents, add education and experience with certificates,
+									manage departments and designations, request profile changes.
+								</td>
+								<td>
+									Self-service edits go through an approval; codes are unique per tenant; history keeps every job
+									change.
+								</td>
+							</tr>
+							<tr>
+								<td>Leave</td>
+								<td>
+									Apply with an optional prescription or other file, cancel, approve and see balances; earn comp-off for
+									holiday work; import opening balances and holidays from CSV.
+								</td>
+								<td>
+									Monthly accrual, carry-forward caps, holidays and weekends skipped, no overlapping requests, nobody
+									approves their own.
+								</td>
+							</tr>
+							<tr>
+								<td>Attendance</td>
+								<td>Punch in and out, request corrections with evidence, assign shifts, see late and absent days.</td>
+								<td>
+									Grace minutes per shift; each branch can set its own time zone and every day keeps the zone it was
+									computed in, so a transfer never counts a punch twice; days close automatically each hour; corrections
+									need a manager.
+								</td>
+							</tr>
+							<tr>
+								<td>Payroll</td>
+								<td>
+									Set salary structures, run a month, review, approve, export, email payslips; festival bonus runs.
+								</td>
+								<td>
+									Maker and checker are different people; tax from the tenant's slabs; loan instalments deducted; a
+									finalised run is read-only.
+								</td>
+							</tr>
+							<tr>
+								<td>Meals</td>
+								<td>Order daily meals and guests, set prices and vendors, generate and email monthly bills.</td>
+								<td>
+									Daily order cut-off in the tenant's time zone; bills computed from the month's orders and prices;
+									payments tracked to zero.
+								</td>
+							</tr>
+							<tr>
+								<td>Expenses and loans</td>
+								<td>
+									Claim with receipts, approve, pay directly or through payroll; request and approve loans with
+									supporting documents.
+								</td>
+								<td>
+									Receipts checked by content; nobody approves or pays their own claim unless the tenant allows a single
+									admin.
+								</td>
+							</tr>
+							<tr>
+								<td>Recruitment</td>
+								<td>
+									Open roles, move candidates through stages with their CVs, schedule interviews, collect feedback, make
+									offers.
+								</td>
+								<td>
+									Only members who can give feedback can sit on a panel; each interviewer gets their own list; candidate
+									data purged after the retention window.
+								</td>
+							</tr>
+							<tr>
+								<td>Performance and projects</td>
+								<td>Run review cycles with goals, log timesheets against projects, plan the week.</td>
+								<td>Ratings move from self to manager to finalised; a submitted week is locked.</td>
+							</tr>
+							<tr>
+								<td>Lifecycle</td>
+								<td>Onboarding and offboarding checklists, resignations, exit interviews, letters from templates.</td>
+								<td>Exited staff lose access after a grace period; letters render to PDF with Bengali text.</td>
+							</tr>
+							<tr>
+								<td>Workplace</td>
+								<td>Announcements, policies with acknowledgement, assets, helpdesk tickets, notifications.</td>
+								<td>
+									A new policy version asks everyone to read it again; tickets can only be assigned to helpdesk agents.
+								</td>
+							</tr>
+							<tr>
+								<td>Files and data</td>
+								<td>
+									Attach up to five PDFs or images to 15+ record types: leave, attendance corrections, loans,
+									resignations, candidates, offers, salary changes, reviews and goals, projects, assets, announcements,
+									tickets, cash meal bills, and education and experience entries (expense receipts stay on each claim
+									line); add, replace or remove them while the record is open; import holidays, opening leave balances
+									and assets from CSV; download each dataset as CSV from Settings.
+								</td>
+								<td>
+									Files are checked by content and size and readable only by people who can see the record; imports are
+									all-or-nothing with line-numbered errors and a template; data export needs a restricted permission
+									plus the dataset's own permission at full scope, is capped at 366 days and 50,000 rows, and is
+									audited.
+								</td>
+							</tr>
+							<tr>
+								<td>Reports</td>
+								<td>
+									Headcount, leave, attendance, payroll, meals, expenses, recruitment, utilisation and a weekly digest;
+									share with chosen colleagues.
+								</td>
+								<td>A report only shows rows the viewer's scope allows; shares respect the recipient's own access.</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+
+			<section id="quality">
+				<div class="intro read">
+					<h2>Stack and quality</h2>
+					<p>Boring, well-supported pieces, each chosen for a specific job.</p>
+				</div>
+				<div class="stack">
+					<div>
+						<strong>SvelteKit 3 and Svelte 5</strong
+						><span>Server-rendered pages and form actions that work without JavaScript</span>
+					</div>
+					<div><strong>Tailwind CSS 4</strong><span>One brand theme and a shared component kit</span></div>
+					<div>
+						<strong>PostgreSQL and Drizzle</strong><span>Typed schema, generated migrations, RLS policies</span>
+					</div>
+					<div><strong>Redis and BullMQ</strong><span>Rate limits, queues, the hourly scheduler</span></div>
+					<div><strong>MinIO</strong><span>S3-compatible storage for receipts, documents and PDFs</span></div>
+					<div><strong>Zod</strong><span>Every input validated on the server</span></div>
+					<div><strong>PDFKit and jsPDF</strong><span>Payslips, letters, meal bills and report exports</span></div>
+					<div><strong>Pino and prom-client</strong><span>Structured logs and Prometheus metrics</span></div>
+					<div>
+						<strong>Docker Compose</strong><span>Postgres, Redis, MinIO, Mailpit, migrate, app and worker</span>
+					</div>
+				</div>
+				<div class="cols">
+					<div class="panel">
+						<h3>Tests</h3>
+						<ul class="plain">
+							<li><strong>278</strong> unit tests with Vitest for money, dates, tax, parsing and PDFs.</li>
+							<li>
+								<strong>343</strong> integration tests against a real Postgres, Redis and MinIO, including cross-tenant
+								and scope attacks.
+							</li>
+							<li>
+								<strong>69</strong> Playwright end-to-end tests that drive the built app, read the emails it sends and
+								check phone layouts.
+							</li>
+						</ul>
+					</div>
+					<div class="panel">
+						<h3>Pipeline</h3>
+						<ul class="plain">
+							<li>CI brings up the Compose services, then runs type checks, lint, unit, integration and e2e tests.</li>
+							<li>
+								Every phase ended with an adversarial review whose findings were reproduced, fixed with a failing test
+								first, and re-run.
+							</li>
+						</ul>
+					</div>
+				</div>
+			</section>
+
+			<footer>
+				HRMS Pro · <a href="https://github.com/Srabon444/htms-pro">github.com/Srabon444/htms-pro</a> ·
+				<a href="https://youtu.be/BGxO0nnjlsM" target="_blank" rel="noopener">Walkthrough video</a>
+			</footer>
+		</div>
+		<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+		<script>
+			mermaid.initialize({
+				startOnLoad: true,
+				securityLevel: 'strict',
+				theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'neutral',
+				fontFamily: 'Inter, system-ui, sans-serif'
+			});
+		</script>
+	</body>
+</html>
