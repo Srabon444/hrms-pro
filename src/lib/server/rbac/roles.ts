@@ -66,14 +66,15 @@ export async function updateRole(
 	const input = roleInputSchema.parse(raw);
 	await withTenant(actor.ctx, async (tx) => {
 		const role = await editableRole(tx, actor, roleId);
+		const grants = parseGrants(raw.grants.map(([p, s]) => grantKey(p, s)));
 		const current = new Set(role.grants.map(([p, s]) => grantKey(p, s)));
-		const desired = new Set(raw.grants.map(([p, s]) => grantKey(p, s)));
-		const added = raw.grants.filter(([p, s]) => !current.has(grantKey(p, s)));
+		const desired = new Set(grants.map(([p, s]) => grantKey(p, s)));
+		const added = grants.filter(([p, s]) => !current.has(grantKey(p, s)));
 		const removed = role.grants.filter(([p, s]) => !desired.has(grantKey(p, s)));
 		const blocked = [...added, ...removed].find(([p, s]) => !canGrant(actor.access, p, s));
 		if (blocked)
 			throw new AppError('grant_not_allowed', `You cannot grant or remove ${blocked[0]} (${blocked[1]}).`, 403);
-		if (role.key === 'employee' && raw.grants.some(([p]) => isRestricted(p)))
+		if (role.key === 'employee' && grants.some(([p]) => isRestricted(p)))
 			throw new AppError('restricted_on_employee', 'The Employee role cannot hold restricted permissions.', 409);
 		await tx
 			.update(roles)

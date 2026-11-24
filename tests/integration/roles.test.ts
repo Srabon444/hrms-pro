@@ -64,6 +64,18 @@ describe('role editor guards', () => {
 		expect(parseGrants(['leave.read:all', 'leave.read:all'])).toEqual([['leave.read', 'all']]);
 	});
 
+	it('the service rejects unknown grants and folds repeated ones itself', async () => {
+		const own = await actorFor(await ownerMember());
+		const role = await createRole(own, { name: 'Direct caller' });
+		const raw = (g: string[]) => g.map((v) => v.split(':')) as Parameters<typeof updateRole>[2]['grants'];
+		expect(await code(updateRole(own, role, { name: 'Direct caller', grants: raw(['made.up:all']) }))).toBe(
+			'invalid_grant'
+		);
+		expect(
+			await code(updateRole(own, role, { name: 'Direct caller', grants: raw(['leave.read:all', 'leave.read:all']) }))
+		).toBe('ok');
+	});
+
 	it('nobody edits the owner role', async () => {
 		const own = await actorFor(await ownerMember());
 		expect(await code(updateRole(own, roleIds.owner, { name: 'Boss', grants: [] }))).toBe('role_locked');
