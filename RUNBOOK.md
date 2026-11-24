@@ -89,6 +89,13 @@ a missed hour is caught up by the next one.
 2. Run `migrate` to completion (migrations are forward only; take a backup first).
 3. Roll `app` and `worker`. Both stop cleanly on SIGTERM.
 
+Behind a reverse proxy, set `ADDRESS_HEADER=X-Forwarded-For` and `XFF_DEPTH` to the number of proxies in front of the
+app. Without them every request appears to come from the proxy, so all clients share one login and reset rate-limit
+bucket. Never set them when the app is reachable directly, or clients can choose their own address.
+
+If Redis is down, sign-in, password reset and 2FA refuse requests rather than run without limits; ordinary saves keep
+working and log `mutation rate limit unavailable`.
+
 ## Backup and restore
 
 ```bash
