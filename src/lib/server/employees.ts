@@ -133,14 +133,20 @@ export async function lockEmployee(tx: Tx, access: Access, employeeId: string) {
 	return e;
 }
 
-async function nextCode(tx: Tx, tenantId: string): Promise<string> {
+async function nextCodes(tx: Tx, tenantId: string, count: number): Promise<string[]> {
 	const [{ value }] = await tx
 		.insert(counters)
-		.values({ tenantId, name: 'employee_code', value: 1 })
-		.onConflictDoUpdate({ target: [counters.tenantId, counters.name], set: { value: sql`${counters.value} + 1` } })
+		.values({ tenantId, name: 'employee_code', value: count })
+		.onConflictDoUpdate({
+			target: [counters.tenantId, counters.name],
+			set: { value: sql`${counters.value} + ${count}` }
+		})
 		.returning({ value: counters.value });
 	const [s] = await tx.select({ prefix: tenantSettings.employeeCodePrefix }).from(tenantSettings);
-	return `${s?.prefix ?? 'EMP-'}${String(value).padStart(4, '0')}`;
+	return Array.from(
+		{ length: count },
+		(_, i) => `${s?.prefix ?? 'EMP-'}${String(value - count + 1 + i).padStart(4, '0')}`
+	);
 }
 
 async function checkManager(tx: Tx, tenantId: string, employeeId: string, managerId: string | null) {
@@ -186,25 +192,56 @@ async function labels(tx: Tx, values: Record<string, unknown>): Promise<Record<s
 	};
 }
 
-export async function insertEmployee(tx: Tx, tenantId: string, access: Access, form: EmployeeForm): Promise<string> {
-	const input = baseSchema.parse(form);
-	const sensitive = sensitiveSchema.parse(
-		Object.fromEntries(SENSITIVE_KEYS.filter((k) => k in form).map((k) => [k, form[k]]))
+const INSERT_CHUNK = 500;
+
+async function insertEmployees(
+	tx: Tx,
+	tenantId: string,
+	access: Access,
+	people: { id: string; form: EmployeeForm; line?: number }[]
+): Promise<string[]> {
+	const codes = await nextCodes(tx, tenantId, people.length);
+	const rows = people.map(({ id, form }, i) => ({
+		id,
+		tenantId,
+		code: codes[i],
+		...baseSchema.parse(form),
+		...sensitiveSchema.parse(Object.fromEntries(SENSITIVE_KEYS.filter((k) => k in form).map((k) => [k, form[k]])))
+	}));
+	for (let i = 0; i < rows.length; i += INSERT_CHUNK)
+		await tx
+			.insert(employees)
+			.values(rows.slice(i, i + INSERT_CHUNK))
+			.catch(friendly);
+	const refuse = (denied: typeof people, code: string, message: string) => {
+		if (!denied.length) return;
+		if (denied.every((p) => p.line)) throw new ImportFailed(denied.map((p) => ({ line: p.line!, message })));
+		throw new AppError(code, message, 403);
+	};
+	const create = await resolveScope(tx, access, 'employee.create');
+	refuse(
+		people.filter((p) => !inScope(create, p.id)),
+		'out_of_scope',
+		'You can only add people within your own scope.'
 	);
-	const code = await nextCode(tx, tenantId);
-	const [row] = await tx
-		.insert(employees)
-		.values({ tenantId, code, ...input, ...sensitive })
-		.returning({ id: employees.id })
-		.catch(friendly);
-	if (!inScope(await resolveScope(tx, access, 'employee.create'), row.id))
-		throw new AppError('out_of_scope', 'You can only add people within your own scope.', 403);
-	if (hasSensitive(form) && !inScope(await resolveScope(tx, access, 'employee.sensitive.update'), row.id))
-		throw new AppError('sensitive_denied', 'You cannot set identity or bank details.', 403);
-	if (input.status === 'onboarding') await startChecklists(tx, tenantId, row.id, 'onboarding', input.joinDate);
-	await accrue(tx, tenantId, [row.id]);
-	return row.id;
+	const withSensitive = people.filter((p) => hasSensitive(p.form));
+	if (withSensitive.length) {
+		const sensitive = await resolveScope(tx, access, 'employee.sensitive.update');
+		refuse(
+			withSensitive.filter((p) => !inScope(sensitive, p.id)),
+			'sensitive_denied',
+			'You cannot set identity or bank details.'
+		);
+	}
+	const ids = rows.map((r) => r.id);
+	for (const r of rows)
+		if (r.status === 'onboarding') await startChecklists(tx, tenantId, r.id, 'onboarding', r.joinDate);
+	await accrue(tx, tenantId, ids);
+	return ids;
 }
+
+export const insertEmployee = async (tx: Tx, tenantId: string, access: Access, form: EmployeeForm): Promise<string> =>
+	(await insertEmployees(tx, tenantId, access, [{ id: crypto.randomUUID(), form }]))[0];
 
 export const createEmployee = (ctx: TenantCtx, access: Access, form: EmployeeForm): Promise<string> =>
 	withTenant(ctx, (tx) => insertEmployee(tx, ctx.tenantId, access, form));
@@ -464,6 +501,7 @@ export async function importEmployees(ctx: TenantCtx, access: Access, table: str
 				.map((r) => [r.email!.toLowerCase(), r.id])
 		);
 		const errors: ImportRowError[] = [];
+		const valid: { id: string; form: EmployeeForm; line: number }[] = [];
 		for (const [i, cells] of body.entries()) {
 			const line = i + 2;
 			const v = Object.fromEntries(cols.map((c, j) => [c, unformula(cells[j] ?? '')]));
@@ -499,22 +537,25 @@ export async function importEmployees(ctx: TenantCtx, access: Access, table: str
 				errors.push({ line, message: problems.join(' ') });
 				continue;
 			}
-			try {
-				const id = await tx.transaction((sp) => insertEmployee(sp, ctx.tenantId, access, form));
-				if (form.workEmail) emails.set(form.workEmail.toLowerCase(), id);
-			} catch (err) {
-				if (err instanceof z.ZodError)
-					errors.push({
-						line,
-						message: err.issues
-							.map((x) => `${String(x.path[0]).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}: ${x.message}`)
-							.join(' ')
-					});
-				else if (err instanceof AppError) errors.push({ line, message: err.message });
-				else throw err;
+			const parsed = baseSchema.safeParse(form);
+			const email = form.workEmail.trim().toLowerCase();
+			if (!parsed.success)
+				errors.push({
+					line,
+					message: parsed.error.issues
+						.map((x) => `${String(x.path[0]).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}: ${x.message}`)
+						.join(' ')
+				});
+			else if (email && emails.has(email))
+				errors.push({ line, message: 'Another employee already uses that work email.' });
+			else {
+				const id = crypto.randomUUID();
+				if (email) emails.set(email, id);
+				valid.push({ id, form, line });
 			}
 		}
 		if (errors.length) throw new ImportFailed(errors);
+		await insertEmployees(tx, ctx.tenantId, access, valid);
 		return body.length;
 	});
 }
