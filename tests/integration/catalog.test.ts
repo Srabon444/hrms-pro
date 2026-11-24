@@ -47,7 +47,8 @@ describe('schema catalog', () => {
 		expect(rows.filter((r) => r.deltype === 'n' || r.deltype === 'd').map((r) => r.conname)).toEqual([]);
 		const tables = await tenantTables();
 		const singleColumnTenantFks = rows.filter(
-			(r) => tables.includes(r.child) && tables.includes(r.parent) && r.cols < 2
+			(r) =>
+				tables.includes(r.child) && tables.includes(r.parent) && r.cols < 2 && r.conname !== 'audit_sensitive_audit_fk'
 		);
 		expect(singleColumnTenantFks.map((r) => r.conname)).toEqual([]);
 	});

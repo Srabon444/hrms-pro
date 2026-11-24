@@ -3,6 +3,7 @@ import {
 	bigint,
 	boolean,
 	check,
+	foreignKey,
 	index,
 	integer,
 	jsonb,
@@ -326,7 +327,9 @@ export const auditSensitive = pgTable(
 	},
 	(t) => [
 		tenantKey('audit_sensitive', t),
-		tfk('audit_sensitive_audit_fk', t, t.auditId, auditLog, 'cascade'),
+		foreignKey({ name: 'audit_sensitive_audit_fk', columns: [t.auditId], foreignColumns: [auditLog.id] }).onDelete(
+			'cascade'
+		),
 		index('audit_sensitive_audit_idx').on(t.tenantId, t.auditId)
 	]
 );
