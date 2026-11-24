@@ -6,7 +6,14 @@ import { withTenant, type TenantCtx, type Tx } from './tenancy';
 
 export const AUDIT_PAGE_SIZE = 50;
 
-export const auditEvent = (tx: Tx, ctx: TenantCtx, tableName: string, rowId: string | null, event: string) =>
+export const auditEvent = (
+	tx: Tx,
+	ctx: TenantCtx,
+	tableName: string,
+	rowId: string | null,
+	event: string,
+	details: Record<string, string> | null = null
+) =>
 	tx.insert(auditLog).values({
 		tenantId: ctx.tenantId,
 		actorUserId: ctx.userId ?? null,
@@ -14,7 +21,8 @@ export const auditEvent = (tx: Tx, ctx: TenantCtx, tableName: string, rowId: str
 		tableName,
 		rowId,
 		op: 'READ',
-		event
+		event,
+		newValues: details
 	});
 
 type Values = Record<string, unknown> | null;

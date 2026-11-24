@@ -60,6 +60,8 @@ export class ImportFailed extends AppError {
 }
 
 const MAX_CSV_BYTES = 1024 * 1024;
+export const MAX_EXPORT_ROWS = 50_000;
+export const tooManyToExport = (rows: unknown[]) => rows.length > MAX_EXPORT_ROWS + 1;
 
 export async function readCsvUpload(file: FormDataEntryValue | null): Promise<string[][]> {
 	if (!(file instanceof File) || file.size === 0) throw new AppError('no_file', 'Choose a CSV file.', 400);

@@ -15,7 +15,7 @@ import {
 	memberships,
 	tenantSettings
 } from './db/schema';
-import { ImportFailed, unformula, type ImportRowError } from './csv';
+import { ImportFailed, MAX_EXPORT_ROWS, unformula, type ImportRowError } from './csv';
 import { FK_VIOLATION, pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { startChecklists } from './checklists';
 import { accrue } from './leave';
@@ -462,7 +462,8 @@ export async function exportEmployees(tx: Tx, access: Access, raw: Record<string
 		.leftJoin(branches, eq(branches.id, employees.branchId))
 		.leftJoin(manager, eq(manager.id, employees.managerId))
 		.where(await listFilter(tx, access, f))
-		.orderBy(...SORTS[f.sort]);
+		.orderBy(...SORTS[f.sort])
+		.limit(MAX_EXPORT_ROWS + 1);
 	return [['code', ...CSV_COLUMNS], ...rows.map((r) => Object.values(r))];
 }
 

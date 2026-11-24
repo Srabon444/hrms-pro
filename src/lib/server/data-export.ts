@@ -2,6 +2,7 @@ import { asc, between, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Permission } from '../rbac/permissions';
 import { auditEvent } from './audit';
+import { MAX_EXPORT_ROWS, tooManyToExport } from './csv';
 import {
 	assets,
 	attendanceDays,
@@ -30,7 +31,6 @@ type Dataset = {
 	rows: (tx: Tx, access: Access, range: Range) => Promise<Cell[][]>;
 };
 
-export const MAX_EXPORT_ROWS = 50_000;
 const cap = MAX_EXPORT_ROWS + 1;
 const amount = (poisha: number | null) => (poisha === null ? null : poisha / 100);
 const stamp = (at: Date | null) => at?.toISOString() ?? null;
@@ -310,11 +310,12 @@ export async function exportDataset(m: Member, raw: Record<string, string>) {
 	const range = d.dated ? rangeSchema.parse(raw) : { from: '', to: '' };
 	const ctx = userCtx(m, { salaryAll: dataset === 'salaries', payrollAll: dataset === 'payroll' });
 	const rows = await withTenant(ctx, async (tx) => {
-		await auditEvent(tx, ctx, dataset, null, 'data.export');
-		return d.rows(tx, m.access, range);
+		const list = await d.rows(tx, m.access, range);
+		if (tooManyToExport(list))
+			throw new AppError('too_many', `A file can hold at most ${MAX_EXPORT_ROWS} rows. Choose a shorter period.`, 413);
+		await auditEvent(tx, ctx, dataset, null, 'data.export', d.dated ? range : null);
+		return list;
 	});
-	if (rows.length > cap)
-		throw new AppError('too_many', `A file can hold at most ${MAX_EXPORT_ROWS} rows. Choose a shorter period.`, 413);
 	const span = d.dated ? `${range.from}-to-${range.to}` : new Date().toISOString().slice(0, 10);
 	return { fileName: `${dataset}-${span}.csv`, rows };
 }

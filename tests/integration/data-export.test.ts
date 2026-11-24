@@ -178,10 +178,13 @@ describe('data export', () => {
 			expect((await csv('owner', dataset)).length).toBeGreaterThan(0);
 		const events = await withTenant(sys(), (tx) =>
 			tx
-				.select({ table: auditLog.tableName })
+				.select({ table: auditLog.tableName, details: auditLog.newValues })
 				.from(auditLog)
 				.where(and(eq(auditLog.event, 'data.export'), eq(auditLog.actorUserId, who.owner.user.userId)))
 		);
 		expect(events.map((e) => e.table)).toEqual(expect.arrayContaining(['employees', 'salaries', 'attendance']));
+		expect(events.filter((e) => e.table === 'attendance').map((e) => e.details)).toEqual([
+			{ from: '2026-01-01', to: '2026-01-31' }
+		]);
 	});
 });
