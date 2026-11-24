@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { GrantMap } from '../../src/lib/rbac/grants';
+import { addFiles, openFile } from '../../src/lib/server/attachments';
 import { closePools } from '../../src/lib/server/db';
 import { employees } from '../../src/lib/server/db/schema';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib/server/employees';
@@ -14,7 +15,7 @@ import {
 } from '../../src/lib/server/profile';
 import type { Access } from '../../src/lib/server/rbac/access';
 import { withTenant, type TenantCtx } from '../../src/lib/server/tenancy';
-import { createTenant } from './helpers';
+import { createTenant, createUser } from './helpers';
 
 let ctx: TenantCtx;
 const ids: Record<string, string> = {};
@@ -102,6 +103,27 @@ describe('self-service profile', () => {
 		expect(await code(removeListEntry(ctx, self(ids.peer), ids.peer, 'contact', contactId))).toBe('not_found');
 		expect(await code(removeListEntry(ctx, self(ids.me), ids.me, 'contact', contactId))).toBe('ok');
 		expect((await lists(hr, ids.me)).contacts).toEqual([]);
+	});
+
+	it('keeps certificates on education and experience entries for the employee and HR', async () => {
+		const userId = (await createUser()).id;
+		const as = (a: Access) => ({ user: { userId }, tenant: { id: ctx.tenantId, slug: 'p' }, access: a }) as never;
+		const pdf = (name: string) => new File([`%PDF-1.7 ${name}`], name, { type: 'application/pdf' });
+		await addListEntry(ctx, self(ids.me), ids.me, 'experience', {
+			company: 'Acme',
+			title: 'Engineer',
+			startDate: '2020-01-01',
+			endDate: ''
+		});
+		const entry = (await lists(hr, ids.me)).experience.find((x) => x.company === 'Acme')!;
+		const [letter] = await addFiles(as(self(ids.me)), 'experience', entry.id, [pdf('release.pdf')]);
+		expect(await code(addFiles(as(hr), 'experience', entry.id, [pdf('hr.pdf')]))).toBe('ok');
+		const peerWithRead = access(ids.peer, { 'employee.read': ['all'] });
+		expect((await openFile(as(peerWithRead), letter)).fileName).toBe('release.pdf');
+		expect(await code(addFiles(as(peerWithRead), 'experience', entry.id, [pdf('x.pdf')]))).toBe('forbidden');
+		expect(await code(openFile(as(self(ids.peer)), letter))).toBe('not_found');
+		expect(await code(removeListEntry(ctx, self(ids.me), ids.me, 'experience', entry.id))).toBe('ok');
+		expect(await code(openFile(as(hr), letter))).toBe('not_found');
 	});
 
 	it('validates entries and rejects unknown kinds', async () => {

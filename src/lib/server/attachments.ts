@@ -13,6 +13,7 @@ import { leaveAttachments } from './leave-requests';
 import { loanAttachments } from './loans';
 import { mealBillAttachments } from './meal-bills';
 import { goalAttachments, reviewAttachments } from './performance';
+import { educationAttachments, experienceAttachments } from './profile';
 import { projectAttachments } from './projects';
 import { files, MAX_ATTACHMENTS, MAX_DOCUMENT_BYTES, type AttachmentOwner } from './db/schema';
 import { AppError } from './errors';
@@ -39,6 +40,8 @@ const owners = (): Record<AttachmentOwner, AttachmentRules> => ({
 	change_request: changeAttachments,
 	candidate: candidateAttachments,
 	checklist_item: checklistItemAttachments,
+	education: educationAttachments,
+	experience: experienceAttachments,
 	goal: goalAttachments,
 	interview_feedback: feedbackAttachments,
 	leave_request: leaveAttachments,

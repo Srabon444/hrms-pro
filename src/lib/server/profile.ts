@@ -1,8 +1,10 @@
 import { and, asc, count, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
+import type { AttachmentRules } from './attachments';
 import { employeeContacts, employeeEducation, employeeExperience, employees } from './db/schema';
 import { blank, date, PROFILE_FIELDS } from './employees';
 import { AppError } from './errors';
+import { discardFiles, dropFiles } from './file-store';
 import type { Access } from './rbac/access';
 import { inScope, resolveScope } from './rbac/scope';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
@@ -134,9 +136,10 @@ export async function removeListEntry(
 	kind: string,
 	entryId: string
 ) {
-	const list = LISTS[kindSchema.parse(kind)];
+	const listKind = kindSchema.parse(kind);
+	const list = LISTS[listKind];
 	const id = z.uuid().safeParse(entryId);
-	await withTenant(ctx, async (tx) => {
+	const stored = await withTenant(ctx, async (tx) => {
 		const rights = await lockTarget(tx, access, employeeId);
 		if (!rights.self && !rights.manage) throw new AppError('forbidden', 'You cannot edit this profile.', 403);
 		const gone = id.success
@@ -146,5 +149,37 @@ export async function removeListEntry(
 					.returning({ id: list.table.id })
 			: [];
 		if (!gone.length) throw new AppError('not_found', 'That entry does not exist.', 404);
+		return listKind === 'contact' ? [] : dropFiles(tx, listKind, [gone[0].id]);
 	});
+	await discardFiles(stored);
 }
+
+const certificateRules = (kind: 'education' | 'experience'): AttachmentRules => {
+	const owner = async (tx: Tx, id: string) => {
+		const t = LISTS[kind].table;
+		const [e] = await tx
+			.select({ employeeId: t.employeeId, status: employees.status })
+			.from(t)
+			.innerJoin(employees, eq(employees.id, t.employeeId))
+			.where(eq(t.id, id));
+		return e;
+	};
+	return {
+		async canRead(tx, access, id) {
+			const e = await owner(tx, id);
+			return (
+				!!e &&
+				(access.employeeId === e.employeeId || inScope(await resolveScope(tx, access, 'employee.read'), e.employeeId))
+			);
+		},
+		async canEdit(tx, access, id) {
+			const e = await owner(tx, id);
+			if (!e) return false;
+			const rights = await rightsOver(tx, access, e.employeeId, e.status);
+			return rights.self || rights.manage;
+		}
+	};
+};
+
+export const educationAttachments = certificateRules('education');
+export const experienceAttachments = certificateRules('experience');

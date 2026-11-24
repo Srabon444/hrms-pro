@@ -188,14 +188,32 @@
 		<h2 class="section-title">{section.title}</h2>
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each section.rows as row (row.id)}
-				<li class="flex items-center gap-3 py-2" data-testid="entry-{section.kind}">
-					<span>{row.text}</span>
-					{#if lists.canEditLists}
-						<form method="POST" action="?/removeEntry" class="ml-auto">
-							<input type="hidden" name="kind" value={section.kind} />
-							<input type="hidden" name="entryId" value={row.id} />
-							<button type="submit" class="text-red-600 hover:underline" aria-label="Remove {row.text}">Remove</button>
-						</form>
+				<li class="py-2" data-testid="entry-{section.kind}">
+					<div class="flex items-center gap-3">
+						<span>{row.text}</span>
+						{#if lists.canEditLists}
+							<form method="POST" action="?/removeEntry" class="ml-auto">
+								<input type="hidden" name="kind" value={section.kind} />
+								<input type="hidden" name="entryId" value={row.id} />
+								<button type="submit" class="text-red-600 hover:underline" aria-label="Remove {row.text}">
+									Remove
+								</button>
+							</form>
+						{/if}
+					</div>
+					{#if section.kind !== 'contact'}
+						{@const kind = section.kind as 'education' | 'experience'}
+						{#if lists.canEditLists || data.certificates[kind][row.id]?.length}
+							<Attachments
+								slug={data.tenant.slug}
+								attachments={{ files: data.certificates[kind][row.id] ?? [], canEdit: lists.canEditLists }}
+								{form}
+								action={`?/${kind}Files`}
+								ownerId={row.id}
+								title={`Certificates for ${row.text}`}
+								compact
+							/>
+						{/if}
 					{/if}
 				</li>
 			{:else}

@@ -37,12 +37,29 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		if (!record) error(404, 'Not found');
 		const checklists = await employeeChecklists(tx, m.access, record.employee);
 		const pendingChange = await ownPendingChange(tx, m.access, record.employee.id);
+		const lists = await profileLists(tx, m.access, record.employee.id, record.employee.status);
 		return {
 			...record,
 			choices: record.canUpdate ? await employeeChoices(tx) : null,
 			documents: await listDocuments(tx, m.access, record.employee.id),
 			hiring: await hiringFiles(tx, m.access, record.employee.id),
-			lists: await profileLists(tx, m.access, record.employee.id, record.employee.status),
+			lists,
+			certificates: {
+				education: Object.fromEntries(
+					await filesFor(
+						tx,
+						'education',
+						lists.education.map((d) => d.id)
+					)
+				),
+				experience: Object.fromEntries(
+					await filesFor(
+						tx,
+						'experience',
+						lists.experience.map((x) => x.id)
+					)
+				)
+			},
 			pendingChange,
 			changeFiles: pendingChange ? await listFiles(tx, m.access, 'change_request', pendingChange.id) : null,
 			changeLabels: CHANGE_LABELS,
@@ -78,6 +95,16 @@ export const actions: Actions = {
 		const m = requireMember(locals);
 		const form = await request.formData();
 		return attachmentAction(m, form, 'change_request', field(form, 'ownerId'), locals.requestId);
+	},
+	educationFiles: async ({ request, locals }) => {
+		const m = requireMember(locals);
+		const form = await request.formData();
+		return attachmentAction(m, form, 'education', field(form, 'ownerId'), locals.requestId);
+	},
+	experienceFiles: async ({ request, locals }) => {
+		const m = requireMember(locals);
+		const form = await request.formData();
+		return attachmentAction(m, form, 'experience', field(form, 'ownerId'), locals.requestId);
 	},
 	taskFiles: async ({ request, locals }) => {
 		const m = requireMember(locals);

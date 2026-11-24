@@ -57,7 +57,7 @@ test('an employee sees only their own record and cannot edit its HR fields', asy
 	expect((await page.goto(`/t/${f.tenant!.slug}/employees/new`))!.status()).toBe(403);
 });
 
-test('an employee keeps their own contact details and emergency contacts', async ({ page, request }) => {
+test('an employee keeps their own contact details, emergency contacts and certificates', async ({ page, request }) => {
 	const f = await fixture(request, { tenant: {}, users: [{ key: 'staff', employee: true }] });
 	await signIn(page, f.users.staff.email);
 	await page.goto(`/t/${f.tenant!.slug}/employees/${f.users.staff.employeeId}`);
@@ -75,6 +75,20 @@ test('an employee keeps their own contact details and emergency contacts', async
 	await expect(contacts.getByTestId('entry-contact')).toHaveText(/Rina Akter \(Sister\)/);
 	await contacts.getByRole('button', { name: /^Remove Rina Akter/ }).click();
 	await expect(contacts.getByTestId('entry-contact')).toHaveCount(0);
+
+	const education = page.getByRole('region', { name: 'Education' });
+	await education.getByLabel('Degree').fill('BSc CSE');
+	await education.getByLabel('Institution').fill('BUET');
+	await education.getByLabel('Passing year').fill('2018');
+	await education.getByRole('button', { name: 'Add to education' }).click();
+	await expect(page.getByRole('status')).toHaveText('Entry added.');
+	const certificates = education.getByRole('group', { name: 'Certificates for BSc CSE, BUET (2018)' });
+	await certificates.getByText(/\(0\)$/).click();
+	await certificates
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'degree.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 degree') });
+	await certificates.getByRole('button', { name: 'Attach files' }).click();
+	await expect(certificates.getByTestId('attachment')).toContainText('degree.pdf');
 });
 
 test('an employee asks for a bank change that HR approves and the employee is emailed', async ({
