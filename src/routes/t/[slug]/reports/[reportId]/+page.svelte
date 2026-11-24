@@ -23,7 +23,7 @@
 				}).toString()
 			: ''
 	);
-	const field = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const field = 'mt-1 block w-full input';
 	let copied = $state('');
 
 	async function copy() {
@@ -49,8 +49,8 @@
 
 <svelte:head><title>{r?.title ?? 'Report'} · {data.tenant.name}</title></svelte:head>
 
-<a class="text-sm text-indigo-700 underline" href={`/t/${data.tenant.slug}/reports`}>All reports</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{r?.title ?? 'Report'}</h1>
+<a class="text-sm text-brand-700 underline" href={`/t/${data.tenant.slug}/reports`}>All reports</a>
+<h1 class="page-title mt-2">{r?.title ?? 'Report'}</h1>
 
 <form method="GET" class="mt-4 grid max-w-3xl items-end gap-3 sm:grid-cols-4" aria-label="Filters">
 	<label class="block text-sm font-medium text-slate-700">
@@ -77,18 +77,18 @@
 
 {#if r}
 	<div class="mt-4 flex gap-3 text-sm">
-		<a class="text-indigo-700 underline" href={`/t/${data.tenant.slug}/reports/${r.id}/export?format=csv&${query}`}>
+		<a class="text-brand-700 underline" href={`/t/${data.tenant.slug}/reports/${r.id}/export?format=csv&${query}`}>
 			Download CSV
 		</a>
-		<a class="text-indigo-700 underline" href={`/t/${data.tenant.slug}/reports/${r.id}/export?format=pdf&${query}`}>
+		<a class="text-brand-700 underline" href={`/t/${data.tenant.slug}/reports/${r.id}/export?format=pdf&${query}`}>
 			Download PDF
 		</a>
-		<button type="button" class="text-indigo-700 underline" onclick={copy}>Copy as text</button>
+		<button type="button" class="text-brand-700 underline" onclick={copy}>Copy as text</button>
 		<span role="status" class="text-slate-500">{copied}</span>
 	</div>
 	<ReportTables sections={r.sections} />
 
-	<details class="mt-8 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
+	<details class="mt-8 max-w-3xl panel">
 		<summary class="cursor-pointer font-semibold text-slate-900">Share this report</summary>
 		{#if data.recipients.length}
 			<form method="POST" action={`?${query}&/share`} class="mt-4 grid gap-4" aria-label="Share this report">

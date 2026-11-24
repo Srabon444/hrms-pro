@@ -11,16 +11,16 @@
 
 <svelte:head><title>Letter templates · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Letter templates</h1>
+<h1 class="page-title">Letter templates</h1>
 
 <section class="mt-6 max-w-3xl" aria-label="Templates">
-	<table class="w-full text-left text-sm">
-		<thead class="text-slate-500"><tr><th class="py-2">Name</th><th>Kind</th><th>Status</th></tr></thead>
+	<table class="data-table">
+		<thead><tr><th class="py-2">Name</th><th>Kind</th><th>Status</th></tr></thead>
 		<tbody>
 			{#each data.templates as t (t.id)}
 				<tr class="border-t border-slate-200" data-testid="letter-template">
 					<td class="py-2">
-						<a class="text-indigo-700 underline" href={`/t/${data.tenant.slug}/settings/letters/${t.id}`}>{t.name}</a>
+						<a class="text-brand-700 underline" href={`/t/${data.tenant.slug}/settings/letters/${t.id}`}>{t.name}</a>
 					</td>
 					<td>{LETTER_KIND_LABELS[t.kind]}</td>
 					<td>{t.active ? 'In use' : 'Retired'}</td>
@@ -32,8 +32,8 @@
 
 <div class="mt-4 max-w-3xl"><Alert message={form?.message} /></div>
 
-<section class="mt-4 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="New template">
-	<h2 class="font-semibold text-slate-900">New template</h2>
+<section class="mt-4 max-w-3xl panel" aria-label="New template">
+	<h2 class="section-title">New template</h2>
 	<form method="POST" action="?/save" class="mt-3 grid gap-3 sm:grid-cols-2">
 		<LetterTemplateFields v={values} placeholders={data.placeholders} />
 		<div class="sm:col-span-2"><Button type="submit">Add template</Button></div>

@@ -119,50 +119,70 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 	}
 ];
 
-export type NavItem = { href: string; label: string; perm?: Permission | Permission[]; self?: true; active?: true };
+export type NavItem = {
+	href: string;
+	label: string;
+	group: string;
+	perm?: Permission | Permission[];
+	self?: true;
+	active?: true;
+};
+
+const REPORT_PERMS: Permission[] = [
+	'report.headcount',
+	'report.attendance',
+	'report.leave',
+	'report.payroll',
+	'report.meal',
+	'report.expense',
+	'report.recruitment',
+	'report.utilisation',
+	'report.weekly'
+];
 
 export const NAV: NavItem[] = [
-	{ href: '', label: 'Home' },
-	{ href: 'notifications', label: 'Notifications' },
-	{ href: 'announcements', label: 'Announcements', active: true },
-	{ href: 'policies', label: 'Policies', active: true },
-	{ href: 'letters', label: 'Letters' },
+	{ href: '', label: 'Home', group: 'Workspace' },
+	{ href: 'notifications', label: 'Notifications', group: 'Workspace' },
+	{ href: 'approvals', label: 'Approvals', group: 'Workspace' },
+	{ href: 'tasks', label: 'Tasks', group: 'Workspace' },
+	{ href: 'announcements', label: 'Announcements', group: 'Workspace', active: true },
+	{ href: 'policies', label: 'Policies', group: 'Workspace', active: true },
+	{ href: 'letters', label: 'Letters', group: 'Workspace' },
 	{
-		href: 'reports',
-		label: 'Reports',
-		perm: [
-			'report.headcount',
-			'report.attendance',
-			'report.leave',
-			'report.payroll',
-			'report.meal',
-			'report.expense',
-			'report.recruitment',
-			'report.utilisation',
-			'report.weekly'
-		]
+		href: 'helpdesk',
+		label: 'Helpdesk',
+		group: 'Workspace',
+		perm: ['helpdesk.submit', 'helpdesk.manage', 'helpdesk.confidential']
 	},
-	{ href: 'approvals', label: 'Approvals' },
-	{ href: 'tasks', label: 'Tasks' },
-	{ href: 'leave', label: 'Leave', perm: 'leave.request' },
-	{ href: 'attendance', label: 'Attendance', perm: 'attendance.read' },
-	{ href: 'meals', label: 'Meals', perm: 'meal.order' },
-	{ href: 'payslips', label: 'My payslips', self: true },
-	{ href: 'meals/bills', label: 'Meal bills', perm: 'meal.billing' },
-	{ href: 'employees', label: 'Employees', perm: 'employee.read' },
-	{ href: 'expenses', label: 'Expenses', perm: ['expense.submit', 'expense.approve', 'expense.pay'] },
-	{ href: 'loans', label: 'Loans', perm: ['loan.request', 'loan.approve'] },
-	{ href: 'payroll', label: 'Payroll', perm: ['payroll.run', 'payroll.approve'] },
-	{ href: 'payroll/salaries', label: 'Salaries', perm: 'salary.read' },
-	{ href: 'lifecycle', label: 'Lifecycle', perm: 'employee.update' },
-	{ href: 'recruitment', label: 'Recruitment', perm: 'recruitment.read' },
-	{ href: 'recruitment/interviews', label: 'My interviews', perm: 'interview.feedback' },
-	{ href: 'performance', label: 'Performance', perm: 'performance.read' },
-	{ href: 'projects', label: 'Projects', perm: 'project.read' },
-	{ href: 'timesheets', label: 'Timesheets', perm: ['timesheet.submit', 'timesheet.approve'] },
-	{ href: 'assets', label: 'Assets', perm: 'asset.read' },
-	{ href: 'helpdesk', label: 'Helpdesk', perm: ['helpdesk.submit', 'helpdesk.manage', 'helpdesk.confidential'] },
-	{ href: 'work-plan', label: 'Work plan', perm: 'workplan.edit' },
-	{ href: 'org', label: 'Organisation', perm: 'org.manage' },
-	{ href: 'settings', label: 'Settings', perm: [...new Set(SETTINGS_PAGES.flatMap((p) => [p.perm].flat()))] }
+	{ href: 'leave', label: 'Leave', group: 'My work', perm: 'leave.request' },
+	{ href: 'attendance', label: 'Attendance', group: 'My work', perm: 'attendance.read' },
+	{ href: 'meals', label: 'Meals', group: 'My work', perm: 'meal.order' },
+	{ href: 'timesheets', label: 'Timesheets', group: 'My work', perm: ['timesheet.submit', 'timesheet.approve'] },
+	{ href: 'work-plan', label: 'Work plan', group: 'My work', perm: 'workplan.edit' },
+	{ href: 'payslips', label: 'My payslips', group: 'My work', self: true },
+	{
+		href: 'expenses',
+		label: 'Expenses',
+		group: 'My work',
+		perm: ['expense.submit', 'expense.approve', 'expense.pay']
+	},
+	{ href: 'loans', label: 'Loans', group: 'My work', perm: ['loan.request', 'loan.approve'] },
+	{ href: 'employees', label: 'Employees', group: 'People', perm: 'employee.read' },
+	{ href: 'lifecycle', label: 'Lifecycle', group: 'People', perm: 'employee.update' },
+	{ href: 'recruitment', label: 'Recruitment', group: 'People', perm: 'recruitment.read' },
+	{ href: 'recruitment/interviews', label: 'My interviews', group: 'People', perm: 'interview.feedback' },
+	{ href: 'performance', label: 'Performance', group: 'People', perm: 'performance.read' },
+	{ href: 'projects', label: 'Projects', group: 'People', perm: 'project.read' },
+	{ href: 'assets', label: 'Assets', group: 'People', perm: 'asset.read' },
+	{ href: 'payroll', label: 'Payroll', group: 'Finance', perm: ['payroll.run', 'payroll.approve'] },
+	{ href: 'payroll/salaries', label: 'Salaries', group: 'Finance', perm: 'salary.read' },
+	{ href: 'meals/bills', label: 'Meal bills', group: 'Finance', perm: 'meal.billing' },
+	{ href: 'reports', label: 'Reports', group: 'Admin', perm: REPORT_PERMS },
+	{ href: 'org', label: 'Organisation', group: 'Admin', perm: 'org.manage' },
+	{
+		href: 'settings',
+		label: 'Settings',
+		group: 'Admin',
+		perm: [...new Set(SETTINGS_PAGES.flatMap((p) => [p.perm].flat()))]
+	}
 ];

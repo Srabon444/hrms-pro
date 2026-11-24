@@ -6,12 +6,12 @@
 
 <svelte:head><title>Reports · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Reports</h1>
+<h1 class="page-title">Reports</h1>
 <ul class="mt-6 grid max-w-3xl gap-3 sm:grid-cols-2">
 	{#each data.reports as r (r.id)}
 		<li>
 			<a
-				class="block rounded-xl bg-white p-4 font-medium text-indigo-700 ring-1 ring-slate-200 hover:ring-indigo-300"
+				class="block rounded-xl bg-white p-4 font-medium text-brand-700 ring-1 ring-slate-200 hover:ring-brand-300"
 				href={`/t/${data.tenant.slug}/reports/${r.id}`}
 			>
 				{r.title}
@@ -21,11 +21,11 @@
 </ul>
 
 <section class="mt-8 max-w-3xl" aria-label="Shared reports">
-	<h2 class="font-semibold text-slate-900">Shared reports</h2>
+	<h2 class="section-title">Shared reports</h2>
 	<ul class="mt-2 divide-y divide-slate-200 text-sm">
 		{#each data.shares as s (s.id)}
 			<li class="flex justify-between gap-3 py-2" data-testid="shared-report">
-				<a class="text-indigo-700 underline" href={`/t/${data.tenant.slug}/reports/shared/${s.id}`}>
+				<a class="text-brand-700 underline" href={`/t/${data.tenant.slug}/reports/shared/${s.id}`}>
 					{s.title} · {s.period}
 				</a>
 				<span class="text-slate-500">{s.mine ? 'Shared by you' : `From ${s.sharer}`} · until {s.expiresOn}</span>

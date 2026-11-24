@@ -26,7 +26,7 @@
 				<p class="font-medium text-slate-900">{t.title}</p>
 				<p class="text-slate-500">
 					{#if t.readable ?? true}
-						<a href="/t/{slug}/employees/{t.employeeId}" class="text-indigo-700 hover:underline">{t.employeeName}</a>
+						<a href="/t/{slug}/employees/{t.employeeId}" class="text-brand-700 hover:underline">{t.employeeName}</a>
 					{:else}
 						{t.employeeName}
 					{/if}
@@ -39,7 +39,7 @@
 			<form method="POST" {action}>
 				<input type="hidden" name="itemId" value={t.id} />
 				<input type="hidden" name="done" value="true" />
-				<button type="submit" class="text-indigo-700 hover:underline" aria-label="Done: {t.title} for {t.employeeName}">
+				<button type="submit" class="text-brand-700 hover:underline" aria-label="Done: {t.title} for {t.employeeName}">
 					Mark done
 				</button>
 			</form>

@@ -4,14 +4,14 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 	const verdict: Record<string, string> = { strong_no: 'Strong no', no: 'No', yes: 'Yes', strong_yes: 'Strong yes' };
 	const when = (d: Date | string) => new Date(d).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
 </script>
 
 <svelte:head><title>My interviews · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">My interviews</h1>
+<h1 class="page-title">My interviews</h1>
 
 <div class="mt-4 max-w-3xl space-y-2">
 	<Alert message={form?.message} />
@@ -24,10 +24,7 @@
 			<li class="rounded-xl bg-white p-4 ring-1 ring-slate-200" aria-label={`${i.candidateName} · ${i.title}`}>
 				<p class="font-medium text-slate-900">
 					{#if data.canRead}
-						<a
-							class="text-indigo-700 underline"
-							href={`/t/${data.tenant.slug}/recruitment/candidates/${i.candidateId}`}
-						>
+						<a class="text-brand-700 underline" href={`/t/${data.tenant.slug}/recruitment/candidates/${i.candidateId}`}>
 							{i.candidateName}
 						</a>
 					{:else}{i.candidateName}{/if}

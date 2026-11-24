@@ -4,7 +4,7 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const input = 'rounded-md border border-slate-300 px-3 py-2 text-sm mt-1 block w-full';
+	const input = 'input mt-1 block w-full';
 	type Values = Partial<(typeof data.types)[number]>;
 	const blank: Values = {
 		paid: true,
@@ -73,7 +73,7 @@
 	</div>
 {/snippet}
 
-<h1 class="text-2xl font-semibold text-slate-900">Leave types</h1>
+<h1 class="page-title">Leave types</h1>
 <p class="mt-1 max-w-3xl text-sm text-slate-600">
 	Changes apply to new credits and new requests. Credits already given stay as they are.
 </p>
@@ -84,8 +84,8 @@
 </div>
 
 {#each data.types as t (t.id)}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label={t.name}>
-		<h2 class="font-semibold text-slate-900">
+	<section class="mt-6 max-w-3xl panel" aria-label={t.name}>
+		<h2 class="section-title">
 			{t.name}
 			<span class="ml-2 text-xs font-normal text-slate-500">{t.code}{t.active ? '' : ' · inactive'}</span>
 		</h2>
@@ -97,8 +97,8 @@
 	</section>
 {/each}
 
-<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="New leave type">
-	<h2 class="font-semibold text-slate-900">New leave type</h2>
+<section class="mt-6 max-w-3xl panel" aria-label="New leave type">
+	<h2 class="section-title">New leave type</h2>
 	<form method="POST" action="?/create" class="mt-3 grid gap-3 sm:grid-cols-2">
 		<label class="text-sm text-slate-700">
 			Code

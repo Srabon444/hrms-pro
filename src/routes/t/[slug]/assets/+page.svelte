@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Badge from '#lib/components/ui/Badge.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
@@ -8,20 +9,20 @@
 	let { data, form }: PageProps = $props();
 	const base = $derived(`/t/${data.tenant.slug}/assets`);
 	const values = $derived((form && 'values' in form ? form.values : {}) as Record<string, string>);
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 </script>
 
 <svelte:head><title>Assets · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Assets</h1>
+<h1 class="page-title">Assets</h1>
 
 <div class="mt-4 max-w-5xl">
 	<Alert message={form?.message} />
 </div>
 
 {#if data.canManage}
-	<section class="mt-4 max-w-5xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="New asset">
-		<h2 class="font-semibold text-slate-900">New asset</h2>
+	<section class="mt-4 max-w-5xl panel" aria-label="New asset">
+		<h2 class="section-title">New asset</h2>
 		<form method="POST" action="?/save" class="mt-3 grid gap-3 sm:grid-cols-3">
 			<Field
 				label="Tag"
@@ -66,17 +67,17 @@
 
 <section class="mt-4 max-w-5xl" aria-label="Asset list">
 	{#if data.assets.length}
-		<table class="w-full text-left text-sm">
-			<thead class="text-slate-500">
+		<table class="data-table">
+			<thead>
 				<tr><th class="py-2">Tag</th><th>Name</th><th>Category</th><th>Status</th><th>With</th></tr>
 			</thead>
 			<tbody>
 				{#each data.assets as a (a.id)}
 					<tr class="border-t border-slate-200" data-testid="asset">
-						<td class="py-2"><a class="text-indigo-700 underline" href={`${base}/${a.id}`}>{a.tag}</a></td>
+						<td class="py-2"><a class="text-brand-700 underline" href={`${base}/${a.id}`}>{a.tag}</a></td>
 						<td>{a.name}</td>
 						<td>{a.category}</td>
-						<td>{ASSET_STATUS_LABELS[a.status]}</td>
+						<td><Badge status={a.status} label={ASSET_STATUS_LABELS[a.status]} /></td>
 						<td>{a.holder ?? '—'}</td>
 					</tr>
 				{/each}

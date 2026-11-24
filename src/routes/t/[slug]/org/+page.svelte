@@ -4,7 +4,7 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const input = 'rounded-md border border-slate-300 px-2 py-1 text-sm';
+	const input = 'input px-2 py-1';
 	const parentName = (id: string | null) => data.departments.find((d) => d.id === id)?.name;
 	type Row = { id: string; name: string; parentId?: string | null; address?: string | null; rank?: number };
 	const sections: { kind: 'department' | 'branch' | 'designation' | 'grade'; title: string; rows: Row[] }[] = $derived([
@@ -17,7 +17,7 @@
 
 <svelte:head><title>Organisation · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Organisation structure</h1>
+<h1 class="page-title">Organisation structure</h1>
 <div class="mt-4 max-w-xl"><Alert message={form?.message} /></div>
 
 {#snippet parentSelect(current: string | null | undefined, self: string | null, label: string)}
@@ -32,7 +32,7 @@
 <div class="mt-6 grid gap-6 lg:grid-cols-2">
 	{#each sections as section (section.kind)}
 		<section class="rounded-xl bg-white p-5 ring-1 ring-slate-200" aria-label={section.title}>
-			<h2 class="font-semibold text-slate-900">{section.title}</h2>
+			<h2 class="section-title">{section.title}</h2>
 			<ul class="mt-3 space-y-2">
 				{#each section.rows as row (row.id)}
 					<li class="flex flex-wrap items-center gap-2">
@@ -114,10 +114,10 @@
 	{/each}
 
 	<section class="rounded-xl bg-white p-5 ring-1 ring-slate-200 lg:col-span-2" aria-label="Holidays">
-		<div class="flex items-center gap-4">
-			<h2 class="font-semibold text-slate-900">Holidays {data.year}</h2>
-			<a href="?year={data.year - 1}" class="text-sm text-indigo-600 hover:underline">{data.year - 1}</a>
-			<a href="?year={data.year + 1}" class="text-sm text-indigo-600 hover:underline">{data.year + 1}</a>
+		<div class="flex flex-wrap items-center gap-4">
+			<h2 class="section-title">Holidays {data.year}</h2>
+			<a href="?year={data.year - 1}" class="text-sm text-brand-600 hover:underline">{data.year - 1}</a>
+			<a href="?year={data.year + 1}" class="text-sm text-brand-600 hover:underline">{data.year + 1}</a>
 		</div>
 		<ul class="mt-3 divide-y divide-slate-100">
 			{#each data.holidays as h (h.id)}

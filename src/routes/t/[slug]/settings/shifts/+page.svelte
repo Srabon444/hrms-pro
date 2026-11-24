@@ -4,7 +4,7 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const input = 'rounded-md border border-slate-300 px-3 py-2 text-sm mt-1 block w-full';
+	const input = 'input mt-1 block w-full';
 	type Values = Partial<(typeof data.shifts)[number]>;
 	const blank: Values = { graceMinutes: 15, halfDayMinutes: 240, fullDayMinutes: 480, active: true };
 	const hhmm = (t?: string) => t?.slice(0, 5) ?? '';
@@ -47,7 +47,7 @@
 	</label>
 {/snippet}
 
-<h1 class="text-2xl font-semibold text-slate-900">Shifts</h1>
+<h1 class="page-title">Shifts</h1>
 <p class="mt-1 max-w-3xl text-sm text-slate-600">
 	Everyone works the default shift unless their profile assigns another one from a given date.
 </p>
@@ -58,8 +58,8 @@
 </div>
 
 {#each data.shifts as s (s.id)}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label={s.name}>
-		<h2 class="font-semibold text-slate-900">
+	<section class="mt-6 max-w-3xl panel" aria-label={s.name}>
+		<h2 class="section-title">
 			{s.name}
 			<span class="ml-2 text-xs font-normal text-slate-500">
 				{hhmm(s.startTime)}–{hhmm(s.endTime)}{s.isDefault ? ' · default' : ''}{s.active ? '' : ' · inactive'}
@@ -73,8 +73,8 @@
 	</section>
 {/each}
 
-<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="New shift">
-	<h2 class="font-semibold text-slate-900">New shift</h2>
+<section class="mt-6 max-w-3xl panel" aria-label="New shift">
+	<h2 class="section-title">New shift</h2>
 	<form method="POST" action="?/create" class="mt-3 grid gap-3 sm:grid-cols-2">
 		{@render fields(blank)}
 		<div class="sm:col-span-2"><Button type="submit">Add shift</Button></div>

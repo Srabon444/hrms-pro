@@ -6,12 +6,12 @@
 
 	let { data, form }: PageProps = $props();
 	const b = $derived(data.board);
-	const input = 'rounded-md border border-slate-300 px-2 py-1 text-sm';
+	const input = 'input px-2 py-1';
 </script>
 
 <svelte:head><title>Salaries · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Salaries</h1>
+<h1 class="page-title">Salaries</h1>
 
 <div class="mt-4 max-w-4xl space-y-2">
 	<Alert message={form?.message} />
@@ -19,8 +19,8 @@
 </div>
 
 {#if b.pending.length}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Waiting for approval">
-		<h2 class="font-semibold text-slate-900">Waiting for approval</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="Waiting for approval">
+		<h2 class="section-title">Waiting for approval</h2>
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each b.pending as c (c.id)}
 				<li class="py-3" data-testid="salary-change">
@@ -41,8 +41,8 @@
 {/if}
 
 {#if b.canPropose}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="New salary">
-		<h2 class="font-semibold text-slate-900">New salary</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="New salary">
+		<h2 class="section-title">New salary</h2>
 		<form method="POST" action="?/propose" class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
 			<label class="text-slate-700">
 				Employee
@@ -77,10 +77,10 @@
 	</section>
 {/if}
 
-<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Current salaries">
-	<h2 class="font-semibold text-slate-900">Current salaries</h2>
-	<table class="mt-3 w-full text-left text-sm">
-		<thead class="text-slate-500">
+<section class="mt-6 max-w-4xl panel" aria-label="Current salaries">
+	<h2 class="section-title">Current salaries</h2>
+	<table class="mt-3 data-table">
+		<thead>
 			<tr><th class="py-1">Employee</th><th>Gross</th><th>Since</th><th>Breakdown</th></tr>
 		</thead>
 		<tbody>

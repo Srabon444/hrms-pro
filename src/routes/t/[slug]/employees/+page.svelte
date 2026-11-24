@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Badge from '#lib/components/ui/Badge.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import type { PageProps } from './$types';
 
@@ -14,22 +15,22 @@
 		});
 		return `?${q}`;
 	};
-	const input = 'rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'input';
 </script>
 
 <svelte:head><title>Employees · {data.tenant.name}</title></svelte:head>
 
-<div class="flex items-center gap-4">
-	<h1 class="text-2xl font-semibold text-slate-900">Employees</h1>
+<div class="flex flex-wrap items-center gap-4">
+	<h1 class="page-title">Employees</h1>
 	<span class="text-sm text-slate-500" data-testid="employee-total">{data.total}</span>
-	<a href="/t/{data.tenant.slug}/employees/export{pageHref(1)}" class="ml-auto text-sm text-indigo-600 hover:underline">
+	<a href="/t/{data.tenant.slug}/employees/export{pageHref(1)}" class="ml-auto text-sm text-brand-600 hover:underline">
 		Export CSV
 	</a>
 	{#if data.canCreate}
-		<a href="/t/{data.tenant.slug}/employees/import" class="text-sm text-indigo-600 hover:underline">Import CSV</a>
+		<a href="/t/{data.tenant.slug}/employees/import" class="text-sm text-brand-600 hover:underline">Import CSV</a>
 		<a
 			href="/t/{data.tenant.slug}/employees/new"
-			class=" rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+			class="rounded-lg bg-brand-600 px-3.5 py-1.5 text-sm font-medium text-white no-underline hover:bg-brand-700"
 		>
 			New employee
 		</a>
@@ -60,7 +61,7 @@
 </form>
 
 <div class="mt-6 overflow-x-auto rounded-xl bg-white ring-1 ring-slate-200">
-	<table class="min-w-full text-sm">
+	<table class="data-table">
 		<thead class="bg-slate-50 text-left text-slate-600">
 			<tr>
 				<th class="px-4 py-2 font-medium">Code</th>
@@ -75,11 +76,11 @@
 				<tr>
 					<td class="px-4 py-2 font-mono text-xs">{e.code}</td>
 					<td class="px-4 py-2">
-						<a href="/t/{data.tenant.slug}/employees/{e.id}" class="text-indigo-700 hover:underline">{e.fullName}</a>
+						<a href="/t/{data.tenant.slug}/employees/{e.id}" class="text-brand-700 hover:underline">{e.fullName}</a>
 					</td>
 					<td class="px-4 py-2">{e.department ?? ''}</td>
 					<td class="px-4 py-2">{e.designation ?? ''}</td>
-					<td class="px-4 py-2">{e.status}</td>
+					<td class="px-4 py-2"><Badge status={e.status} /></td>
 				</tr>
 			{:else}
 				<tr><td colspan="5" class="px-4 py-6 text-center text-slate-500">No employees found.</td></tr>
@@ -90,8 +91,8 @@
 
 {#if data.pages > 1}
 	<nav aria-label="Pages" class="mt-4 flex items-center gap-4 text-sm">
-		{#if f.page > 1}<a href={pageHref(f.page - 1)} class="text-indigo-600 hover:underline">Previous</a>{/if}
+		{#if f.page > 1}<a href={pageHref(f.page - 1)} class="text-brand-600 hover:underline">Previous</a>{/if}
 		<span>Page {f.page} of {data.pages}</span>
-		{#if f.page < data.pages}<a href={pageHref(f.page + 1)} class="text-indigo-600 hover:underline">Next</a>{/if}
+		{#if f.page < data.pages}<a href={pageHref(f.page + 1)} class="text-brand-600 hover:underline">Next</a>{/if}
 	</nav>
 {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Badge from '#lib/components/ui/Badge.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { BILL_STATUS } from '#lib/meal-bill-status.ts';
@@ -7,20 +8,20 @@
 
 	let { data, form }: PageProps = $props();
 	const b = $derived(data.billing);
-	const input = 'rounded-md border border-slate-300 px-2 py-1 text-sm';
+	const input = 'input px-2 py-1';
 </script>
 
 <svelte:head><title>Meal bills · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Meal bills</h1>
+<h1 class="page-title">Meal bills</h1>
 
 <div class="mt-4 max-w-4xl space-y-2">
 	<Alert message={form?.message} />
 	{#if form && 'done' in form}<Alert tone="info" message={form.done} />{/if}
 </div>
 
-<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Bills">
-	<form method="GET" class="flex items-end gap-3 text-sm">
+<section class="mt-6 max-w-4xl panel" aria-label="Bills">
+	<form method="GET" class="flex flex-wrap items-end gap-3 text-sm">
 		<label class="text-slate-700">
 			Month
 			<input name="period" type="month" value={b.period} class={`${input} block`} />
@@ -45,15 +46,15 @@
 		</div>
 	{/if}
 	{#if b.bills.length}
-		<table class="mt-4 w-full text-left text-sm">
-			<thead class="text-slate-500">
+		<table class="mt-4 data-table">
+			<thead>
 				<tr><th class="py-1">Employee</th><th>Status</th><th>Paid by</th><th>Total</th><th>Paid</th><th></th></tr>
 			</thead>
 			<tbody>
 				{#each b.bills as bill (bill.id)}
 					<tr class="border-t border-slate-100" data-testid="meal-bill">
 						<td class="py-1">{bill.name} <span class="text-slate-400">{bill.code}</span></td>
-						<td>{BILL_STATUS[bill.status]}</td>
+						<td><Badge status={bill.status} label={BILL_STATUS[bill.status]} /></td>
 						<td>{bill.billingMode === 'payroll' ? 'Salary' : 'Cash'}</td>
 						<td>৳{taka(bill.total)}</td>
 						<td>৳{taka(bill.paid)}</td>
@@ -88,7 +89,7 @@
 								</form>
 							{/if}
 							{#if bill.status !== 'draft' && bill.status !== 'void'}
-								<a href="/t/{data.tenant.slug}/meals/bills/{bill.id}/pdf" class="text-indigo-700 hover:underline">
+								<a href="/t/{data.tenant.slug}/meals/bills/{bill.id}/pdf" class="text-brand-700 hover:underline">
 									PDF of {bill.name}
 								</a>
 							{/if}
@@ -108,11 +109,11 @@
 	{/if}
 </section>
 
-<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Caterer statement">
-	<h2 class="font-semibold text-slate-900">Caterer statement for {b.period}</h2>
+<section class="mt-6 max-w-4xl panel" aria-label="Caterer statement">
+	<h2 class="section-title">Caterer statement for {b.period}</h2>
 	{#if data.statement.rows.length}
-		<table class="mt-3 w-full text-left text-sm">
-			<thead class="text-slate-500">
+		<table class="mt-3 data-table">
+			<thead>
 				<tr>
 					<th class="py-1">Caterer</th>
 					<th>Meal</th>

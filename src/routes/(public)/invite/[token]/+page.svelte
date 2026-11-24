@@ -25,7 +25,7 @@
 {:else if inv.userExists}
 	<a
 		href="/login?next={encodeURIComponent(page.url.pathname)}"
-		class="inline-flex rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white"
+		class="inline-flex rounded-lg bg-brand-600 px-3.5 py-1.5 text-sm font-medium text-white no-underline hover:bg-brand-700"
 	>
 		Sign in to accept
 	</a>

@@ -8,14 +8,14 @@
 	let { data, form }: PageProps = $props();
 	const v = $derived(data.view);
 	const p = $derived(v.project);
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 	const onTeam = $derived(new Set(v.members.map((x) => x.employeeId)));
 </script>
 
 <svelte:head><title>{p.code} · Projects · {data.tenant.name}</title></svelte:head>
 
-<a class="text-sm text-indigo-700 underline" href={`/t/${data.tenant.slug}/projects`}>Projects</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{p.code} · {p.name}</h1>
+<a class="text-sm text-brand-700 underline" href={`/t/${data.tenant.slug}/projects`}>Projects</a>
+<h1 class="page-title mt-2">{p.code} · {p.name}</h1>
 <p class="text-sm text-slate-600">
 	{PROJECT_STATUS_LABELS[p.status]}{p.client ? ` · ${p.client}` : ''} · {p.billable ? 'Billable' : 'Non-billable'}
 </p>
@@ -26,8 +26,8 @@
 </div>
 
 {#if v.canManage}
-	<section class="mt-4 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Edit project">
-		<h2 class="font-semibold text-slate-900">Edit project</h2>
+	<section class="mt-4 max-w-4xl panel" aria-label="Edit project">
+		<h2 class="section-title">Edit project</h2>
 		<form method="POST" action="?/save" class="mt-3 grid gap-3 sm:grid-cols-3">
 			<Field
 				label="Code"
@@ -56,7 +56,7 @@
 {/if}
 
 <section class="mt-6 max-w-4xl" aria-label="Team">
-	<h2 class="font-semibold text-slate-900">Team</h2>
+	<h2 class="section-title">Team</h2>
 	{#if v.members.length}
 		<ul class="mt-2 space-y-2 text-sm">
 			{#each v.members as x (x.employeeId)}
@@ -77,8 +77,8 @@
 </section>
 
 {#if v.canManage && p.status !== 'closed'}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Add to team">
-		<h2 class="font-semibold text-slate-900">Add or change a team member</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="Add to team">
+		<h2 class="section-title">Add or change a team member</h2>
 		<form method="POST" action="?/member" class="mt-3 grid gap-3 sm:grid-cols-4">
 			<label class="block text-sm font-medium text-slate-700">
 				Employee

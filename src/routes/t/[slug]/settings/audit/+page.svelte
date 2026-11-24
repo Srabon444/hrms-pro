@@ -10,9 +10,9 @@
 
 <svelte:head><title>Audit log · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Audit log</h1>
+<h1 class="page-title">Audit log</h1>
 
-<form method="GET" class="mt-4 flex items-end gap-3">
+<form method="GET" class="mt-4 flex flex-wrap items-end gap-3">
 	<label class="text-sm text-slate-700">
 		Record type
 		<select name="table" class="mt-1 block rounded-md border-slate-300 text-sm">
@@ -27,7 +27,7 @@
 	<p class="mt-6 text-sm text-slate-600">No changes recorded.</p>
 {:else}
 	<div class="mt-6 overflow-x-auto rounded-xl bg-white ring-1 ring-slate-200">
-		<table class="min-w-full text-sm">
+		<table class="data-table">
 			<thead class="bg-slate-50 text-left text-slate-600">
 				<tr>
 					<th class="px-4 py-2 font-medium">When</th>
@@ -54,5 +54,5 @@
 			</tbody>
 		</table>
 	</div>
-	{#if older}<a href={older} class="mt-4 inline-block text-sm text-indigo-600 hover:underline">Older entries</a>{/if}
+	{#if older}<a href={older} class="mt-4 inline-block text-sm text-brand-600 hover:underline">Older entries</a>{/if}
 {/if}

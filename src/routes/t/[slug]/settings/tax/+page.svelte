@@ -8,13 +8,13 @@
 	let { data, form }: PageProps = $props();
 	const b = $derived(data.board);
 	const y = $derived(b.year);
-	const input = 'rounded-md border border-slate-300 px-2 py-1 text-sm';
+	const input = 'input px-2 py-1';
 	const money = '\\d{1,9}(\\.\\d{1,2})?';
 </script>
 
 <svelte:head><title>Income tax · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Income tax</h1>
+<h1 class="page-title">Income tax</h1>
 
 <div class="mt-4 max-w-4xl space-y-2">
 	<Alert message={form?.message} />
@@ -25,7 +25,7 @@
 	{#each b.years as t (t.fy)}
 		<a
 			href={`/t/${data.tenant.slug}/settings/tax?fy=${t.fy}`}
-			class={t.fy === y?.fy ? 'font-semibold text-slate-900' : 'text-indigo-700 underline'}
+			class={t.fy === y?.fy ? 'font-semibold text-slate-900' : 'text-brand-700 underline'}
 		>
 			{t.fy}{t.confirmed ? '' : ' (not confirmed)'}
 		</a>
@@ -42,8 +42,8 @@
 {/if}
 
 {#if y}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Tax rules">
-		<h2 class="font-semibold text-slate-900">Tax rules for {y.fy}</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="Tax rules">
+		<h2 class="section-title">Tax rules for {y.fy}</h2>
 		{#if y.confirmedAt}
 			<p class="mt-1 text-sm text-emerald-700">Confirmed on {new Date(y.confirmedAt).toLocaleDateString()}.</p>
 		{:else}
@@ -120,8 +120,8 @@
 	</section>
 
 	{#if b.canProfiles}
-		<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Tax profiles">
-			<h2 class="font-semibold text-slate-900">Employee tax profiles for {y.fy}</h2>
+		<section class="mt-6 max-w-4xl panel" aria-label="Tax profiles">
+			<h2 class="section-title">Employee tax profiles for {y.fy}</h2>
 			<ul class="mt-3 space-y-2 text-sm">
 				{#each b.people as p (p.id)}
 					<li data-testid="tax-profile">

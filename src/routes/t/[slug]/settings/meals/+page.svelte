@@ -7,8 +7,8 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const input = 'rounded-md border border-slate-300 px-3 py-2 text-sm mt-1 block w-full';
-	const card = 'mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200';
+	const input = 'input mt-1 block w-full';
+	const card = 'mt-6 max-w-3xl panel';
 	const s = $derived(data.setup.settings);
 	const activeVendors = $derived(data.setup.vendors.filter((v) => v.active));
 	type Vendor = Partial<(typeof data.setup.vendors)[number]>;
@@ -51,7 +51,7 @@
 	</label>
 {/snippet}
 
-<h1 class="text-2xl font-semibold text-slate-900">Meal setup</h1>
+<h1 class="page-title">Meal setup</h1>
 <p class="mt-1 max-w-3xl text-sm text-slate-600">
 	Caterers supply meals, each meal has a price per plate from a date, and the company share is taken off what employees
 	pay for their own meals. Guests are always charged in full.
@@ -63,7 +63,7 @@
 </div>
 
 <section class={card} aria-label="Ordering rules">
-	<h2 class="font-semibold text-slate-900">Ordering rules</h2>
+	<h2 class="section-title">Ordering rules</h2>
 	<form method="POST" action="?/settings" class="mt-3 grid gap-3 sm:grid-cols-2">
 		<label class="text-sm text-slate-700">
 			Daily cutoff (changes for a day close at this time that day)
@@ -95,7 +95,7 @@
 
 {#each data.setup.vendors as v (v.id)}
 	<section class={card} aria-label={v.name}>
-		<h2 class="font-semibold text-slate-900">
+		<h2 class="section-title">
 			{v.name}<span class="ml-2 text-xs font-normal text-slate-500">caterer{v.active ? '' : ' · inactive'}</span>
 		</h2>
 		<form method="POST" action="?/vendor" class="mt-3 grid gap-3 sm:grid-cols-2">
@@ -107,7 +107,7 @@
 {/each}
 
 <section class={card} aria-label="New caterer">
-	<h2 class="font-semibold text-slate-900">New caterer</h2>
+	<h2 class="section-title">New caterer</h2>
 	<form method="POST" action="?/vendor" class="mt-3 grid gap-3 sm:grid-cols-2">
 		{@render vendorFields({})}
 		<div class="sm:col-span-2"><Button type="submit">Add caterer</Button></div>
@@ -116,7 +116,7 @@
 
 {#each data.setup.types as t (t.id)}
 	<section class={card} aria-label={t.name}>
-		<h2 class="font-semibold text-slate-900">
+		<h2 class="section-title">
 			{t.name}
 			<span class="ml-2 text-xs font-normal text-slate-500" data-testid="meal-price">
 				{t.vendor} · {t.current
@@ -164,7 +164,7 @@
 
 {#if activeVendors.length}
 	<section class={card} aria-label="New meal">
-		<h2 class="font-semibold text-slate-900">New meal</h2>
+		<h2 class="section-title">New meal</h2>
 		<form method="POST" action="?/type" class="mt-3 grid gap-3 sm:grid-cols-2">
 			{@render typeFields({})}
 			<div class="sm:col-span-2"><Button type="submit">Add meal</Button></div>

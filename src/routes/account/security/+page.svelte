@@ -11,16 +11,16 @@
 
 <main class="mx-auto max-w-lg space-y-8 px-4 py-12">
 	<div class="flex items-center">
-		<h1 class="text-2xl font-semibold text-slate-900">Account security</h1>
-		<a href="/" class="ml-auto text-sm text-indigo-600 hover:underline">Back</a>
+		<h1 class="page-title">Account security</h1>
+		<a href="/" class="ml-auto text-sm text-brand-600 hover:underline">Back</a>
 	</div>
 	{#if data.required && !data.totpEnabled}
 		<Alert message="Two-factor authentication is required for this area. Set it up to continue." />
 	{/if}
 	<Alert message={form?.message} />
 
-	<section class="space-y-4 rounded-xl bg-white p-6 ring-1 ring-slate-200">
-		<h2 class="font-semibold text-slate-900">Two-factor authentication</h2>
+	<section class="space-y-4 panel">
+		<h2 class="section-title">Two-factor authentication</h2>
 		{#if form && 'recoveryCodes' in form && form.recoveryCodes}
 			<Alert tone="info" message="Two-factor authentication is on. Save these recovery codes now; each works once." />
 			<ul data-testid="recovery-codes" class="grid grid-cols-2 gap-2 font-mono text-sm">
@@ -37,7 +37,7 @@
 				Add this key to your authenticator app (Google Authenticator, 1Password, Authy…), then enter the 6-digit code.
 			</p>
 			<p data-testid="totp-secret" class="font-mono text-sm break-all">{form.enrol.secret}</p>
-			<a href={form.enrol.uri} class="text-sm text-indigo-600 hover:underline">Open in authenticator app</a>
+			<a href={form.enrol.uri} class="text-sm text-brand-600 hover:underline">Open in authenticator app</a>
 			<form method="POST" action="?/confirm" class="space-y-3">
 				<Field label="Code" name="code" inputmode="numeric" required maxlength={6} autocomplete="one-time-code" />
 				<Button type="submit">Turn on</Button>
@@ -48,8 +48,8 @@
 		{/if}
 	</section>
 
-	<section class="space-y-4 rounded-xl bg-white p-6 ring-1 ring-slate-200">
-		<h2 class="font-semibold text-slate-900">Change password</h2>
+	<section class="space-y-4 panel">
+		<h2 class="section-title">Change password</h2>
 		{#if form && 'passwordChanged' in form}
 			<Alert tone="info" message="Password changed. Other devices were signed out." />
 		{/if}

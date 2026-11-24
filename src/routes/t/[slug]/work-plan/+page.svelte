@@ -6,7 +6,7 @@
 
 	let { data, form }: PageProps = $props();
 	const p = $derived(data.plan);
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 	const statuses = [
 		['pending', 'Pending'],
 		['in_progress', 'In progress'],
@@ -16,11 +16,11 @@
 
 <svelte:head><title>Work plan · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Work plan · week of {p.week}</h1>
+<h1 class="page-title">Work plan · week of {p.week}</h1>
 <nav class="mt-2 flex gap-3 text-sm" aria-label="Weeks">
-	<a class="text-indigo-700 underline" href={`?week=${p.previous}`}>Previous week</a>
-	{#if p.week !== p.current}<a class="text-indigo-700 underline" href="?">This week</a>{/if}
-	<a class="text-indigo-700 underline" href={`?week=${p.next}`}>Next week</a>
+	<a class="text-brand-700 underline" href={`?week=${p.previous}`}>Previous week</a>
+	{#if p.week !== p.current}<a class="text-brand-700 underline" href="?">This week</a>{/if}
+	<a class="text-brand-700 underline" href={`?week=${p.next}`}>Next week</a>
 </nav>
 
 <div class="mt-4 max-w-4xl space-y-2">
@@ -29,8 +29,8 @@
 </div>
 
 {#if p.canPlan}
-	<section class="mt-4 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Add item">
-		<h2 class="font-semibold text-slate-900">Add item</h2>
+	<section class="mt-4 max-w-4xl panel" aria-label="Add item">
+		<h2 class="section-title">Add item</h2>
 		<form method="POST" action="?/add" class="mt-3 grid gap-3 sm:grid-cols-3">
 			<input type="hidden" name="weekStart" value={p.week} />
 			<label class="block text-sm font-medium text-slate-700">
@@ -56,7 +56,7 @@
 					</p>
 					<p class="text-slate-600">{i.name}</p>
 					<div class="mt-2 flex flex-wrap items-end gap-2">
-						<form method="POST" action="?/status" class="flex items-end gap-2">
+						<form method="POST" action="?/status" class="flex flex-wrap items-end gap-2">
 							<input type="hidden" name="itemId" value={i.id} />
 							<label class="block text-sm font-medium text-slate-700">
 								Status of {i.description}

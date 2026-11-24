@@ -8,14 +8,14 @@
 	let { data, form }: PageProps = $props();
 	const w = $derived(data.week);
 	const values = $derived((form && 'values' in form ? form.values : {}) as Record<string, string>);
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 	const total = $derived(w ? w.entries.reduce((s, e) => s + e.minutes, 0) : 0);
 	const base = $derived(`/t/${data.tenant.slug}/timesheets`);
 </script>
 
 <svelte:head><title>Timesheets · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Timesheets</h1>
+<h1 class="page-title">Timesheets</h1>
 
 <div class="mt-4 max-w-4xl space-y-2">
 	<Alert message={form?.message} />
@@ -24,10 +24,10 @@
 
 {#if data.waiting.length}
 	<section class="mt-4 max-w-4xl" aria-label="Waiting for you">
-		<h2 class="font-semibold text-slate-900">Waiting for you</h2>
+		<h2 class="section-title">Waiting for you</h2>
 		<ul class="mt-2 space-y-1 text-sm">
 			{#each data.waiting as t (t.id)}
-				<li><a class="text-indigo-700 underline" href={`${base}/${t.id}`}>{t.title}</a></li>
+				<li><a class="text-brand-700 underline" href={`${base}/${t.id}`}>{t.title}</a></li>
 			{/each}
 		</ul>
 	</section>
@@ -35,19 +35,19 @@
 
 {#if w}
 	<section class="mt-6 max-w-4xl" aria-label="My week">
-		<h2 class="font-semibold text-slate-900">
+		<h2 class="section-title">
 			Week of {w.week} · {hoursOf(total)} h{w.sheet ? ` · ${TIMESHEET_STATUS_LABELS[w.sheet.status]}` : ''}
 		</h2>
 		<nav class="mt-1 flex gap-3 text-sm" aria-label="Weeks">
-			<a class="text-indigo-700 underline" href={`?week=${w.previous}`}>Previous week</a>
-			{#if w.next}<a class="text-indigo-700 underline" href={`?week=${w.next}`}>Next week</a>{/if}
+			<a class="text-brand-700 underline" href={`?week=${w.previous}`}>Previous week</a>
+			{#if w.next}<a class="text-brand-700 underline" href={`?week=${w.next}`}>Next week</a>{/if}
 		</nav>
 		{#if w.sheet?.status === 'rejected' && w.sheet.decisionNote}
 			<p class="mt-2 text-sm text-amber-800">Sent back: {w.sheet.decisionNote}</p>
 		{/if}
 		{#if w.entries.length}
-			<table class="mt-3 w-full text-left text-sm">
-				<thead class="text-slate-500">
+			<table class="mt-3 data-table">
+				<thead>
 					<tr><th class="py-2">Date</th><th>Project</th><th>Hours</th><th>Note</th><th></th></tr>
 				</thead>
 				<tbody>
@@ -76,8 +76,8 @@
 
 	{#if w.canEdit}
 		{#if w.projects.length}
-			<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Log time">
-				<h2 class="font-semibold text-slate-900">Log time</h2>
+			<section class="mt-6 max-w-4xl panel" aria-label="Log time">
+				<h2 class="section-title">Log time</h2>
 				<form method="POST" action="?/log" class="mt-3 grid gap-3 sm:grid-cols-4">
 					<label class="block text-sm font-medium text-slate-700">
 						Project
@@ -118,11 +118,11 @@
 
 	{#if w.recent.length}
 		<section class="mt-6 max-w-4xl" aria-label="Recent weeks">
-			<h2 class="font-semibold text-slate-900">Recent weeks</h2>
+			<h2 class="section-title">Recent weeks</h2>
 			<ul class="mt-2 space-y-1 text-sm">
 				{#each w.recent as r (r.id)}
 					<li>
-						<a class="text-indigo-700 underline" href={`?week=${r.weekStart}`}>Week of {r.weekStart}</a>
+						<a class="text-brand-700 underline" href={`?week=${r.weekStart}`}>Week of {r.weekStart}</a>
 						<span class="text-slate-500">· {TIMESHEET_STATUS_LABELS[r.status]}</span>
 					</li>
 				{/each}

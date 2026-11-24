@@ -17,15 +17,15 @@
 
 <svelte:head><title>Performance · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Performance</h1>
+<h1 class="page-title">Performance</h1>
 
 <div class="mt-4 max-w-4xl">
 	<Alert message={form?.message} />
 </div>
 
 {#if data.canRun}
-	<section class="mt-4 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="New review cycle">
-		<h2 class="font-semibold text-slate-900">New review cycle</h2>
+	<section class="mt-4 max-w-4xl panel" aria-label="New review cycle">
+		<h2 class="section-title">New review cycle</h2>
 		<p class="mt-1 text-sm text-slate-600">Opens a review for every employee on probation, active or serving notice.</p>
 		<form method="POST" action="?/cycle" class="mt-3 grid gap-3 sm:grid-cols-3">
 			<Field label="Name" name="name" required maxlength={80} value={values.name ?? ''} />
@@ -39,12 +39,12 @@
 {#each lists as list (list.label)}
 	{#if list.label === 'My reviews' || list.rows.length}
 		<section class="mt-6 max-w-4xl" aria-label={list.label}>
-			<h2 class="font-semibold text-slate-900">{list.label}</h2>
+			<h2 class="section-title">{list.label}</h2>
 			{#if list.rows.length}
 				<ul class="mt-2 space-y-1 text-sm">
 					{#each list.rows as r (r.id)}
 						<li>
-							<a class="text-indigo-700 underline" href={`${base}/reviews/${r.id}`}>{r.cycle} · {r.name}</a>
+							<a class="text-brand-700 underline" href={`${base}/reviews/${r.id}`}>{r.cycle} · {r.name}</a>
 							<span class="text-slate-500">· {STAGE_LABELS[r.stage]}</span>
 						</li>
 					{/each}
@@ -57,12 +57,12 @@
 {/each}
 
 <section class="mt-6 max-w-4xl" aria-label="Review cycles">
-	<h2 class="font-semibold text-slate-900">Review cycles</h2>
+	<h2 class="section-title">Review cycles</h2>
 	{#if data.home.cycles.length}
 		<ul class="mt-2 space-y-1 text-sm">
 			{#each data.home.cycles as c (c.id)}
 				<li>
-					<a class="text-indigo-700 underline" href={`${base}/${c.id}`}>{c.name}</a>
+					<a class="text-brand-700 underline" href={`${base}/${c.id}`}>{c.name}</a>
 					<span class="text-slate-500">
 						· {c.periodStart} to {c.periodEnd} · {c.status === 'open' ? 'Open' : 'Closed'}
 					</span>

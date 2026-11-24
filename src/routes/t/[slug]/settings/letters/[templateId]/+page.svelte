@@ -18,8 +18,8 @@
 
 <svelte:head><title>{data.template.name} · {data.tenant.name}</title></svelte:head>
 
-<a class="text-sm text-indigo-700 underline" href={`/t/${data.tenant.slug}/settings/letters`}>All templates</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{data.template.name}</h1>
+<a class="text-sm text-brand-700 underline" href={`/t/${data.tenant.slug}/settings/letters`}>All templates</a>
+<h1 class="page-title mt-2">{data.template.name}</h1>
 
 <div class="mt-4 max-w-3xl"><Alert message={form?.message} /></div>
 

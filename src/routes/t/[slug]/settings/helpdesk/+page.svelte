@@ -4,7 +4,7 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 	type Values = { id?: string; name?: string; slaHours?: number; confidential?: boolean; active?: boolean };
 </script>
 
@@ -39,7 +39,7 @@
 	</label>
 {/snippet}
 
-<h1 class="text-2xl font-semibold text-slate-900">Helpdesk setup</h1>
+<h1 class="page-title">Helpdesk setup</h1>
 <p class="mt-1 max-w-3xl text-sm text-slate-600">
 	Categories decide who can see a ticket and how long the helpdesk has to resolve it.
 </p>
@@ -51,8 +51,8 @@
 
 {#each data.categories as c (c.id)}
 	{@const locked = c.confidential && !data.canConfidential}
-	<section class="mt-4 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label={c.name}>
-		<h2 class="font-semibold text-slate-900">
+	<section class="mt-4 max-w-3xl panel" aria-label={c.name}>
+		<h2 class="section-title">
 			{c.name}
 			<span class="ml-2 text-xs font-normal text-slate-500">
 				{c.slaHours} h{c.confidential ? ' · confidential' : ''}{c.active ? '' : ' · closed'}
@@ -65,8 +65,8 @@
 	</section>
 {/each}
 
-<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="New category">
-	<h2 class="font-semibold text-slate-900">New category</h2>
+<section class="mt-6 max-w-3xl panel" aria-label="New category">
+	<h2 class="section-title">New category</h2>
 	<form method="POST" action="?/save" class="mt-3 grid gap-3 sm:grid-cols-2">
 		{@render fields({}, false)}
 		<div class="sm:col-span-2"><Button type="submit">Add category</Button></div>

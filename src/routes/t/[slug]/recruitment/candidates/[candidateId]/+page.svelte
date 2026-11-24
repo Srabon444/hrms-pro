@@ -10,7 +10,7 @@
 	const c = $derived(v.candidate);
 	const stage = $derived(v.stages.find((s) => s.id === c.stageId));
 	const targets = $derived(v.stages.filter((s) => s.id !== c.stageId && s.kind !== 'hired'));
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 	const base = $derived(`/t/${data.tenant.slug}/recruitment`);
 	const when = (d: Date | string) => new Date(d).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
 	const moneyPattern = '\\d{1,8}(\\.\\d{1,2})?';
@@ -28,15 +28,15 @@
 
 <svelte:head><title>{c.fullName} · Recruitment · {data.tenant.name}</title></svelte:head>
 
-<a class="text-sm text-indigo-700 underline" href={`${base}/${v.opening.id}`}>{v.opening.title}</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{c.fullName} · {stage?.name}</h1>
+<a class="text-sm text-brand-700 underline" href={`${base}/${v.opening.id}`}>{v.opening.title}</a>
+<h1 class="page-title mt-2">{c.fullName} · {stage?.name}</h1>
 
 <div class="mt-4 max-w-3xl space-y-2">
 	<Alert message={form?.message} />
 	{#if form && 'done' in form}<Alert tone="info" message={form.done} />{/if}
 </div>
 
-<section class="mt-4 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Candidate details">
+<section class="mt-4 max-w-3xl panel" aria-label="Candidate details">
 	<dl class="grid gap-2 text-sm sm:grid-cols-2">
 		<div>
 			<dt class="text-slate-500">Email</dt>
@@ -54,7 +54,7 @@
 			<dt class="text-slate-500">Resume</dt>
 			<dd>
 				{#if c.hasResume}
-					<a class="text-indigo-700 underline" href={`${base}/candidates/${c.id}/resume`} download>{c.resumeName}</a>
+					<a class="text-brand-700 underline" href={`${base}/candidates/${c.id}/resume`} download>{c.resumeName}</a>
 				{:else}—{/if}
 			</dd>
 		</div>
@@ -62,7 +62,7 @@
 			<div>
 				<dt class="text-slate-500">Employee</dt>
 				<dd>
-					<a class="text-indigo-700 underline" href={`/t/${data.tenant.slug}/employees/${c.employeeId}`}>
+					<a class="text-brand-700 underline" href={`/t/${data.tenant.slug}/employees/${c.employeeId}`}>
 						Open employee record
 					</a>
 				</dd>
@@ -76,8 +76,8 @@
 </section>
 
 {#if data.canManage && !c.employeeId && targets.length}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Move candidate">
-		<h2 class="font-semibold text-slate-900">Move candidate</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Move candidate">
+		<h2 class="section-title">Move candidate</h2>
 		<form method="POST" action="?/move" class="mt-3 grid gap-3 sm:grid-cols-2">
 			<label class="block text-sm font-medium text-slate-700">
 				Stage
@@ -95,7 +95,7 @@
 {/if}
 
 <section class="mt-6 max-w-3xl" aria-label="Interviews">
-	<h2 class="font-semibold text-slate-900">Interviews</h2>
+	<h2 class="section-title">Interviews</h2>
 	{#if v.interviews.length}
 		<ul class="mt-2 space-y-3">
 			{#each v.interviews as i (i.id)}
@@ -134,8 +134,8 @@
 </section>
 
 {#if data.canManage && live}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Schedule interview">
-		<h2 class="font-semibold text-slate-900">Schedule interview</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Schedule interview">
+		<h2 class="section-title">Schedule interview</h2>
 		<form method="POST" action="?/schedule" class="mt-3 grid gap-3 sm:grid-cols-2">
 			<Field label="Interview title" name="title" required maxlength={80} />
 			<Field label="Date and time" name="scheduledAt" type="datetime-local" required />
@@ -167,7 +167,7 @@
 {/if}
 
 <section class="mt-6 max-w-3xl" aria-label="Offers">
-	<h2 class="font-semibold text-slate-900">Offers</h2>
+	<h2 class="section-title">Offers</h2>
 	{#if v.offers.length}
 		<ul class="mt-2 space-y-2 text-sm">
 			{#each v.offers as o (o.id)}
@@ -194,8 +194,8 @@
 </section>
 
 {#if data.canManage && live && !openOffer}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Make offer">
-		<h2 class="font-semibold text-slate-900">Make offer</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Make offer">
+		<h2 class="section-title">Make offer</h2>
 		<form method="POST" action="?/offer" class="mt-3 grid gap-3 sm:grid-cols-2">
 			<Field label="Monthly gross (৳)" name="monthlyGross" inputmode="decimal" pattern={moneyPattern} required />
 			<Field label="Join date" name="joinDate" type="date" required />
@@ -207,8 +207,8 @@
 {/if}
 
 {#if data.canHire && live && accepted}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Hire">
-		<h2 class="font-semibold text-slate-900">Hire</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Hire">
+		<h2 class="section-title">Hire</h2>
 		<p class="mt-1 text-sm text-slate-600">
 			Creates an onboarding employee record from the accepted offer and starts the onboarding checklist.
 		</p>
@@ -224,7 +224,7 @@
 {/if}
 
 <section class="mt-6 max-w-3xl" aria-label="History">
-	<h2 class="font-semibold text-slate-900">History</h2>
+	<h2 class="section-title">History</h2>
 	<ol class="mt-2 space-y-1 text-sm">
 		{#each v.history as h, i (i)}
 			<li>

@@ -19,4 +19,4 @@
 		<Button type="submit">Send reset link</Button>
 	</form>
 {/if}
-<a href="/login" class="block text-sm text-indigo-600 hover:underline">Back to sign in</a>
+<a href="/login" class="block text-sm text-brand-600 hover:underline">Back to sign in</a>

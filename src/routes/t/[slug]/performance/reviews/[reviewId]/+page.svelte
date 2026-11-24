@@ -11,14 +11,14 @@
 	const goals = $derived(data.view.goals);
 	const allowed = $derived(data.view.allowed);
 	const weightLeft = $derived(100 - goals.reduce((sum, g) => sum + g.weight, 0));
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 	const ratings = [1, 2, 3, 4, 5];
 </script>
 
 <svelte:head><title>{r.name} · {r.cycleName} · {data.tenant.name}</title></svelte:head>
 
-<a class="text-sm text-indigo-700 underline" href={`/t/${data.tenant.slug}/performance/${r.cycleId}`}>{r.cycleName}</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{r.name} · {STAGE_LABELS[r.stage]}</h1>
+<a class="text-sm text-brand-700 underline" href={`/t/${data.tenant.slug}/performance/${r.cycleId}`}>{r.cycleName}</a>
+<h1 class="page-title mt-2">{r.name} · {STAGE_LABELS[r.stage]}</h1>
 {#if r.score !== null}<p class="mt-1 text-sm text-slate-700">Score {scoreLabel(r.score)} out of 5</p>{/if}
 {#if r.own && r.stage === 'done' && !r.shared}
 	<p class="mt-1 text-sm text-slate-600">HR has finalised this review and will share the result with you.</p>
@@ -30,7 +30,7 @@
 </div>
 
 <section class="mt-4 max-w-3xl" aria-label="Goals">
-	<h2 class="font-semibold text-slate-900">Goals</h2>
+	<h2 class="section-title">Goals</h2>
 	{#if goals.length}
 		<ul class="mt-2 space-y-3">
 			{#each goals as g (g.id)}
@@ -55,8 +55,8 @@
 </section>
 
 {#if allowed.goals}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Add goal">
-		<h2 class="font-semibold text-slate-900">Add goal</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Add goal">
+		<h2 class="section-title">Add goal</h2>
 		<p class="mt-1 text-sm text-slate-600">Weights must add up to 100 before the self review. {weightLeft} left.</p>
 		<form method="POST" action="?/goal" class="mt-3 grid gap-3 sm:grid-cols-2">
 			<Field label="Goal" name="title" required maxlength={120} />
@@ -76,8 +76,8 @@
 {/if}
 
 {#if allowed.self && goals.length}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Self review">
-		<h2 class="font-semibold text-slate-900">Self review</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Self review">
+		<h2 class="section-title">Self review</h2>
 		<form method="POST" action="?/self" class="mt-3 space-y-4">
 			{#each goals as g (g.id)}
 				<fieldset class="grid gap-3 sm:grid-cols-2">
@@ -103,14 +103,14 @@
 
 {#if r.selfComments}
 	<section class="mt-6 max-w-3xl" aria-label="Self comments">
-		<h2 class="font-semibold text-slate-900">Self comments</h2>
+		<h2 class="section-title">Self comments</h2>
 		<p class="mt-1 text-sm whitespace-pre-line">{r.selfComments}</p>
 	</section>
 {/if}
 
 {#if allowed.manager}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Manager review">
-		<h2 class="font-semibold text-slate-900">Manager review</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Manager review">
+		<h2 class="section-title">Manager review</h2>
 		<form method="POST" action="?/manager" class="mt-3 space-y-4">
 			{#each goals as g (g.id)}
 				<label class="block text-sm font-medium text-slate-700">
@@ -132,14 +132,14 @@
 
 {#if r.managerComments}
 	<section class="mt-6 max-w-3xl" aria-label="Manager comments">
-		<h2 class="font-semibold text-slate-900">Manager comments</h2>
+		<h2 class="section-title">Manager comments</h2>
 		<p class="mt-1 text-sm whitespace-pre-line">{r.managerComments}</p>
 	</section>
 {/if}
 
 {#if allowed.finalise}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Finalise">
-		<h2 class="font-semibold text-slate-900">Finalise</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Finalise">
+		<h2 class="section-title">Finalise</h2>
 		<form method="POST" action="?/finalise" class="mt-3 space-y-3">
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" name="share" /> Share the result with {r.name} now

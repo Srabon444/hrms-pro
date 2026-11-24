@@ -5,7 +5,7 @@
 	let { v, placeholders }: { v: Record<string, string | boolean | null | undefined>; placeholders: readonly string[] } =
 		$props();
 	const str = (k: string) => (typeof v[k] === 'string' ? (v[k] as string) : '');
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 </script>
 
 <Field label="Name" name="name" required maxlength={80} value={str('name')} />

@@ -8,14 +8,14 @@
 	const v = $derived(data.view);
 	const t = $derived(v.ticket);
 	const open = $derived(t.status !== 'closed');
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 	const when = (d: Date) => d.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
 </script>
 
 <svelte:head><title>#{t.number} · Helpdesk · {data.tenant.name}</title></svelte:head>
 
-<a class="text-sm text-indigo-700 underline" href={`/t/${data.tenant.slug}/helpdesk`}>Helpdesk</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">#{t.number} · {t.subject}</h1>
+<a class="text-sm text-brand-700 underline" href={`/t/${data.tenant.slug}/helpdesk`}>Helpdesk</a>
+<h1 class="page-title mt-2">#{t.number} · {t.subject}</h1>
 <p class="text-sm text-slate-600">
 	{v.category}{v.confidential ? ' (confidential)' : ''} · from {v.requester} · {TICKET_PRIORITY_LABELS[t.priority]} ·
 	<span data-testid="ticket-status">{TICKET_STATUS_LABELS[t.status]}</span>
@@ -28,12 +28,12 @@
 	{#if form && 'done' in form}<Alert tone="info" message={form.done} />{/if}
 </div>
 
-<section class="mt-4 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Description">
+<section class="mt-4 max-w-4xl panel" aria-label="Description">
 	<p class="text-sm whitespace-pre-wrap text-slate-800">{t.description}</p>
 </section>
 
 {#if v.isRequester && t.status === 'resolved'}
-	<section class="mt-4 flex max-w-4xl items-center gap-3" aria-label="Confirm the fix">
+	<section class="mt-4 flex max-w-4xl flex-wrap items-center gap-3" aria-label="Confirm the fix">
 		<p class="text-sm text-slate-700">Is it fixed?</p>
 		<form method="POST" action="?/requester">
 			<input type="hidden" name="action" value="close" />
@@ -47,8 +47,8 @@
 {/if}
 
 {#if v.agent && open}
-	<section class="mt-4 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Handle ticket">
-		<h2 class="font-semibold text-slate-900">Handle</h2>
+	<section class="mt-4 max-w-4xl panel" aria-label="Handle ticket">
+		<h2 class="section-title">Handle</h2>
 		<form method="POST" action="?/update" class="mt-3 grid gap-3 sm:grid-cols-4">
 			<label class="block text-sm font-medium text-slate-700">
 				Status
@@ -81,7 +81,7 @@
 {/if}
 
 <section class="mt-4 max-w-4xl" aria-label="Conversation">
-	<h2 class="font-semibold text-slate-900">Conversation</h2>
+	<h2 class="section-title">Conversation</h2>
 	{#each v.comments as c (c.id)}
 		<article
 			class={['mt-3 rounded-lg p-4 ring-1', c.internal ? 'bg-amber-50 ring-amber-200' : 'bg-white ring-slate-200']}

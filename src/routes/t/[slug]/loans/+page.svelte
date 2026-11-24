@@ -6,7 +6,7 @@
 
 	let { data, form }: PageProps = $props();
 	const b = $derived(data.board);
-	const input = 'rounded-md border border-slate-300 px-2 py-1 text-sm';
+	const input = 'input px-2 py-1';
 	const label = (kind: string) => (kind === 'advance' ? 'Salary advance' : 'Loan');
 	const statusLabel: Record<string, string> = {
 		requested: 'Waiting for approval',
@@ -19,7 +19,7 @@
 
 <svelte:head><title>Loans · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Loans and advances</h1>
+<h1 class="page-title">Loans and advances</h1>
 
 <div class="mt-4 max-w-4xl space-y-2">
 	<Alert message={form?.message} />
@@ -27,8 +27,8 @@
 </div>
 
 {#if b.toDecide.length}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Requests to decide">
-		<h2 class="font-semibold text-slate-900">Requests to decide</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="Requests to decide">
+		<h2 class="section-title">Requests to decide</h2>
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each b.toDecide as l (l.id)}
 				<li class="py-3" data-testid="loan-to-decide">
@@ -49,8 +49,8 @@
 {/if}
 
 {#if b.canRequest}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="New request">
-		<h2 class="font-semibold text-slate-900">New request</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="New request">
+		<h2 class="section-title">New request</h2>
 		<form method="POST" action="?/request" class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
 			<label class="text-slate-700">
 				Type
@@ -102,8 +102,8 @@
 {/if}
 
 {#if b.mine.length}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="My loans">
-		<h2 class="font-semibold text-slate-900">My loans and advances</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="My loans">
+		<h2 class="section-title">My loans and advances</h2>
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each b.mine as l (l.id)}
 				<li class="py-3" data-testid="my-loan">
@@ -132,10 +132,10 @@
 {/if}
 
 {#if b.active.length}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Being repaid">
-		<h2 class="font-semibold text-slate-900">Being repaid</h2>
-		<table class="mt-3 w-full text-left text-sm">
-			<thead class="text-slate-500">
+	<section class="mt-6 max-w-4xl panel" aria-label="Being repaid">
+		<h2 class="section-title">Being repaid</h2>
+		<table class="mt-3 data-table">
+			<thead>
 				<tr><th class="py-1">Employee</th><th>Type</th><th>Amount</th><th>Repaid</th><th>Left</th></tr>
 			</thead>
 			<tbody class="divide-y divide-slate-100">

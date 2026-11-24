@@ -9,12 +9,7 @@
 <div class="sm:col-span-2"><Field label="Title" name="title" required maxlength={160} value={str('title')} /></div>
 <label class="block text-sm font-medium text-slate-700 sm:col-span-2">
 	Summary
-	<textarea
-		name="description"
-		maxlength={2000}
-		rows="3"
-		class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm">{str('description')}</textarea
-	>
+	<textarea name="description" maxlength={2000} rows="3" class="mt-1 block w-full input">{str('description')}</textarea>
 </label>
 <label class="block text-sm font-medium text-slate-700">
 	{fileRequired ? 'Policy PDF' : 'New version (PDF, optional)'}

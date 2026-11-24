@@ -6,19 +6,19 @@
 	let { data }: PageProps = $props();
 	const base = $derived(`/t/${data.tenant.slug}/letters`);
 	const ref = (n: number) => `L-${String(n).padStart(5, '0')}`;
-	const field = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const field = 'mt-1 block w-full input';
 </script>
 
 <svelte:head><title>Letters · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Letters</h1>
+<h1 class="page-title">Letters</h1>
 
 <section class="mt-6 max-w-3xl" aria-label="My letters">
-	<h2 class="font-semibold text-slate-900">My letters</h2>
+	<h2 class="section-title">My letters</h2>
 	<ul class="mt-2 divide-y divide-slate-200 text-sm">
 		{#each data.mine as l (l.id)}
 			<li class="flex justify-between py-2" data-testid="my-letter">
-				<a class="text-indigo-700 underline" href={`${base}/${l.id}/file`}>{l.subject}</a>
+				<a class="text-brand-700 underline" href={`${base}/${l.id}/file`}>{l.subject}</a>
 				<span class="text-slate-500">{ref(l.number)} · {l.issuedOn}</span>
 			</li>
 		{:else}
@@ -28,8 +28,8 @@
 </section>
 
 {#if data.issued}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Issue a letter">
-		<h2 class="font-semibold text-slate-900">Issue a letter</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Issue a letter">
+		<h2 class="section-title">Issue a letter</h2>
 		<form method="GET" action={`${base}/new`} class="mt-3 grid gap-3 sm:grid-cols-2">
 			<label class="block text-sm font-medium text-slate-700">
 				Employee
@@ -48,9 +48,9 @@
 	</section>
 
 	<section class="mt-6 max-w-3xl" aria-label="Issued letters">
-		<h2 class="font-semibold text-slate-900">Issued letters</h2>
-		<table class="mt-2 w-full text-left text-sm">
-			<thead class="text-slate-500">
+		<h2 class="section-title">Issued letters</h2>
+		<table class="mt-2 data-table">
+			<thead>
 				<tr><th class="py-2">Ref</th><th>Employee</th><th>Kind</th><th>Subject</th><th>Issued</th></tr>
 			</thead>
 			<tbody>
@@ -59,7 +59,7 @@
 						<td class="py-2">{ref(l.number)}</td>
 						<td>{l.employee} <span class="text-slate-500">{l.code}</span></td>
 						<td>{LETTER_KIND_LABELS[l.kind]}</td>
-						<td><a class="text-indigo-700 underline" href={`${base}/${l.id}/file`}>{l.subject}</a></td>
+						<td><a class="text-brand-700 underline" href={`${base}/${l.id}/file`}>{l.subject}</a></td>
 						<td>{l.issuedOn}</td>
 					</tr>
 				{:else}

@@ -4,7 +4,7 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const field = 'rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const field = 'input';
 	const roleName = $derived(Object.fromEntries(data.roles.map((r) => [r.key, r.name])));
 	const when = (n: number, kind: string) => {
 		const anchor = kind === 'onboarding' ? 'join date' : 'last day';
@@ -15,7 +15,7 @@
 
 <svelte:head><title>Checklists · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Checklists</h1>
+<h1 class="page-title">Checklists</h1>
 <p class="mt-1 max-w-3xl text-sm text-slate-600">
 	Active onboarding checklists start for every new joiner, and offboarding checklists for every leaver. Each task goes
 	to the people holding its role.
@@ -41,9 +41,9 @@
 </form>
 
 {#each data.templates as t (t.id)}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label={t.name}>
+	<section class="mt-6 max-w-3xl panel" aria-label={t.name}>
 		<div class="flex items-center justify-between gap-3">
-			<h2 class="font-semibold text-slate-900">
+			<h2 class="section-title">
 				{t.name}
 				<span class="ml-2 text-xs font-normal text-slate-500">{t.kind}{t.active ? '' : ' · inactive'}</span>
 			</h2>

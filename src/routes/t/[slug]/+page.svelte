@@ -12,7 +12,7 @@
 
 <svelte:head><title>{data.tenant.name} · HRMS</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Welcome to {data.tenant.name}</h1>
+<h1 class="page-title">Welcome to {data.tenant.name}</h1>
 {#if data.membership.status === 'ex_employee'}
 	<p class="mt-2 text-slate-600">Your employment has ended. You can still download your documents and payslips.</p>
 {/if}
@@ -83,7 +83,7 @@
 				<ul class="space-y-1" data-testid="approvals">
 					{#each home.approvals.items as item (item.kind + item.id)}
 						<li>
-							<a class="text-indigo-700 underline" href={`${base}/${item.link}`}>{item.title}</a> · {item.requestedBy}
+							<a class="text-brand-700 underline" href={`${base}/${item.link}`}>{item.title}</a> · {item.requestedBy}
 						</li>
 					{/each}
 				</ul>
@@ -138,7 +138,7 @@
 				<ul class="space-y-1" data-testid="documents">
 					{#each home.documents as d (d.id)}
 						<li class="flex justify-between gap-2">
-							<a class="text-indigo-700 underline" href={`${base}/employees/${d.employeeId}`}>{d.name} · {d.title}</a>
+							<a class="text-brand-700 underline" href={`${base}/employees/${d.employeeId}`}>{d.name} · {d.title}</a>
 							<span class={d.expired ? 'text-red-700' : 'text-slate-500'}>
 								{d.expired ? 'Expired' : 'Expires'}
 								{d.expiresOn}
@@ -162,9 +162,9 @@
 
 	{#if home.announcements.length}
 		<section class="mt-6 max-w-3xl space-y-3" aria-label="Announcements">
-			<h2 class="font-semibold text-slate-900">
+			<h2 class="section-title">
 				Announcements
-				<a class="ml-2 text-sm font-normal text-indigo-700 underline" href={`${base}/announcements`}>See all</a>
+				<a class="ml-2 text-sm font-normal text-brand-700 underline" href={`${base}/announcements`}>See all</a>
 			</h2>
 			{#each home.announcements as a (a.id)}<AnnouncementCard {a} />{/each}
 		</section>

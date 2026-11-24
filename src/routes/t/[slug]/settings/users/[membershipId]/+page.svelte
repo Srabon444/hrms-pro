@@ -8,8 +8,8 @@
 
 <svelte:head><title>{data.member.name} · Users</title></svelte:head>
 
-<a href="../users" class="text-sm text-indigo-600 hover:underline">Back to users</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{data.member.name}</h1>
+<a href="../users" class="text-sm text-brand-600 hover:underline">Back to users</a>
+<h1 class="page-title mt-2">{data.member.name}</h1>
 <p class="text-sm text-slate-600">{data.member.email} · {data.member.status}</p>
 
 <div class="mt-4 max-w-xl">
@@ -17,8 +17,8 @@
 	{#if form && 'saved' in form}<Alert tone="info" message={form.saved} />{/if}
 </div>
 
-<section class="mt-6 max-w-xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
-	<h2 class="font-semibold text-slate-900">Roles</h2>
+<section class="mt-6 max-w-xl panel">
+	<h2 class="section-title">Roles</h2>
 	<p class="mt-1 text-sm text-slate-600">Everyone is also an Employee. Roles you cannot grant are shown greyed out.</p>
 	<form method="POST" action="?/roles" class="mt-4 space-y-4">
 		<div class="grid grid-cols-2 gap-2">
@@ -35,15 +35,11 @@
 </section>
 
 {#if data.member.status !== 'ex_employee'}
-	<section class="mt-6 max-w-xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
-		<h2 class="font-semibold text-slate-900">Employee record</h2>
+	<section class="mt-6 max-w-xl panel">
+		<h2 class="section-title">Employee record</h2>
 		<p class="mt-1 text-sm text-slate-600">Their own profile, leave and payslips come from the linked record.</p>
-		<form method="POST" action="?/link" class="mt-4 flex items-end gap-3">
-			<select
-				name="employeeId"
-				aria-label="Linked employee"
-				class="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
-			>
+		<form method="POST" action="?/link" class="mt-4 flex flex-wrap items-end gap-3">
+			<select name="employeeId" aria-label="Linked employee" class="min-w-0 flex-1 input">
 				<option value="">Not linked</option>
 				{#each data.employees as e (e.id)}
 					<option value={e.id} selected={e.id === data.member.employeeId}>{e.name}</option>
@@ -53,8 +49,8 @@
 		</form>
 	</section>
 
-	<section class="mt-6 max-w-xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
-		<h2 class="font-semibold text-slate-900">Access</h2>
+	<section class="mt-6 max-w-xl panel">
+		<h2 class="section-title">Access</h2>
 		<form method="POST" action="?/status" class="mt-4">
 			{#if data.member.status === 'active'}
 				<input type="hidden" name="status" value="disabled" />

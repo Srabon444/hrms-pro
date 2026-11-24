@@ -4,7 +4,7 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const field = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const field = 'mt-1 block w-full input';
 	let kind = $state('regularization');
 	const rowErrors = $derived(form && 'rows' in form ? (form.rows as { line: number; message: string }[]) : []);
 	const tz = $derived(data.now?.timeZone ?? data.month?.timeZone ?? 'UTC');
@@ -44,7 +44,7 @@
 
 <svelte:head><title>Attendance · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Attendance</h1>
+<h1 class="page-title">Attendance</h1>
 <div class="mt-4 max-w-3xl space-y-2">
 	<Alert message={form?.message} />
 	{#if form && 'punched' in form}<Alert tone="info" message="Punch recorded." />{/if}
@@ -68,8 +68,8 @@
 
 {#if data.now}
 	{@const n = data.now}
-	<section class="mt-4 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Today">
-		<h2 class="font-semibold text-slate-900">
+	<section class="mt-4 max-w-3xl panel" aria-label="Today">
+		<h2 class="section-title">
 			Today <span class="text-sm font-normal text-slate-500">{n.day}</span>
 		</h2>
 		{#if n.shift}
@@ -100,8 +100,8 @@
 {/if}
 
 {#if data.canPunch}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Ask for a change">
-		<h2 class="font-semibold text-slate-900">Ask for a change</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Ask for a change">
+		<h2 class="section-title">Ask for a change</h2>
 		<form method="POST" action="?/request" class="mt-3 grid gap-3 sm:grid-cols-2">
 			<label class="text-sm text-slate-700">
 				Request
@@ -156,10 +156,10 @@
 
 {#if data.month}
 	{@const mo = data.month}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="My month">
+	<section class="mt-6 max-w-3xl panel" aria-label="My month">
 		<div class="flex flex-wrap items-end justify-between gap-3">
-			<h2 class="font-semibold text-slate-900">My month</h2>
-			<form method="GET" class="flex items-end gap-2">
+			<h2 class="section-title">My month</h2>
+			<form method="GET" class="flex flex-wrap items-end gap-2">
 				<label class="text-sm text-slate-700">
 					Month
 					<input name="month" type="month" value={mo.month} max={mo.today.slice(0, 7)} class={field} />
@@ -183,10 +183,10 @@
 {/if}
 
 {#if data.team}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Team">
+	<section class="mt-6 max-w-3xl panel" aria-label="Team">
 		<div class="flex flex-wrap items-end justify-between gap-3">
-			<h2 class="font-semibold text-slate-900">Team</h2>
-			<form method="GET" class="flex items-end gap-2">
+			<h2 class="section-title">Team</h2>
+			<form method="GET" class="flex flex-wrap items-end gap-2">
 				<label class="text-sm text-slate-700">
 					Day
 					<input name="date" type="date" value={data.date} max={data.today} class={field} />
@@ -214,7 +214,7 @@
 					Punch time
 					<input name="at" type="datetime-local" required class={field} />
 				</label>
-				<div class="flex items-end"><Button type="submit" variant="secondary">Add punch</Button></div>
+				<div class="flex flex-wrap items-end"><Button type="submit" variant="secondary">Add punch</Button></div>
 			</form>
 			<form
 				method="POST"

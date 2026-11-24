@@ -8,7 +8,7 @@
 	let { data, form }: PageProps = $props();
 	const b = $derived(data.board);
 	const r = $derived(b.run);
-	const input = 'rounded-md border border-slate-300 px-2 py-1 text-sm';
+	const input = 'input px-2 py-1';
 	const statusLabel: Record<string, string> = {
 		computed: 'Waiting for approval',
 		approved: 'Approved',
@@ -34,7 +34,7 @@
 	</form>
 {/snippet}
 
-<h1 class="text-2xl font-semibold text-slate-900">Payroll</h1>
+<h1 class="page-title">Payroll</h1>
 
 <div class="mt-4 max-w-5xl space-y-2">
 	<Alert message={form?.message} />
@@ -42,7 +42,7 @@
 </div>
 
 {#if b.canRun}
-	<form method="POST" action="?/start" class="mt-4 flex items-end gap-2 text-sm">
+	<form method="POST" action="?/start" class="mt-4 flex flex-wrap items-end gap-2 text-sm">
 		<label class="text-slate-700">
 			What to pay
 			<select name="runType" bind:value={runType} class={`${input} block`}>
@@ -111,7 +111,7 @@
 		{#each b.runs as x (x.id)}
 			<a
 				href={`/t/${data.tenant.slug}/payroll?run=${x.id}`}
-				class={x.id === r?.id ? 'font-semibold text-slate-900' : 'text-indigo-700 underline'}
+				class={x.id === r?.id ? 'font-semibold text-slate-900' : 'text-brand-700 underline'}
 			>
 				{x.period}{x.name ? ` · ${x.name}` : ''} · {statusLabel[x.status]}
 			</a>
@@ -120,8 +120,8 @@
 {/if}
 
 {#if r}
-	<section class="mt-6 max-w-5xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Payroll run">
-		<h2 class="font-semibold text-slate-900">
+	<section class="mt-6 max-w-5xl panel" aria-label="Payroll run">
+		<h2 class="section-title">
 			{runName(r)} for {r.period}{r.leaver ? ` · ${r.leaver}` : ''} · {statusLabel[r.status]}
 		</h2>
 		<p class="mt-1 text-sm text-slate-600" data-testid="run-totals">
@@ -152,14 +152,14 @@
 		<nav class="mt-3 flex flex-wrap gap-3 text-sm" aria-label="Download reports">
 			{#each exports as [kind, label] (kind)}
 				{#if kind !== 'bank' || (b.canApprove && (r.status === 'approved' || r.status === 'paid'))}
-					<a class="text-indigo-700 underline" href={`/t/${data.tenant.slug}/payroll/export?run=${r.id}&kind=${kind}`}>
+					<a class="text-brand-700 underline" href={`/t/${data.tenant.slug}/payroll/export?run=${r.id}&kind=${kind}`}>
 						{label}
 					</a>
 				{/if}
 			{/each}
 		</nav>
-		<table class="mt-4 w-full text-left text-sm">
-			<thead class="text-slate-500">
+		<table class="mt-4 data-table">
+			<thead>
 				<tr>
 					<th class="py-2">Employee</th>
 					<th>Paid days</th>

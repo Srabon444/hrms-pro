@@ -31,4 +31,4 @@
 	<Field label="Password" name="password" type="password" autocomplete="current-password" required maxlength={128} />
 	<Button type="submit">Sign in</Button>
 </form>
-<a href="/forgot-password" class="block text-sm text-indigo-600 hover:underline">Forgot your password?</a>
+<a href="/forgot-password" class="block text-sm text-brand-600 hover:underline">Forgot your password?</a>

@@ -5,13 +5,13 @@
 
 	let { data, form }: PageProps = $props();
 	const r = $derived(data.req);
-	const field = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const field = 'mt-1 block w-full input';
 </script>
 
 <svelte:head><title>Attendance request · {data.tenant.name}</title></svelte:head>
 
-<a href="/t/{data.tenant.slug}/approvals" class="text-sm text-indigo-600 hover:underline">Back to approvals</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{r.label} for {r.employee.fullName}</h1>
+<a href="/t/{data.tenant.slug}/approvals" class="text-sm text-brand-600 hover:underline">Back to approvals</a>
+<h1 class="page-title mt-2">{r.label} for {r.employee.fullName}</h1>
 <p class="text-sm text-slate-600">{r.employee.code} · {r.status}</p>
 
 <div class="mt-4 max-w-3xl space-y-2">
@@ -22,23 +22,23 @@
 
 <dl class="mt-4 max-w-3xl space-y-2 rounded-xl bg-white p-6 text-sm ring-1 ring-slate-200">
 	<div class="flex gap-3">
-		<dt class="w-40 text-slate-500">Day</dt>
+		<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Day</dt>
 		<dd>{r.date}</dd>
 	</div>
 	{#if r.punchAt}
 		<div class="flex gap-3">
-			<dt class="w-40 text-slate-500">Punch</dt>
+			<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Punch</dt>
 			<dd>{r.punchAt}</dd>
 		</div>
 	{/if}
 	{#if r.minutes !== null}
 		<div class="flex gap-3">
-			<dt class="w-40 text-slate-500">Minutes asked</dt>
+			<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Minutes asked</dt>
 			<dd>{r.minutes}{r.approvedMinutes !== null ? ` · ${r.approvedMinutes} approved` : ''}</dd>
 		</div>
 	{/if}
 	<div class="flex gap-3">
-		<dt class="w-40 text-slate-500">Recorded</dt>
+		<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Recorded</dt>
 		<dd data-testid="request-day">
 			{#if r.day}
 				{r.day.status}{r.day.firstIn ? ` · ${r.day.firstIn} to ${r.day.lastOut ?? '—'}` : ''} · {r.day.workedMinutes} min
@@ -49,12 +49,12 @@
 		</dd>
 	</div>
 	<div class="flex gap-3">
-		<dt class="w-40 text-slate-500">Reason</dt>
+		<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Reason</dt>
 		<dd class="whitespace-pre-line">{r.reason}</dd>
 	</div>
 	{#if r.decisionNote}
 		<div class="flex gap-3">
-			<dt class="w-40 text-slate-500">Note</dt>
+			<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Note</dt>
 			<dd>{r.decisionNote}</dd>
 		</div>
 	{/if}

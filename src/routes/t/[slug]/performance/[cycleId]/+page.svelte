@@ -12,8 +12,8 @@
 
 <svelte:head><title>{v.cycle.name} · Performance · {data.tenant.name}</title></svelte:head>
 
-<a class="text-sm text-indigo-700 underline" href={base}>Performance</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{v.cycle.name}</h1>
+<a class="text-sm text-brand-700 underline" href={base}>Performance</a>
+<h1 class="page-title mt-2">{v.cycle.name}</h1>
 <p class="text-sm text-slate-600">
 	{v.cycle.periodStart} to {v.cycle.periodEnd} · {v.cycle.status === 'open' ? 'Open' : 'Closed'}
 </p>
@@ -31,14 +31,14 @@
 
 <section class="mt-6 max-w-4xl" aria-label="Reviews">
 	{#if v.rows.length}
-		<table class="w-full text-left text-sm">
-			<thead class="text-slate-500">
+		<table class="data-table">
+			<thead>
 				<tr><th class="py-2">Employee</th><th>Stage</th><th>Score</th><th>Shared</th></tr>
 			</thead>
 			<tbody>
 				{#each v.rows as r (r.id)}
 					<tr class="border-t border-slate-100">
-						<td class="py-2"><a class="text-indigo-700 underline" href={`${base}/reviews/${r.id}`}>{r.name}</a></td>
+						<td class="py-2"><a class="text-brand-700 underline" href={`${base}/reviews/${r.id}`}>{r.name}</a></td>
 						<td>{STAGE_LABELS[r.stage]}</td>
 						<td>{r.score === null ? '—' : scoreLabel(r.score)}</td>
 						<td>{r.shared ? 'Yes' : 'No'}</td>
@@ -48,9 +48,9 @@
 		</table>
 		{#if v.pages > 1}
 			<nav class="mt-3 flex gap-3 text-sm" aria-label="Pages">
-				{#if v.page > 1}<a class="text-indigo-700 underline" href={`?page=${v.page - 1}`}>Previous</a>{/if}
+				{#if v.page > 1}<a class="text-brand-700 underline" href={`?page=${v.page - 1}`}>Previous</a>{/if}
 				<span class="text-slate-500">Page {v.page} of {v.pages}</span>
-				{#if v.page < v.pages}<a class="text-indigo-700 underline" href={`?page=${v.page + 1}`}>Next</a>{/if}
+				{#if v.page < v.pages}<a class="text-brand-700 underline" href={`?page=${v.page + 1}`}>Next</a>{/if}
 			</nav>
 		{/if}
 	{:else}

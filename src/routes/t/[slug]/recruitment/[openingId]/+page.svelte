@@ -7,7 +7,7 @@
 	let { data, form }: PageProps = $props();
 	const v = $derived(data.view);
 	const o = $derived(v.opening);
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 	const statusLabel: Record<string, string> = { open: 'Open', on_hold: 'On hold', closed: 'Closed' };
 	const sourceLabel: Record<string, string> = {
 		referral: 'Referral',
@@ -22,8 +22,8 @@
 
 <svelte:head><title>{o.title} · Recruitment · {data.tenant.name}</title></svelte:head>
 
-<a class="text-sm text-indigo-700 underline" href={base}>All openings</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{o.title} · {statusLabel[o.status]}</h1>
+<a class="text-sm text-brand-700 underline" href={base}>All openings</a>
+<h1 class="page-title mt-2">{o.title} · {statusLabel[o.status]}</h1>
 
 <div class="mt-4 max-w-5xl space-y-2">
 	<Alert message={form?.message} />
@@ -31,7 +31,7 @@
 </div>
 
 <section class="mt-4 max-w-5xl" aria-label="Pipeline">
-	<h2 class="font-semibold text-slate-900">Pipeline</h2>
+	<h2 class="section-title">Pipeline</h2>
 	<div class="mt-3 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
 		{#each v.stages as s (s.id)}
 			<div class="rounded-xl bg-white p-3 ring-1 ring-slate-200" role="group" aria-label={s.name}>
@@ -40,7 +40,7 @@
 				</h3>
 				<ul class="mt-2 space-y-1 text-sm">
 					{#each v.candidates.filter((c) => c.stageId === s.id) as c (c.id)}
-						<li><a class="text-indigo-700 underline" href={`${base}/candidates/${c.id}`}>{c.fullName}</a></li>
+						<li><a class="text-brand-700 underline" href={`${base}/candidates/${c.id}`}>{c.fullName}</a></li>
 					{/each}
 				</ul>
 			</div>
@@ -50,8 +50,8 @@
 
 {#if data.canManage}
 	{#if o.status === 'open'}
-		<section class="mt-6 max-w-5xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Add candidate">
-			<h2 class="font-semibold text-slate-900">Add candidate</h2>
+		<section class="mt-6 max-w-5xl panel" aria-label="Add candidate">
+			<h2 class="section-title">Add candidate</h2>
 			<form method="POST" action="?/add" enctype="multipart/form-data" class="mt-3 grid gap-3 sm:grid-cols-2">
 				<Field label="Full name" name="fullName" required maxlength={120} />
 				<Field label="Email" name="email" type="email" maxlength={254} />
@@ -81,8 +81,8 @@
 		</section>
 	{/if}
 
-	<section class="mt-6 max-w-5xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Edit opening">
-		<h2 class="font-semibold text-slate-900">Edit opening</h2>
+	<section class="mt-6 max-w-5xl panel" aria-label="Edit opening">
+		<h2 class="section-title">Edit opening</h2>
 		<form method="POST" action="?/save" class="mt-3 grid gap-3 sm:grid-cols-2">
 			<Field label="Job title" name="title" required maxlength={120} value={o.title} />
 			<Field label="Headcount" name="headcount" type="number" min="1" max="500" step="1" value={o.headcount} required />
@@ -118,8 +118,8 @@
 		</form>
 	</section>
 {:else if o.description}
-	<section class="mt-6 max-w-5xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Description">
-		<h2 class="font-semibold text-slate-900">Description</h2>
+	<section class="mt-6 max-w-5xl panel" aria-label="Description">
+		<h2 class="section-title">Description</h2>
 		<p class="mt-2 text-sm whitespace-pre-line text-slate-700">{o.description}</p>
 	</section>
 {/if}

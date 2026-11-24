@@ -5,7 +5,7 @@
 
 	let { data, form }: PageProps = $props();
 	let session = $state('full');
-	const field = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const field = 'mt-1 block w-full input';
 	const days = (n: number) => `${n} day${n === 1 ? '' : 's'}`;
 	const when = (r: { startDate: string; endDate: string; session: string }) =>
 		r.session !== 'full'
@@ -17,15 +17,15 @@
 
 <svelte:head><title>Leave · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Leave</h1>
+<h1 class="page-title">Leave</h1>
 <div class="mt-4 max-w-3xl space-y-2">
 	<Alert message={form?.message} />
 	{#if form && 'requested' in form}<Alert tone="info" message="Leave requested." />{/if}
 	{#if form && 'cancelled' in form}<Alert tone="info" message="Leave cancelled." />{/if}
 </div>
 
-<section class="mt-4 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="My balance">
-	<h2 class="font-semibold text-slate-900">
+<section class="mt-4 max-w-3xl panel" aria-label="My balance">
+	<h2 class="section-title">
 		My balance <span class="text-sm font-normal text-slate-500">FY {data.fy}</span>
 	</h2>
 	<dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
@@ -41,8 +41,8 @@
 </section>
 
 {#if data.balances.length}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Request leave">
-		<h2 class="font-semibold text-slate-900">Request leave</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Request leave">
+		<h2 class="section-title">Request leave</h2>
 		<form method="POST" action="?/request" class="mt-3 grid gap-3 sm:grid-cols-2">
 			<label class="text-sm text-slate-700">
 				Leave type
@@ -77,8 +77,8 @@
 	</section>
 {/if}
 
-<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="My requests">
-	<h2 class="font-semibold text-slate-900">My requests</h2>
+<section class="mt-6 max-w-3xl panel" aria-label="My requests">
+	<h2 class="section-title">My requests</h2>
 	{#if data.requests.length === 0}
 		<p class="mt-3 text-sm text-slate-600">No leave requests yet.</p>
 	{:else}
@@ -98,8 +98,8 @@
 	{/if}
 </section>
 
-<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Who is out">
-	<h2 class="font-semibold text-slate-900">
+<section class="mt-6 max-w-3xl panel" aria-label="Who is out">
+	<h2 class="section-title">
 		Who is out <span class="text-sm font-normal text-slate-500">next 30 days</span>
 	</h2>
 	{#if data.out.length === 0}

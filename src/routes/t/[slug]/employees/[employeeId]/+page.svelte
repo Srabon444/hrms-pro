@@ -7,7 +7,7 @@
 	let { data, form }: PageProps = $props();
 	const e = $derived(data.employee);
 	const size = (n: number) => (n < 1024 * 1024 ? `${Math.ceil(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
-	const field = 'rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const field = 'input';
 	const values = $derived(form && 'values' in form ? form.values : { ...e, ...(data.sensitive ?? {}) });
 	const lists = $derived(data.lists);
 	const profileMessage = $derived(form && 'profileMessage' in form ? (form.profileMessage as string) : null);
@@ -66,23 +66,23 @@
 
 <svelte:head><title>{e.fullName} · {data.tenant.name}</title></svelte:head>
 
-<a href="/t/{data.tenant.slug}/employees" class="text-sm text-indigo-600 hover:underline">Back to employees</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{e.fullName}</h1>
+<a href="/t/{data.tenant.slug}/employees" class="text-sm text-brand-600 hover:underline">Back to employees</a>
+<h1 class="page-title mt-2">{e.fullName}</h1>
 
 <dl class="mt-4 grid max-w-3xl gap-x-6 gap-y-2 rounded-xl bg-white p-6 text-sm ring-1 ring-slate-200 sm:grid-cols-2">
 	{#each facts as [label, value] (label)}
 		<div class="flex gap-2">
-			<dt class="w-28 text-slate-500">{label}</dt>
+			<dt class="w-28 shrink-0 text-slate-500">{label}</dt>
 			<dd data-testid="fact-{label}">{value ?? ''}</dd>
 		</div>
 	{/each}
 	{#if data.sensitive}
 		<div class="flex gap-2">
-			<dt class="w-28 text-slate-500">National ID</dt>
+			<dt class="w-28 shrink-0 text-slate-500">National ID</dt>
 			<dd>{data.sensitive.nationalId ?? ''}</dd>
 		</div>
 		<div class="flex gap-2">
-			<dt class="w-28 text-slate-500">Bank account</dt>
+			<dt class="w-28 shrink-0 text-slate-500">Bank account</dt>
 			<dd>{data.sensitive.bankAccountNumber ?? ''}</dd>
 		</div>
 	{/if}
@@ -98,12 +98,8 @@
 </div>
 
 {#if lists.canEditSelf}
-	<form
-		method="POST"
-		action="?/saveOwn"
-		class="mt-6 grid max-w-3xl gap-3 rounded-xl bg-white p-6 ring-1 ring-slate-200 sm:grid-cols-2"
-	>
-		<h2 class="font-semibold text-slate-900 sm:col-span-2">My contact details</h2>
+	<form method="POST" action="?/saveOwn" class="mt-6 grid max-w-3xl gap-3 panel sm:grid-cols-2">
+		<h2 class="section-title sm:col-span-2">My contact details</h2>
 		<input
 			name="phone"
 			type="tel"
@@ -140,8 +136,8 @@
 {/if}
 
 {#if lists.canEditSelf}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Request a change">
-		<h2 class="font-semibold text-slate-900">Request a change</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Request a change">
+		<h2 class="section-title">Request a change</h2>
 		{#if form && 'changeRequested' in form}<Alert tone="info" message="Your request was sent to HR." />{/if}
 		{#if form && 'changeCancelled' in form}<Alert tone="info" message="Request cancelled." />{/if}
 		{#if data.pendingChange}
@@ -175,8 +171,8 @@
 {/if}
 
 {#each listSections as section (section.kind)}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label={section.title}>
-		<h2 class="font-semibold text-slate-900">{section.title}</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label={section.title}>
+		<h2 class="section-title">{section.title}</h2>
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each section.rows as row (row.id)}
 				<li class="flex items-center gap-3 py-2" data-testid="entry-{section.kind}">
@@ -218,8 +214,8 @@
 
 {#if data.resignation && (data.resignation.pending || (e.status !== 'notice' && e.status !== 'exited'))}
 	{@const r = data.resignation}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Resign">
-		<h2 class="font-semibold text-slate-900">Resign</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Resign">
+		<h2 class="section-title">Resign</h2>
 		{#if form && 'resigned' in form}<Alert tone="info" message="Your resignation was sent." />{/if}
 		{#if form && 'resignationWithdrawn' in form}<Alert tone="info" message="Resignation withdrawn." />{/if}
 		{#if r.pending}
@@ -258,8 +254,8 @@
 {/if}
 
 {#if data.exit.canExit}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Exit">
-		<h2 class="font-semibold text-slate-900">Exit</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Exit">
+		<h2 class="section-title">Exit</h2>
 		{#if e.status === 'notice' && e.exitDate}
 			<p class="mt-3 text-sm text-slate-700" data-testid="exit-pending">
 				Leaving on {e.exitDate} ({e.exitType ?? 'other'}). Access ends automatically after that day.
@@ -291,30 +287,30 @@
 
 {#if data.exitInterview}
 	{@const iv = data.exitInterview}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Exit interview">
-		<h2 class="font-semibold text-slate-900">Exit interview</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Exit interview">
+		<h2 class="section-title">Exit interview</h2>
 		{#if form && 'interviewSaved' in form}<Alert tone="info" message="Exit interview saved." />{/if}
 		{#if iv.answers}
 			<dl class="mt-3 space-y-1 text-sm" data-testid="exit-interview">
 				<div class="flex gap-3">
-					<dt class="w-40 text-slate-500">Main reason</dt>
+					<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Main reason</dt>
 					<dd>{iv.answers.primaryReason.replace('_', ' ')}</dd>
 				</div>
 				<div class="flex gap-3">
-					<dt class="w-40 text-slate-500">Overall experience</dt>
+					<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Overall experience</dt>
 					<dd>{iv.answers.rating} of 5</dd>
 				</div>
 				<div class="flex gap-3">
-					<dt class="w-40 text-slate-500">Would recommend</dt>
+					<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Would recommend</dt>
 					<dd>{iv.answers.wouldRecommend ? 'yes' : 'no'}</dd>
 				</div>
 				<div class="flex gap-3">
-					<dt class="w-40 text-slate-500">Would come back</dt>
+					<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Would come back</dt>
 					<dd>{iv.answers.wouldRejoin ? 'yes' : 'no'}</dd>
 				</div>
 				{#if iv.answers.comments}
 					<div class="flex gap-3">
-						<dt class="w-40 text-slate-500">Comments</dt>
+						<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Comments</dt>
 						<dd class="whitespace-pre-line">{iv.answers.comments}</dd>
 					</div>
 				{/if}
@@ -355,8 +351,8 @@
 
 {#if data.leave}
 	{@const lv = data.leave}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Leave balance">
-		<h2 class="font-semibold text-slate-900">
+	<section class="mt-6 max-w-3xl panel" aria-label="Leave balance">
+		<h2 class="section-title">
 			Leave balance <span class="text-sm font-normal text-slate-500">FY {lv.fy}</span>
 		</h2>
 		{#if form && 'leaveAdjusted' in form}<Alert tone="info" message="Leave balance adjusted." />{/if}
@@ -392,8 +388,8 @@
 
 {#if data.shift}
 	{@const sh = data.shift}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Shift">
-		<h2 class="font-semibold text-slate-900">Shift</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Shift">
+		<h2 class="section-title">Shift</h2>
 		{#if form && 'shiftSaved' in form}<Alert tone="info" message="Shift saved." />{/if}
 		<p class="mt-2 text-sm text-slate-700" data-testid="current-shift">
 			{sh.current
@@ -433,15 +429,15 @@
 					Starting
 					<input name="effectiveFrom" type="date" required min={e.joinDate} class="{field} mt-1 block w-full" />
 				</label>
-				<div class="flex items-end"><Button type="submit" variant="secondary">Assign shift</Button></div>
+				<div class="flex flex-wrap items-end"><Button type="submit" variant="secondary">Assign shift</Button></div>
 			</form>
 		{/if}
 	</section>
 {/if}
 
 {#if data.checklists.length}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Checklists">
-		<h2 class="font-semibold text-slate-900">Checklists</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Checklists">
+		<h2 class="section-title">Checklists</h2>
 		{#if form && 'taskSaved' in form}<Alert tone="info" message="Checklist saved." />{/if}
 		{#each data.checklists as c (c.id)}
 			<h3 class="mt-4 text-sm font-medium text-slate-800">{c.name} · {c.kind} from {c.anchorDate}</h3>
@@ -456,7 +452,7 @@
 								<input type="hidden" name="done" value={String(!i.done)} />
 								<button
 									type="submit"
-									class="text-indigo-700 hover:underline"
+									class="text-brand-700 hover:underline"
 									aria-label="{i.done ? 'Undo' : 'Done'}: {i.title}"
 								>
 									{i.done ? 'Undo' : 'Mark done'}
@@ -471,10 +467,10 @@
 {/if}
 
 {#if data.exit.canRehire}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Rehire">
-		<h2 class="font-semibold text-slate-900">Rehire</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Rehire">
+		<h2 class="section-title">Rehire</h2>
 		<p class="mt-1 text-sm text-slate-600">Left on {e.exitDate}. Rehiring keeps the same code and history.</p>
-		<form method="POST" action="?/rehire" class="mt-3 flex items-end gap-3">
+		<form method="POST" action="?/rehire" class="mt-3 flex flex-wrap items-end gap-3">
 			<label class="text-sm text-slate-700">
 				New join date
 				<input name="joinDate" type="date" required class="{field} mt-1 block" />
@@ -485,8 +481,8 @@
 {/if}
 
 {#if data.canUpdate && data.choices}
-	<form method="POST" action="?/save" class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
-		<h2 class="mb-4 font-semibold text-slate-900">Edit record</h2>
+	<form method="POST" action="?/save" class="mt-6 max-w-3xl panel">
+		<h2 class="section-title mb-4">Edit record</h2>
 		<div class="mb-4 space-y-2">
 			<Alert message={form?.message} />
 			{#if form && 'saved' in form}<Alert tone="info" message="Employee saved." />{/if}
@@ -497,8 +493,8 @@
 {/if}
 
 {#if data.documents}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Documents">
-		<h2 class="font-semibold text-slate-900">Documents</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="Documents">
+		<h2 class="section-title">Documents</h2>
 		<div class="mt-3 space-y-2">
 			<Alert message={form && 'docMessage' in form ? form.docMessage : null} />
 			{#if form && 'uploaded' in form}<Alert tone="info" message="Document uploaded." />{/if}
@@ -506,7 +502,7 @@
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each data.documents.rows as d (d.id)}
 				<li class="flex items-center gap-3 py-2" data-testid="document">
-					<a href="/t/{data.tenant.slug}/employees/{e.id}/documents/{d.id}" class="text-indigo-700 hover:underline">
+					<a href="/t/{data.tenant.slug}/employees/{e.id}/documents/{d.id}" class="text-brand-700 hover:underline">
 						{d.title}
 					</a>
 					<span class="text-slate-500">{d.category} · {size(d.sizeBytes)}</span>
@@ -547,8 +543,8 @@
 {/if}
 
 {#if data.history.length}
-	<section class="mt-6 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="History">
-		<h2 class="font-semibold text-slate-900">History</h2>
+	<section class="mt-6 max-w-3xl panel" aria-label="History">
+		<h2 class="section-title">History</h2>
 		<ul class="mt-3 space-y-1 text-sm">
 			{#each data.history as h, i (i)}
 				<li data-testid="history">

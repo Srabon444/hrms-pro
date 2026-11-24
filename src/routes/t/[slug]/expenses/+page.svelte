@@ -8,7 +8,7 @@
 	let { data, form }: PageProps = $props();
 	const b = $derived(data.board);
 	const active = $derived(b.categories.filter((c) => c.active));
-	const input = 'rounded-md border border-slate-300 px-2 py-1 text-sm';
+	const input = 'input px-2 py-1';
 	const base = $derived(`/t/${data.tenant.slug}/expenses`);
 	let rows = $state(1);
 	const statusLabel: Record<string, string> = {
@@ -28,14 +28,14 @@
 			<li>
 				{i.spentOn} · {i.category} · {i.description} · ৳{taka(i.amount)}
 				{#if i.receiptName}
-					· <a class="text-indigo-700 underline" href={`${base}/receipts/${i.id}`}>Receipt for {i.description}</a>
+					· <a class="text-brand-700 underline" href={`${base}/receipts/${i.id}`}>Receipt for {i.description}</a>
 				{/if}
 			</li>
 		{/each}
 	</ul>
 {/snippet}
 
-<h1 class="text-2xl font-semibold text-slate-900">Expenses</h1>
+<h1 class="page-title">Expenses</h1>
 
 <div class="mt-4 max-w-4xl space-y-2">
 	<Alert message={form?.message} />
@@ -43,8 +43,8 @@
 </div>
 
 {#if b.toApprove.length}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Claims to approve">
-		<h2 class="font-semibold text-slate-900">Claims to approve</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="Claims to approve">
+		<h2 class="section-title">Claims to approve</h2>
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each b.toApprove as c (c.id)}
 				<li class="py-3" data-testid="expense-to-approve">
@@ -67,8 +67,8 @@
 {/if}
 
 {#if b.toPay.length}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Claims to pay">
-		<h2 class="font-semibold text-slate-900">Claims to pay</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="Claims to pay">
+		<h2 class="section-title">Claims to pay</h2>
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each b.toPay as c (c.id)}
 				<li class="py-3" data-testid="expense-to-pay">
@@ -85,8 +85,8 @@
 {/if}
 
 {#if b.canSubmit}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="New claim">
-		<h2 class="font-semibold text-slate-900">New claim</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="New claim">
+		<h2 class="section-title">New claim</h2>
 		{#if active.length}
 			<form
 				method="POST"
@@ -159,8 +159,8 @@
 {/if}
 
 {#if b.mine.length}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="My claims">
-		<h2 class="font-semibold text-slate-900">My claims</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="My claims">
+		<h2 class="section-title">My claims</h2>
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each b.mine as c (c.id)}
 				<li class="py-3" data-testid="my-expense">
@@ -183,8 +183,8 @@
 {/if}
 
 {#if b.canManage}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Categories">
-		<h2 class="font-semibold text-slate-900">Categories</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="Categories">
+		<h2 class="section-title">Categories</h2>
 		<ul class="mt-3 space-y-2 text-sm">
 			{#each b.categories as c (c.id)}
 				<li>

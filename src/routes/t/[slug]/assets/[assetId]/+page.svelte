@@ -9,15 +9,15 @@
 	let { data, form }: PageProps = $props();
 	const v = $derived(data.view);
 	const a = $derived(v.asset);
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 	const money = '\\d{1,9}(\\.\\d{1,2})?';
 	let outcome = $state('returned');
 </script>
 
 <svelte:head><title>{a.tag} · Assets · {data.tenant.name}</title></svelte:head>
 
-<a class="text-sm text-indigo-700 underline" href={`/t/${data.tenant.slug}/assets`}>Assets</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{a.tag} · {a.name}</h1>
+<a class="text-sm text-brand-700 underline" href={`/t/${data.tenant.slug}/assets`}>Assets</a>
+<h1 class="page-title mt-2">{a.tag} · {a.name}</h1>
 <p class="text-sm text-slate-600">
 	{a.category} · {ASSET_STATUS_LABELS[a.status]}{a.serial ? ` · S/N ${a.serial}` : ''}{a.purchaseDate
 		? ` · bought ${a.purchaseDate}`
@@ -30,8 +30,8 @@
 </div>
 
 {#if v.canManage && a.status === 'available'}
-	<section class="mt-4 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Hand over">
-		<h2 class="font-semibold text-slate-900">Hand over</h2>
+	<section class="mt-4 max-w-4xl panel" aria-label="Hand over">
+		<h2 class="section-title">Hand over</h2>
 		<form method="POST" action="?/assign" class="mt-3 grid gap-3 sm:grid-cols-4">
 			<label class="block text-sm font-medium text-slate-700">
 				Employee
@@ -54,8 +54,8 @@
 {/if}
 
 {#if v.canManage && v.holder}
-	<section class="mt-4 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Take back">
-		<h2 class="font-semibold text-slate-900">Take back or write off</h2>
+	<section class="mt-4 max-w-4xl panel" aria-label="Take back">
+		<h2 class="section-title">Take back or write off</h2>
 		<form method="POST" action="?/return" class="mt-3 grid gap-3 sm:grid-cols-3">
 			<label class="block text-sm font-medium text-slate-700">
 				Outcome
@@ -83,7 +83,7 @@
 {/if}
 
 <section class="mt-6 max-w-4xl" aria-label="History">
-	<h2 class="font-semibold text-slate-900">History</h2>
+	<h2 class="section-title">History</h2>
 	{#if v.history.length}
 		<ul class="mt-2 space-y-1 text-sm">
 			{#each v.history as h (h.id)}
@@ -107,8 +107,8 @@
 </section>
 
 {#if v.canManage}
-	<section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Edit asset">
-		<h2 class="font-semibold text-slate-900">Edit asset</h2>
+	<section class="mt-6 max-w-4xl panel" aria-label="Edit asset">
+		<h2 class="section-title">Edit asset</h2>
 		<form method="POST" action="?/save" class="mt-3 grid gap-3 sm:grid-cols-3">
 			<Field label="Tag" name="tag" required maxlength={20} pattern={'[A-Za-z0-9][A-Za-z0-9\\-]{1,19}'} value={a.tag} />
 			<Field label="Name" name="name" required maxlength={120} value={a.name} />

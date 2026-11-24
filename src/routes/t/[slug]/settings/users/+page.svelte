@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Badge from '#lib/components/ui/Badge.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
@@ -9,10 +10,10 @@
 
 <svelte:head><title>Users · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Users</h1>
+<h1 class="page-title">Users</h1>
 
-<section class="mt-6 max-w-xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
-	<h2 class="font-semibold text-slate-900">Invite someone</h2>
+<section class="mt-6 max-w-xl panel">
+	<h2 class="section-title">Invite someone</h2>
 	<form method="POST" action="?/invite" class="mt-4 space-y-4">
 		<Field label="Email" name="email" type="email" required value={form && 'email' in form ? form.email : ''} />
 		{#if data.grantableRoles.length}
@@ -31,7 +32,7 @@
 		{#if data.employees.length}
 			<label class="block text-sm font-medium text-slate-700">
 				Employee record
-				<select name="employeeId" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+				<select name="employeeId" class="mt-1 block w-full input">
 					<option value="">Not linked</option>
 					{#each data.employees as e (e.id)}<option value={e.id}>{e.name}</option>{/each}
 				</select>
@@ -47,7 +48,7 @@
 
 {#if data.pending.length}
 	<section class="mt-8">
-		<h2 class="font-semibold text-slate-900">Pending invitations</h2>
+		<h2 class="section-title">Pending invitations</h2>
 		<ul class="mt-3 divide-y divide-slate-200 rounded-xl bg-white ring-1 ring-slate-200">
 			{#each data.pending as inv (inv.id)}
 				<li class="flex items-center gap-4 p-4 text-sm">
@@ -64,7 +65,7 @@
 {/if}
 
 <section class="mt-8 overflow-x-auto">
-	<table class="min-w-full divide-y divide-slate-200 rounded-xl bg-white text-sm ring-1 ring-slate-200">
+	<table class="data-table rounded-xl bg-white ring-1 ring-slate-200">
 		<thead class="text-left text-slate-600">
 			<tr>
 				<th class="px-4 py-3 font-medium">Name</th>
@@ -77,18 +78,18 @@
 		</thead>
 		<tbody class="divide-y divide-slate-100">
 			{#each data.members as u (u.id)}
-				<tr>
+				<tr class="max-md:px-4">
 					<td class="px-4 py-3">
 						{#if u.self}
 							<span class="font-medium text-slate-900">{u.name}</span> <span class="text-slate-500">(you)</span>
 						{:else}
-							<a href="users/{u.id}" class="font-medium text-indigo-700 hover:underline">{u.name}</a>
+							<a href="users/{u.id}" class="font-medium text-brand-700 hover:underline">{u.name}</a>
 						{/if}
 						<div class="text-slate-500">{u.email}</div>
 					</td>
 					<td class="px-4 py-3 text-slate-700">{u.employee ?? ''}</td>
 					<td class="px-4 py-3 text-slate-700">{u.roles.join(', ')}</td>
-					<td class="px-4 py-3 text-slate-700">{u.status}</td>
+					<td class="px-4 py-3"><Badge status={u.status} /></td>
 					<td class="px-4 py-3 text-slate-700">{u.totpEnabled ? 'On' : 'Off'}</td>
 					<td class="px-4 py-3 text-slate-500">{u.lastLoginAt?.toLocaleString() ?? 'Never'}</td>
 				</tr>

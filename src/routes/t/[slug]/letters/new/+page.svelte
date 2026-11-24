@@ -10,8 +10,8 @@
 
 <svelte:head><title>Prepare letter · {data.tenant.name}</title></svelte:head>
 
-<a class="text-sm text-indigo-700 underline" href={`/t/${data.tenant.slug}/letters`}>All letters</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{data.template.name} for {data.employee.name}</h1>
+<a class="text-sm text-brand-700 underline" href={`/t/${data.tenant.slug}/letters`}>All letters</a>
+<h1 class="page-title mt-2">{data.template.name} for {data.employee.name}</h1>
 <p class="mt-1 max-w-3xl text-sm text-slate-600">
 	Check the text and fill in anything still in double braces. The letter is saved as a PDF and shared with the employee
 	once you issue it.
@@ -29,12 +29,8 @@
 	<Field label="Subject" name="subject" required maxlength={160} value={values.subject} />
 	<label class="block text-sm font-medium text-slate-700">
 		Letter
-		<textarea
-			name="body"
-			required
-			maxlength={20000}
-			rows="16"
-			class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm">{values.body}</textarea
+		<textarea name="body" required maxlength={20000} rows="16" class="mt-1 block w-full input font-mono"
+			>{values.body}</textarea
 		>
 	</label>
 	<div><Button type="submit">Issue letter</Button></div>

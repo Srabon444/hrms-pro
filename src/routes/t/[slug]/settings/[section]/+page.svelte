@@ -11,10 +11,10 @@
 
 <svelte:head><title>{section.title} settings · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">{section.title}</h1>
+<h1 class="page-title">{section.title}</h1>
 <p class="mt-1 text-sm text-slate-600">{section.intro}</p>
 
-<form method="POST" class="mt-6 max-w-2xl space-y-5 rounded-xl bg-white p-6 ring-1 ring-slate-200">
+<form method="POST" class="mt-6 max-w-2xl space-y-5 panel">
 	<Alert message={form?.message} />
 	{#if form && 'saved' in form}<Alert tone="info" message="Settings saved." />{/if}
 	{#each section.fields as f (f.key)}

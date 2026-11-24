@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Badge from '#lib/components/ui/Badge.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
@@ -11,16 +12,16 @@
 
 <main class="mx-auto max-w-4xl space-y-8 px-4 py-12">
 	<div class="flex items-center">
-		<h1 class="text-2xl font-semibold text-slate-900">Organisations</h1>
-		<a href="/" class="ml-auto text-sm text-indigo-600 hover:underline">Home</a>
+		<h1 class="page-title">Organisations</h1>
+		<a href="/" class="ml-auto text-sm text-brand-600 hover:underline">Home</a>
 	</div>
 	<Alert message={form?.message} />
 	{#if form && 'created' in form}
 		<Alert tone="info" message="Organisation {form.created} created. The owner invitation was emailed." />
 	{/if}
 
-	<section class="rounded-xl bg-white p-6 ring-1 ring-slate-200">
-		<h2 class="mb-4 font-semibold text-slate-900">New organisation</h2>
+	<section class="panel">
+		<h2 class="section-title mb-4">New organisation</h2>
 		<form method="POST" action="?/create" class="grid gap-4 sm:grid-cols-3">
 			<Field label="Name" name="name" required maxlength={120} value={form && 'name' in form ? form.name : ''} />
 			<Field
@@ -41,7 +42,7 @@
 		</form>
 	</section>
 
-	<table class="w-full overflow-hidden rounded-xl bg-white text-left text-sm ring-1 ring-slate-200">
+	<table class="data-table overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
 		<thead class="bg-slate-50 text-slate-600">
 			<tr>
 				<th class="px-4 py-2">Name</th><th class="px-4 py-2">URL</th><th class="px-4 py-2">Members</th><th
@@ -53,11 +54,11 @@
 		</thead>
 		<tbody class="divide-y divide-slate-200">
 			{#each data.tenants as t (t.id)}
-				<tr>
+				<tr class="max-md:px-4">
 					<td class="px-4 py-2">{t.name}</td>
 					<td class="px-4 py-2 font-mono">/t/{t.slug}</td>
 					<td class="px-4 py-2">{t.members}</td>
-					<td class="px-4 py-2">{t.status}</td>
+					<td class="px-4 py-2"><Badge status={t.status} /></td>
 					<td class="px-4 py-2 text-right">
 						<form method="POST" action="?/status">
 							<input type="hidden" name="tenantId" value={t.id} />

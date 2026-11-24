@@ -7,7 +7,7 @@
 		departments,
 		branches
 	}: { v: Record<string, string | boolean | null | undefined>; departments: Option[]; branches: Option[] } = $props();
-	const input = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const input = 'mt-1 block w-full input';
 	const str = (k: string) => (typeof v[k] === 'string' ? (v[k] as string) : '');
 	let audience = $state(str('audience') || 'all');
 	let publishOn = $state(str('publishOn'));

@@ -12,9 +12,9 @@
 
 <svelte:head><title>General settings · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">General</h1>
+<h1 class="page-title">General</h1>
 
-<form method="POST" class="mt-6 max-w-2xl space-y-6 rounded-xl bg-white p-6 ring-1 ring-slate-200">
+<form method="POST" class="mt-6 max-w-2xl space-y-6 panel">
 	<Alert message={form?.message} />
 	{#if form && 'saved' in form}<Alert tone="info" message="Settings saved." />{/if}
 	<div class="grid gap-4 sm:grid-cols-2">
@@ -23,13 +23,13 @@
 		<div class="sm:col-span-2"><Field label="Address" name="address" maxlength={500} value={s.address} /></div>
 		<label class="block text-sm font-medium text-slate-700">
 			Time zone
-			<select name="timezone" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2">
+			<select name="timezone" class="mt-1 block w-full input">
 				{#each data.timezones as tz (tz)}<option value={tz} selected={tz === s.timezone}>{tz}</option>{/each}
 			</select>
 		</label>
 		<label class="block text-sm font-medium text-slate-700">
 			Fiscal year starts in
-			<select name="fiscalYearStartMonth" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2">
+			<select name="fiscalYearStartMonth" class="mt-1 block w-full input">
 				{#each MONTHS as month, i (month)}
 					<option value={i + 1} selected={i + 1 === s.fiscalYearStartMonth}>{month}</option>
 				{/each}

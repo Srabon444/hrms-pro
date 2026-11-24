@@ -11,15 +11,15 @@
 
 <svelte:head><title>Payroll settings · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Payroll settings</h1>
+<h1 class="page-title">Payroll settings</h1>
 
-<form method="POST" class="mt-6 max-w-2xl space-y-6 rounded-xl bg-white p-6 ring-1 ring-slate-200">
+<form method="POST" class="mt-6 max-w-2xl space-y-6 panel">
 	<Alert message={form?.message} />
 	{#if form && 'saved' in form}<Alert tone="info" message="Payroll settings saved." />{/if}
 	<div class="grid gap-4 sm:grid-cols-2">
 		<label class="block text-sm font-medium text-slate-700">
 			Part-month pay is based on
-			<select name="payrollProrationBasis" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2">
+			<select name="payrollProrationBasis" class="mt-1 block w-full input">
 				<option value="calendar" selected={s.payrollProrationBasis === 'calendar'}>Calendar days</option>
 				<option value="working" selected={s.payrollProrationBasis === 'working'}>Working days</option>
 			</select>

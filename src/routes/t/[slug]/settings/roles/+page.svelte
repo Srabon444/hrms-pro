@@ -9,13 +9,13 @@
 
 <svelte:head><title>Roles · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Roles</h1>
+<h1 class="page-title">Roles</h1>
 
 <ul class="mt-6 divide-y divide-slate-200 rounded-xl bg-white ring-1 ring-slate-200">
 	{#each data.roles as r (r.id)}
 		<li class="flex items-start gap-4 p-4">
 			<div class="flex-1">
-				<a href="/t/{data.tenant.slug}/settings/roles/{r.id}" class="font-medium text-indigo-700 hover:underline">
+				<a href="/t/{data.tenant.slug}/settings/roles/{r.id}" class="font-medium text-brand-700 hover:underline">
 					{r.name}
 				</a>
 				{#if r.isSystem}<span class="ml-2 text-xs text-slate-500">built-in</span>{/if}
@@ -26,8 +26,8 @@
 	{/each}
 </ul>
 
-<section class="mt-8 max-w-xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
-	<h2 class="font-semibold text-slate-900">New role</h2>
+<section class="mt-8 max-w-xl panel">
+	<h2 class="section-title">New role</h2>
 	<form method="POST" action="?/create" class="mt-4 space-y-4">
 		<Field label="Role name" name="name" required maxlength={80} value={form && 'name' in form ? form.name : ''} />
 		<Field label="Description" name="description" maxlength={300} />

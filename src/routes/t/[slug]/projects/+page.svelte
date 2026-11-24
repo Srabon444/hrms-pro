@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Badge from '#lib/components/ui/Badge.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
@@ -12,15 +13,15 @@
 
 <svelte:head><title>Projects · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Projects</h1>
+<h1 class="page-title">Projects</h1>
 
 <div class="mt-4 max-w-4xl">
 	<Alert message={form?.message} />
 </div>
 
 {#if data.canManage}
-	<section class="mt-4 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="New project">
-		<h2 class="font-semibold text-slate-900">New project</h2>
+	<section class="mt-4 max-w-4xl panel" aria-label="New project">
+		<h2 class="section-title">New project</h2>
 		<form method="POST" action="?/save" class="mt-3 grid gap-3 sm:grid-cols-3">
 			<Field
 				label="Code"
@@ -42,17 +43,19 @@
 
 <section class="mt-6 max-w-4xl" aria-label="Project list">
 	{#if data.projects.length}
-		<table class="w-full text-left text-sm">
-			<thead class="text-slate-500">
+		<table class="data-table">
+			<thead>
 				<tr><th class="py-2">Code</th><th>Name</th><th>Client</th><th>Status</th><th>People</th></tr>
 			</thead>
 			<tbody>
 				{#each data.projects as p (p.id)}
 					<tr class="border-t border-slate-200" data-testid="project">
-						<td class="py-2"><a class="text-indigo-700 underline" href={`${base}/${p.id}`}>{p.code}</a></td>
+						<td class="py-2"><a class="text-brand-700 underline" href={`${base}/${p.id}`}>{p.code}</a></td>
 						<td>{p.name}</td>
 						<td>{p.client || '—'}</td>
-						<td>{PROJECT_STATUS_LABELS[p.status]}{p.billable ? '' : ' · non-billable'}</td>
+						<td>
+							<Badge status={p.status} label={PROJECT_STATUS_LABELS[p.status]} />{p.billable ? '' : ' · non-billable'}
+						</td>
 						<td>{p.members}</td>
 					</tr>
 				{/each}

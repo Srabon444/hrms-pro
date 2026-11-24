@@ -10,9 +10,9 @@
 
 {#each sections as s (s.key)}
 	<section class="mt-6 max-w-5xl" aria-label={s.title}>
-		<h2 class="font-semibold text-slate-900">{s.title}</h2>
-		<table class="mt-2 w-full text-left text-sm">
-			<thead class="text-slate-500">
+		<h2 class="section-title">{s.title}</h2>
+		<table class="mt-2 data-table">
+			<thead>
 				<tr>
 					{#each s.columns as c (c.key)}<th class={['py-2', c.numeric && 'text-right']}>{c.label}</th>{/each}
 				</tr>

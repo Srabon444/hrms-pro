@@ -11,12 +11,12 @@
 {#if onHub}
 	{@render children()}
 {:else}
-	<div class="gap-8 lg:flex">
-		<nav aria-label="Settings" class="mb-6 shrink-0 lg:mb-0 lg:w-48">
-			<a href={base} class="text-sm font-medium text-indigo-700 hover:underline">All settings</a>
+	<div class="gap-8 xl:flex">
+		<nav aria-label="Settings" class="mb-6 shrink-0 xl:mb-0 xl:w-48">
+			<a href={base} class="text-sm font-medium text-brand-700 hover:underline">All settings</a>
 			{#each groups as [group, pages] (group)}
-				<p class="mt-4 text-xs font-semibold tracking-wide text-slate-500 uppercase">{group}</p>
-				<ul class="mt-1 flex flex-wrap gap-1 lg:flex-col">
+				<p class="mt-4 hidden text-xs font-medium text-slate-500 xl:block">{group}</p>
+				<ul class="mt-1 hidden gap-1 xl:flex xl:flex-col">
 					{#each pages as p (p.href)}
 						{@const href = `${base}/${p.href}`}
 						<li>
@@ -26,7 +26,7 @@
 								class={[
 									'block rounded-md px-2 py-1 text-sm',
 									page.url.pathname.startsWith(href)
-										? 'bg-indigo-50 font-medium text-indigo-700'
+										? 'bg-brand-50 font-medium text-brand-700'
 										: 'text-slate-700 hover:bg-slate-100'
 								]}
 							>

@@ -12,13 +12,13 @@
 
 <svelte:head><title>Policies · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Policies</h1>
+<h1 class="page-title">Policies</h1>
 
 <div class="mt-4 max-w-3xl"><Alert message={form && 'message' in form ? form.message : undefined} /></div>
 
 {#if data.manager}
-	<section class="mt-4 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="New policy">
-		<h2 class="font-semibold text-slate-900">New policy</h2>
+	<section class="mt-4 max-w-3xl panel" aria-label="New policy">
+		<h2 class="section-title">New policy</h2>
 		<form method="POST" action="?/create" enctype="multipart/form-data" class="mt-3 grid gap-3 sm:grid-cols-2">
 			<PolicyFields v={values} fileRequired />
 			<div class="sm:col-span-2"><Button type="submit">Publish policy</Button></div>
@@ -30,8 +30,8 @@
 	{#each data.rows as p (p.id)}
 		<article class="rounded-xl bg-white p-5 ring-1 ring-slate-200" data-testid="policy">
 			<div class="flex flex-wrap items-baseline justify-between gap-2">
-				<h2 class="font-semibold text-slate-900">
-					{#if data.manager}<a class="text-indigo-700 underline" href={`${base}/${p.id}`}>
+				<h2 class="section-title">
+					{#if data.manager}<a class="text-brand-700 underline" href={`${base}/${p.id}`}>
 							{p.title}
 						</a>{:else}{p.title}{/if}
 				</h2>
@@ -41,7 +41,7 @@
 			</div>
 			{#if p.description}<p class="mt-2 text-sm whitespace-pre-line text-slate-700">{p.description}</p>{/if}
 			<div class="mt-3 flex flex-wrap items-center gap-3 text-sm">
-				<a class="text-indigo-700 underline" href={`${base}/${p.id}/file`}>Read the policy</a>
+				<a class="text-brand-700 underline" href={`${base}/${p.id}/file`}>Read the policy</a>
 				{#if data.manager && p.requiresAck}
 					<span class="text-slate-600" data-testid="policy-progress">{p.acked} of {data.staff} acknowledged</span>
 				{/if}

@@ -22,7 +22,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				(!item.self || m.access.employeeId) &&
 				(!item.active || locals.membership!.status === 'active') &&
 				(!item.perm || [item.perm].flat().some((p) => can(m.access, p)))
-		).map(({ href, label }) => ({ href, label })),
+		).map(({ href, label, group }) => ({ href, label, group })),
 		unread
 	};
 };

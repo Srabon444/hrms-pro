@@ -5,13 +5,13 @@
 
 	let { data, form }: PageProps = $props();
 	const l = $derived(data.leave);
-	const field = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	const field = 'mt-1 block w-full input';
 </script>
 
 <svelte:head><title>Leave request · {data.tenant.name}</title></svelte:head>
 
-<a href="/t/{data.tenant.slug}/approvals" class="text-sm text-indigo-600 hover:underline">Back to approvals</a>
-<h1 class="mt-2 text-2xl font-semibold text-slate-900">{l.type} for {l.employee.fullName}</h1>
+<a href="/t/{data.tenant.slug}/approvals" class="text-sm text-brand-600 hover:underline">Back to approvals</a>
+<h1 class="page-title mt-2">{l.type} for {l.employee.fullName}</h1>
 <p class="text-sm text-slate-600">{l.employee.code} · {l.status}</p>
 
 <div class="mt-4 max-w-3xl space-y-2">
@@ -22,30 +22,30 @@
 
 <dl class="mt-4 max-w-3xl space-y-2 rounded-xl bg-white p-6 text-sm ring-1 ring-slate-200">
 	<div class="flex gap-3">
-		<dt class="w-40 text-slate-500">Dates</dt>
+		<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Dates</dt>
 		<dd>
 			{l.startDate}{l.endDate !== l.startDate ? ` to ${l.endDate}` : ''}{l.session !== 'full' ? ` (${l.session})` : ''}
 		</dd>
 	</div>
 	<div class="flex gap-3">
-		<dt class="w-40 text-slate-500">Days counted</dt>
+		<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Days counted</dt>
 		<dd data-testid="leave-days">{l.days}{l.dates.length ? ` · ${l.dates.join(', ')}` : ''}</dd>
 	</div>
 	{#if l.balance}
 		<div class="flex gap-3">
-			<dt class="w-40 text-slate-500">Balance</dt>
+			<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Balance</dt>
 			<dd>{l.balance.balance} days, {l.balance.pending} pending</dd>
 		</div>
 	{/if}
 	{#if l.reason}
 		<div class="flex gap-3">
-			<dt class="w-40 text-slate-500">Reason</dt>
+			<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Reason</dt>
 			<dd class="whitespace-pre-line">{l.reason}</dd>
 		</div>
 	{/if}
 	{#if l.decisionNote}
 		<div class="flex gap-3">
-			<dt class="w-40 text-slate-500">Note</dt>
+			<dt class="w-28 shrink-0 text-slate-500 sm:w-40">Note</dt>
 			<dd>{l.decisionNote}</dd>
 		</div>
 	{/if}

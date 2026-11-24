@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Badge from '#lib/components/ui/Badge.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { BILL_STATUS } from '#lib/meal-bill-status.ts';
@@ -6,8 +7,8 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const input = 'rounded-md border border-slate-300 px-2 py-1 text-sm';
-	const card = 'mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200';
+	const input = 'input px-2 py-1';
+	const card = 'mt-6 max-w-4xl panel';
 	const STATUS: Record<string, string> = {
 		ordered: 'Eating',
 		opted_out: 'Skipped',
@@ -17,7 +18,7 @@
 
 <svelte:head><title>Meals · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Meals</h1>
+<h1 class="page-title">Meals</h1>
 
 <div class="mt-4 max-w-4xl space-y-2">
 	<Alert message={form?.message} />
@@ -26,7 +27,7 @@
 
 {#if data.mine}
 	<section class={card} aria-label="My meals">
-		<h2 class="font-semibold text-slate-900">My meals</h2>
+		<h2 class="section-title">My meals</h2>
 		<p class="mt-1 text-sm text-slate-600">
 			Change a day until {data.mine.cutoff} that day. You pay your share for your own plate and the full price for guests.
 		</p>
@@ -80,7 +81,7 @@
 
 {#if data.bills.length}
 	<section class={card} aria-label="My bills">
-		<h2 class="font-semibold text-slate-900">My bills</h2>
+		<h2 class="section-title">My bills</h2>
 		{#if data.due}
 			<p class="mt-1 text-sm text-amber-700" data-testid="meal-due">You owe ৳{taka(data.due)} for meals.</p>
 		{/if}
@@ -93,7 +94,7 @@
 								? ` · paid ৳${taka(bill.paid)}`
 								: ''}
 						</summary>
-						<table class="mt-2 w-full text-left text-slate-600">
+						<table class="data-table mt-2">
 							<tbody>
 								{#each bill.lines as l (l.id)}
 									<tr>
@@ -107,7 +108,7 @@
 						</table>
 						<a
 							href="/t/{data.tenant.slug}/meals/bills/{bill.id}/pdf"
-							class="mt-1 inline-block text-indigo-700 hover:underline"
+							class="mt-1 inline-block text-brand-700 hover:underline"
 						>
 							Download PDF of {bill.period}
 						</a>
@@ -121,8 +122,8 @@
 {#if data.day}
 	{@const day = data.day}
 	<section class={card} aria-label="Daily meals">
-		<h2 class="font-semibold text-slate-900">Daily meals</h2>
-		<form method="GET" class="mt-3 flex items-end gap-3 text-sm">
+		<h2 class="section-title">Daily meals</h2>
+		<form method="GET" class="mt-3 flex flex-wrap items-end gap-3 text-sm">
 			<label class="text-slate-700">
 				Day
 				<input name="date" type="date" value={day.date} class={`${input} block`} />
@@ -150,8 +151,8 @@
 			{/each}
 		</ul>
 		{#if day.rows.length}
-			<table class="mt-4 w-full text-left text-sm">
-				<thead class="text-slate-500">
+			<table class="mt-4 data-table">
+				<thead>
 					<tr><th class="py-1">Employee</th><th>Meal</th><th>Status</th><th>Guests</th></tr>
 				</thead>
 				<tbody>
@@ -181,7 +182,7 @@
 									</form>
 								</td>
 							{:else}
-								<td>{STATUS[row.status]}</td>
+								<td><Badge status={row.status} label={STATUS[row.status]} /></td>
 								<td>{row.guestQty}</td>
 							{/if}
 						</tr>
