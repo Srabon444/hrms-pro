@@ -93,8 +93,9 @@ Behind a reverse proxy, set `ADDRESS_HEADER=X-Forwarded-For` and `XFF_DEPTH` to 
 app. Without them every request appears to come from the proxy, so all clients share one login and reset rate-limit
 bucket. Never set them when the app is reachable directly, or clients can choose their own address.
 
-If Redis is down, sign-in, password reset and 2FA refuse requests rather than run without limits; ordinary saves keep
-working and log `mutation rate limit unavailable`.
+If Redis is down, sign-in, password reset and 2FA refuse requests rather than run without limits. Saves and downloads
+keep working with limits counted in each app process's memory and log `redis rate limit unavailable; counting in memory`,
+so with several app processes a user can briefly get that many times the normal allowance.
 
 ## Backup and restore
 

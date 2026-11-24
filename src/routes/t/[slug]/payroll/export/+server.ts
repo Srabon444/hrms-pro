@@ -1,18 +1,16 @@
 import { error } from '@sveltejs/kit';
 import { ZodError } from 'zod';
-import { config } from '#lib/server/config.ts';
 import { toCsv } from '#lib/server/csv.ts';
 import { AppError } from '#lib/server/errors.ts';
 import { exportPayroll } from '#lib/server/payroll-exports.ts';
 import { requireMember } from '#lib/server/rbac/access.ts';
-import { hit } from '#lib/server/ratelimit.ts';
+import { downloadLimit } from '#lib/server/ratelimit.ts';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, url }) => {
 	const m = requireMember(locals);
-	const limit = await hit('download', m.user.userId, config().RL_DOWNLOADS_PER_USER_MIN, 60_000).catch(() => null);
-	if (limit && !limit.ok)
-		return new Response('Too many downloads', { status: 429, headers: { 'retry-after': String(limit.retryAfter) } });
+	const limited = await downloadLimit(m.user.userId);
+	if (limited) return limited;
 	try {
 		const { fileName, rows } = await exportPayroll(m, {
 			runId: url.searchParams.get('run') ?? '',

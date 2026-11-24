@@ -8,7 +8,7 @@ import { config } from '#lib/server/config.ts';
 import { log } from '#lib/server/log.ts';
 import { httpDuration } from '#lib/server/metrics.ts';
 import { loadAccess } from '#lib/server/rbac/access.ts';
-import { hit } from '#lib/server/ratelimit.ts';
+import { hitOrLocal } from '#lib/server/ratelimit.ts';
 import { holdsRestricted } from '#lib/rbac/grants.ts';
 import { resolveTenantAccess } from '#lib/server/tenancy/resolve.ts';
 
@@ -23,14 +23,9 @@ const TENANT_PATH = /^\/t\/([^/]+)(?:\/|$)/;
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 async function mutationLimit(userId: string): Promise<Response | null> {
-	try {
-		const r = await hit('mutation', userId, config().RL_MUTATIONS_PER_USER_MIN, 60_000);
-		if (r.ok) return null;
-		return new Response('Too many requests', { status: 429, headers: { 'retry-after': String(r.retryAfter) } });
-	} catch (err) {
-		log.warn({ err: (err as Error).message }, 'mutation rate limit unavailable; allowing request');
-		return null;
-	}
+	const r = await hitOrLocal('mutation', userId, config().RL_MUTATIONS_PER_USER_MIN, 60_000);
+	if (r.ok) return null;
+	return new Response('Too many requests', { status: 429, headers: { 'retry-after': String(r.retryAfter) } });
 }
 
 const FORM_TYPES = new Set(['application/x-www-form-urlencoded', 'multipart/form-data']);

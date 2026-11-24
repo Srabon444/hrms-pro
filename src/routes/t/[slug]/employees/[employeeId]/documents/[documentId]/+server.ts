@@ -1,16 +1,14 @@
 import { error } from '@sveltejs/kit';
-import { config } from '#lib/server/config.ts';
 import { openDocument } from '#lib/server/documents.ts';
 import { AppError } from '#lib/server/errors.ts';
 import { requirePerm, userCtx } from '#lib/server/rbac/access.ts';
-import { hit } from '#lib/server/ratelimit.ts';
+import { downloadLimit } from '#lib/server/ratelimit.ts';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, params }) => {
 	const m = requirePerm(locals, 'document.read');
-	const limit = await hit('download', m.user.userId, config().RL_DOWNLOADS_PER_USER_MIN, 60_000).catch(() => null);
-	if (limit && !limit.ok)
-		return new Response('Too many downloads', { status: 429, headers: { 'retry-after': String(limit.retryAfter) } });
+	const limited = await downloadLimit(m.user.userId);
+	if (limited) return limited;
 	try {
 		const doc = await openDocument(userCtx(m), m.access, params.employeeId, params.documentId);
 		return new Response(new Uint8Array(doc.body), {
