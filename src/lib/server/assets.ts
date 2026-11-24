@@ -23,7 +23,8 @@ const money = (msg: string) =>
 		.trim()
 		.regex(/^(\d{1,9}(\.\d{1,2})?)?$/, msg)
 		.prefault('')
-		.transform((v) => (v ? poishaOf(v) : null));
+		.transform((v) => (v ? poishaOf(v) : null))
+		.refine((v) => v === null || v <= 2_147_483_647, 'Enter at most 21474836.47.');
 const condition = z.enum(ASSET_CONDITIONS, 'Choose the condition.');
 
 const assetSchema = z.object({

@@ -217,7 +217,8 @@ describe('asset import', () => {
 				['IMP-3', 'Desk', 'Furniture', '', '2026-13-01', ''],
 				['IMP-4', 'Desk', 'Furniture', '', '', '1.234'],
 				['IMP-5', 'Desk', 'Furniture', '', '', ''],
-				['imp-5', 'Desk', 'Furniture', '', '', '']
+				['imp-5', 'Desk', 'Furniture', '', '', ''],
+				['IMP-6', 'Crane', 'Vehicle', '', '', '30000000']
 			])
 		).toEqual([
 			{ line: 2, message: 'Another asset already uses that tag.' },
@@ -226,7 +227,8 @@ describe('asset import', () => {
 			{ line: 5, message: 'The purchase date cannot be in the future.' },
 			{ line: 6, message: 'Enter a real purchase date.' },
 			{ line: 7, message: 'Enter the cost, up to 2 decimals.' },
-			{ line: 9, message: 'This tag appears twice in the file.' }
+			{ line: 9, message: 'This tag appears twice in the file.' },
+			{ line: 10, message: 'Enter at most 21474836.47.' }
 		]);
 		expect(await run('hr', [['IMP-9', 'Desk', 'Furniture', '', '', '']])).toBe('forbidden');
 		expect(
