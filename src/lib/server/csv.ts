@@ -70,6 +70,17 @@ export function csvRecords<K extends string>(table: string[][], columns: readonl
 		throw new ImportFailed([{ line: 1, message: `Header must be ${columns.join(',')}.` }]);
 	if (!body.length) throw new ImportFailed([{ line: 2, message: 'The file has no rows to import.' }]);
 	if (body.length > max) throw new ImportFailed([{ line: 1, message: `Import at most ${max} rows at a time.` }]);
+	const ragged = body.flatMap((cells, i) =>
+		cells.slice(cols.length).some((c) => c.trim())
+			? [
+					{
+						line: i + 2,
+						message: 'This row has more cells than the header. Put quotes around values that contain commas.'
+					}
+				]
+			: []
+	);
+	if (ragged.length) throw new ImportFailed(ragged.slice(0, 50));
 	return body.map((cells, i) => ({
 		line: i + 2,
 		v: Object.fromEntries(columns.map((c) => [c, unformula(cells[cols.indexOf(c)] ?? '')])) as Record<K, string>

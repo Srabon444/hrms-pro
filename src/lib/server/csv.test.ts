@@ -86,4 +86,26 @@ describe('csvRecords', () => {
 			)
 		).toEqual([{ line: 1, message: 'Import at most 1 rows at a time.' }]);
 	});
+
+	it('rejects rows with more filled cells than the header, such as an unquoted comma', () => {
+		const run = () =>
+			csvRecords(
+				[
+					['date', 'name'],
+					['2031-04-01', 'Eid', ' Day'],
+					['2031-04-02', 'Ok', ''],
+					['2031-04-03', 'Fine']
+				],
+				['date', 'name'],
+				5
+			);
+		expect(() => run()).toThrow();
+		try {
+			run();
+		} catch (e) {
+			expect((e as { rows: unknown }).rows).toEqual([
+				{ line: 2, message: 'This row has more cells than the header. Put quotes around values that contain commas.' }
+			]);
+		}
+	});
 });
