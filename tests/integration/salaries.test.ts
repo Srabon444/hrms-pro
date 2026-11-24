@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { addFiles, openFile } from '../../src/lib/server/attachments';
 import { closePools } from '../../src/lib/server/db';
 import { pgCode } from '../../src/lib/server/db/errors';
 import {
@@ -36,6 +37,7 @@ const code = (p: Promise<unknown>) =>
 	p
 		.then(() => 'ok')
 		.catch((e: { code?: string; issues?: unknown[] }) => (e.issues ? 'invalid' : (e.code ?? String(e))));
+const pdf = (name: string) => new File([`%PDF-1.7 ${name}`], name, { type: 'application/pdf' });
 const blanks = Object.fromEntries(Object.keys({ ...PROFILE_FIELDS, ...EMPLOYMENT_FIELDS }).map((k) => [k, '']));
 const creator = {
 	membershipId: '',
@@ -157,6 +159,10 @@ describe('salaries', () => {
 		);
 		expect(change.lines).toHaveLength(4);
 		expect(await code(proposeSalary(who.po, offer(ids.ana, '2026-02-01', '1')))).toBe('pending_exists');
+		const [letter] = await addFiles(who.po, 'salary_change', first, [pdf('appraisal.pdf')]);
+		expect((await openFile(who.fin, letter)).fileName).toBe('appraisal.pdf');
+		expect(await code(openFile(who.ana, letter))).toBe('not_found');
+		expect(await code(addFiles(who.fin, 'salary_change', first, [pdf('x.pdf')]))).toBe('forbidden');
 		expect(
 			(await withTenant(salaryCtx(who.fin), (tx) => salaryApprovals(tx, who.fin.access))).map((a) => a.id)
 		).toEqual([first]);
@@ -165,6 +171,8 @@ describe('salaries', () => {
 		expect(await code(decide('ana', first))).toBe('not_found');
 		expect(await decide('fin', first)).toBe('approved');
 		expect(await code(decide('fin', first))).toBe('decided');
+		expect(await code(addFiles(who.po, 'salary_change', first, [pdf('late.pdf')]))).toBe('forbidden');
+		expect((await openFile(who.po, letter)).fileName).toBe('appraisal.pdf');
 		expect(await salaries(ids.ana)).toEqual([{ from: '2026-01-01', to: null, gross: 7_700_050 }]);
 		const lines = await withTenant(sal(), (tx) =>
 			tx.select().from(employeeSalaryLines).where(eq(employeeSalaryLines.employeeId, ids.ana))

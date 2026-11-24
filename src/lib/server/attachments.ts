@@ -16,7 +16,8 @@ import { AppError } from './errors';
 import { log } from './log';
 import { candidateAttachments, feedbackAttachments, offerAttachments } from './recruitment';
 import { resignationAttachments } from './resignations';
-import { userCtx, type Access, type requireMember } from './rbac/access';
+import { salaryAttachments, salaryCtx } from './salaries';
+import type { Access, requireMember } from './rbac/access';
 import { safeFileName, sniffType } from './sniff';
 import { deleteObject, getObject, putObject } from './storage';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
@@ -40,6 +41,7 @@ const owners = (): Record<AttachmentOwner, AttachmentRules> => ({
 	loan: loanAttachments,
 	offer: offerAttachments,
 	resignation: resignationAttachments,
+	salary_change: salaryAttachments,
 	ticket: ticketAttachments,
 	ticket_comment: ticketCommentAttachments
 });
@@ -111,7 +113,7 @@ export async function insertFiles(tx: Tx, ctx: TenantCtx, type: AttachmentOwner,
 }
 
 export async function addFiles(m: Member, type: AttachmentOwner, ownerId: string, list: File[]) {
-	const ctx = userCtx(m);
+	const ctx = salaryCtx(m);
 	await withTenant(ctx, async (tx) => {
 		await assertEditable(tx, m.access, type, ownerId, false);
 		await assertRoom(tx, type, ownerId, list.filter((f) => f.size > 0).length);
@@ -139,7 +141,7 @@ async function fileRow(tx: Tx, fileId: string, owner?: Owner, lock = false) {
 }
 
 export async function replaceFile(m: Member, owner: Owner, fileId: string, file: File) {
-	const ctx = userCtx(m);
+	const ctx = salaryCtx(m);
 	const type = await withTenant(ctx, async (tx) => {
 		const f = await fileRow(tx, fileId, owner);
 		await assertEditable(tx, m.access, f.ownerType, f.ownerId, false);
@@ -166,7 +168,7 @@ export async function replaceFile(m: Member, owner: Owner, fileId: string, file:
 }
 
 export async function removeFile(m: Member, owner: Owner, fileId: string) {
-	const key = await withTenant(userCtx(m), async (tx) => {
+	const key = await withTenant(salaryCtx(m), async (tx) => {
 		const f = await fileRow(tx, fileId, owner);
 		await assertEditable(tx, m.access, f.ownerType, f.ownerId, true);
 		const locked = await fileRow(tx, fileId, owner, true);
@@ -187,7 +189,7 @@ export async function listFiles(tx: Tx, access: Access, type: AttachmentOwner, o
 }
 
 export async function openFile(m: Member, fileId: string) {
-	const ctx = userCtx(m);
+	const ctx = salaryCtx(m);
 	const f = await withTenant(ctx, async (tx) => {
 		const row = await fileRow(tx, fileId);
 		if (!(await rules(row.ownerType).canRead(tx, m.access, row.ownerId))) throw notFound();

@@ -25,11 +25,20 @@ test('a payroll officer proposes a salary and finance approves it', async ({ pag
 	const pending = page.getByTestId('salary-change');
 	await expect(pending).toContainText('৳77000.00 gross from 2026-01-05');
 	await expect(pending.getByRole('button', { name: /^Approve/ })).toHaveCount(0);
+	const docs = pending.getByRole('group', { name: 'Documents' });
+	await docs.getByText('Documents (0)').click();
+	await docs
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'offer.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 offer') });
+	await docs.getByRole('button', { name: 'Attach files' }).click();
+	await expect(docs.getByTestId('attachment')).toContainText('offer.pdf');
 
 	await page.context().clearCookies();
 	await signIn(page, f.users.fin.email);
 	await page.goto(`/t/${f.tenant!.slug}/approvals`);
 	await page.getByRole('link', { name: /৳77000\.00 from 2026-01-05/ }).click();
+	await expect(page.getByTestId('salary-change').getByTestId('attachment')).toContainText('offer.pdf');
+	await expect(page.getByTestId('salary-change').getByRole('button', { name: 'Attach files' })).toHaveCount(0);
 	await page.getByRole('button', { name: /^Approve salary of ana/ }).click();
 	await expect(page.getByRole('status')).toHaveText('Salary change approved.');
 	const row = page.getByTestId('salary-row').filter({ hasText: 'ana' });

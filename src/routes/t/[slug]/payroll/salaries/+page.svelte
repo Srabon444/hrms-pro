@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { money, unit } from '#lib/money.ts';
@@ -26,6 +27,17 @@
 				<li class="py-3" data-testid="salary-change">
 					<p class="text-slate-800">{c.name} · {money(c.gross, data.currency)} gross from {c.effectiveFrom}</p>
 					<p class="text-slate-500">{c.lines.join(', ')} · {c.reason}</p>
+					{#if c.canAttach || data.changeFiles[c.id]?.length}
+						<Attachments
+							slug={data.tenant.slug}
+							attachments={{ files: data.changeFiles[c.id] ?? [], canEdit: c.canAttach }}
+							{form}
+							action="?/changeFiles"
+							ownerId={c.id}
+							title="Documents"
+							compact
+						/>
+					{/if}
 					{#if c.canDecide}
 						<form method="POST" action="?/decide" class="mt-2 flex flex-wrap items-center gap-2">
 							<input type="hidden" name="changeId" value={c.id} />

@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { money, poishaOf } from '../money';
 import type { ApprovalItem } from './approvals';
+import type { AttachmentRules } from './attachments';
 import { singleAdmin } from './approval-chain';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { employeeSalaries, employeeSalaryLines, employees, payComponents, salaryChanges } from './db/schema';
@@ -233,6 +234,7 @@ export async function salaryBoard(tx: Tx, m: Member) {
 				)
 		: [];
 	const approveScope = await resolveScope(tx, m.access, 'salary.approve');
+	const updateScope = await resolveScope(tx, m.access, 'salary.update');
 	const lone = await singleAdmin(tx);
 	const pending = ids.length
 		? await tx
@@ -271,6 +273,7 @@ export async function salaryBoard(tx: Tx, m: Member) {
 			reason: c.reason,
 			gross: c.gross,
 			lines: c.lines.map(describe),
+			canAttach: inScope(updateScope, c.employeeId),
 			canDecide:
 				inScope(approveScope, c.employeeId) &&
 				(lone || (c.requestedByUserId !== m.user.userId && c.employeeId !== m.access.employeeId))
@@ -309,3 +312,25 @@ export async function salaryApprovals(tx: Tx, access: Access): Promise<ApprovalI
 		link: 'payroll/salaries'
 	}));
 }
+
+export const salaryAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		const [c] = await tx
+			.select({ employeeId: salaryChanges.employeeId })
+			.from(salaryChanges)
+			.where(eq(salaryChanges.id, id));
+		if (!c) return false;
+		const scopes = await Promise.all(
+			(['salary.read', 'salary.approve'] as const).map((p) => resolveScope(tx, access, p))
+		);
+		return scopes.some((s) => inScope(s, c.employeeId));
+	},
+	async canEdit(tx, access, id, lock) {
+		const q = tx
+			.select({ employeeId: salaryChanges.employeeId, status: salaryChanges.status })
+			.from(salaryChanges)
+			.where(eq(salaryChanges.id, id));
+		const [c] = lock ? await q.for('update') : await q;
+		return !!c && c.status === 'pending' && inScope(await resolveScope(tx, access, 'salary.update'), c.employeeId);
+	}
+};

@@ -421,6 +421,13 @@
       "when": 1795530084802,
       "tag": "0059_attach_announcements",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795530547954,
+      "tag": "0060_attach_salary_changes",
+      "breakpoints": true
     }
   ]
 }
