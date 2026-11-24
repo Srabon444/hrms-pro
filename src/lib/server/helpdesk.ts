@@ -18,6 +18,7 @@ import { AppError } from './errors';
 import { advisoryLock, LOCK } from './locks';
 import { notify } from './notifications';
 import { activeMemberships } from './approval-chain';
+import type { AttachmentRules } from './attachments';
 import { scopesOf, userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope } from './rbac/scope';
 import { withTenant, type Tx } from './tenancy';
@@ -213,6 +214,26 @@ async function lockedTicket(tx: Tx, access: Access, id: string) {
 }
 
 const settled = (status: string) => status === 'resolved' || status === 'closed';
+
+export const ticketAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		const found = await tx
+			.select({ id: tickets.id })
+			.from(tickets)
+			.innerJoin(ticketCategories, eq(ticketCategories.id, tickets.categoryId))
+			.where(and(eq(tickets.id, id), await visibleTickets(tx, access)));
+		return found.length > 0;
+	},
+	async canEdit(tx, access, id, lock) {
+		if (!access.employeeId) return false;
+		const q = tx
+			.select({ status: tickets.status })
+			.from(tickets)
+			.where(and(eq(tickets.id, id), eq(tickets.requesterEmployeeId, access.employeeId)));
+		const [t] = lock ? await q.for('update') : await q;
+		return !!t && !settled(t.status);
+	}
+};
 const label = (t: { number: number; subject: string }) => `#${t.number} ${t.subject}`;
 
 export async function updateTicket(m: Member, raw: Record<string, string>) {

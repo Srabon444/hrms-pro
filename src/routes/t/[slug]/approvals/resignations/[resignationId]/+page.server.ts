@@ -1,5 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { z } from 'zod';
+import { listFiles } from '#lib/server/attachments.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError } from '#lib/server/http/forms.ts';
 import { requireMember, userCtx } from '#lib/server/rbac/access.ts';
@@ -9,9 +10,12 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const m = requireMember(locals);
-	const resignation = await withTenant(userCtx(m), (tx) => getResignation(tx, m.access, params.resignationId));
+	const { resignation, attachments } = await withTenant(userCtx(m), async (tx) => ({
+		resignation: await getResignation(tx, m.access, params.resignationId),
+		attachments: await listFiles(tx, m.access, 'resignation', params.resignationId)
+	}));
 	if (!resignation) error(404, 'Not found');
-	return { resignation };
+	return { resignation, attachments };
 };
 
 export const actions: Actions = {

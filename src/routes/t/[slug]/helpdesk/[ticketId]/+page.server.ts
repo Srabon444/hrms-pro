@@ -1,6 +1,8 @@
 import { error, fail } from '@sveltejs/kit';
 import { z } from 'zod';
 import { commentOnTicket, requesterAction, ticketView, updateTicket } from '#lib/server/helpdesk.ts';
+import { listFiles } from '#lib/server/attachments.ts';
+import { attachmentAction } from '#lib/server/http/attachments.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError } from '#lib/server/http/forms.ts';
 import { sendAll } from '#lib/server/notifications.ts';
@@ -11,9 +13,12 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const m = requireMember(locals);
-	const view = await withTenant(userCtx(m), (tx) => ticketView(tx, m.access, params.ticketId));
+	const { view, attachments } = await withTenant(userCtx(m), async (tx) => ({
+		view: await ticketView(tx, m.access, params.ticketId),
+		attachments: await listFiles(tx, m.access, 'ticket', params.ticketId)
+	}));
 	if (!view) error(404, 'That ticket does not exist.');
-	return { view };
+	return { view, attachments };
 };
 
 const act =
@@ -37,5 +42,9 @@ const act =
 export const actions: Actions = {
 	update: act(updateTicket, 'Ticket updated.'),
 	comment: act(commentOnTicket, 'Comment added.'),
-	requester: act(requesterAction, 'Ticket updated.')
+	requester: act(requesterAction, 'Ticket updated.'),
+	files: async ({ request, locals, params }) => {
+		const m = requireMember(locals);
+		return attachmentAction(m, await request.formData(), 'ticket', params.ticketId, locals.requestId);
+	}
 };

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import EmployeeForm from '#lib/components/EmployeeForm.svelte';
+	import Attachments from '#lib/components/Attachments.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import type { PageProps } from './$types';
@@ -227,6 +228,9 @@
 				<input type="hidden" name="resignationId" value={r.pending.id} />
 				<Button type="submit" variant="secondary">Withdraw resignation</Button>
 			</form>
+			{#if r.files}
+				<Attachments slug={data.tenant.slug} attachments={r.files} {form} action="?/resignationFiles" />
+			{/if}
 		{:else}
 			<p class="mt-1 text-sm text-slate-600">
 				The notice period is {r.terms.noticeDays} days, so the usual last day is {r.terms.earliest}.

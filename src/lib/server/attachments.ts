@@ -3,10 +3,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { assetAttachments } from './assets';
 import { auditEvent } from './audit';
+import { ticketAttachments } from './helpdesk';
 import { leaveAttachments } from './leave-requests';
 import { files, MAX_ATTACHMENTS, MAX_DOCUMENT_BYTES, type AttachmentOwner } from './db/schema';
 import { AppError } from './errors';
 import { log } from './log';
+import { resignationAttachments } from './resignations';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { safeFileName, sniffType } from './sniff';
 import { deleteObject, getObject, putObject } from './storage';
@@ -19,14 +21,16 @@ export type AttachmentRules = {
 };
 type Stored = { key: string; filename: string; mime: string; size: number; sha256: string };
 
-const owners = (): Partial<Record<AttachmentOwner, AttachmentRules>> => ({
+const owners = (): Record<AttachmentOwner, AttachmentRules> => ({
 	asset: assetAttachments,
-	leave_request: leaveAttachments
+	leave_request: leaveAttachments,
+	resignation: resignationAttachments,
+	ticket: ticketAttachments
 });
 const ALLOWED = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
 
 const notFound = () => new AppError('not_found', 'That file does not exist.', 404);
-const rules = (type: AttachmentOwner) => owners()[type]!;
+const rules = (type: AttachmentOwner) => owners()[type];
 const isId = (id: string) => z.uuid().safeParse(id).success;
 
 async function assertEditable(tx: Tx, access: Access, type: AttachmentOwner, ownerId: string, lock: boolean) {

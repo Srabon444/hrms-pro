@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
@@ -80,6 +81,10 @@
 			<div><Button type="submit">Close out</Button></div>
 		</form>
 	</section>
+{/if}
+
+{#if data.attachments}
+	<Attachments slug={data.tenant.slug} attachments={data.attachments} {form} />
 {/if}
 
 <section class="mt-6 max-w-4xl" aria-label="History">

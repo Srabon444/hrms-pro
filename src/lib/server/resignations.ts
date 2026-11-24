@@ -12,6 +12,7 @@ import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { withTenant, type Tx } from './tenancy';
 import type { ApprovalItem } from './approvals';
+import type { AttachmentRules } from './attachments';
 import type { Mail } from './mail';
 
 type Member = ReturnType<typeof requireMember>;
@@ -186,6 +187,24 @@ async function load(tx: Tx, access: Access, resignationId: string, lock: boolean
 	const { stage, visible } = await stageFor(tx, access, r, e);
 	return visible ? { r, e, stage } : null;
 }
+
+export const resignationAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		const [r] = await tx.select().from(resignations).where(eq(resignations.id, id));
+		if (!r) return false;
+		if (r.employeeId === access.employeeId) return true;
+		const [e] = await tx.select().from(employees).where(eq(employees.id, r.employeeId));
+		return (await stageFor(tx, access, r, e)).visible;
+	},
+	async canEdit(tx, access, id, lock) {
+		const q = tx
+			.select({ employeeId: resignations.employeeId, status: resignations.status })
+			.from(resignations)
+			.where(eq(resignations.id, id));
+		const [r] = lock ? await q.for('update') : await q;
+		return !!r && r.employeeId === access.employeeId && OPEN.includes(r.status as (typeof OPEN)[number]);
+	}
+};
 
 export async function getResignation(tx: Tx, access: Access, resignationId: string) {
 	const found = await load(tx, access, resignationId, false);

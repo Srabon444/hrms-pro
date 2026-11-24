@@ -1,5 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { addFiles, listFiles, openFile } from '../../src/lib/server/attachments';
 import { withTestNow } from '../../src/lib/server/clock';
 import { closePools } from '../../src/lib/server/db';
 import {
@@ -324,5 +325,26 @@ describe('helpdesk', () => {
 			'Ticket #4 Laptop slow was assigned to you',
 			'New comment on ticket #4 Laptop slow'
 		]);
+	});
+
+	it('lets the requester attach files to an open ticket and keeps confidential files private', async () => {
+		const shot = () => new File(['%PDF-1.7 log'], 'error.pdf');
+		const id = await raise('ana', 'IT support', 'Printer jam');
+		const secret = await raise('ana', 'Grievance', 'Shouting');
+		const files = (key: string, t: string) => withTenant(sys(), (tx) => listFiles(tx, who[key].access, 'ticket', t));
+		expect(await code(() => addFiles(who.it, 'ticket', id, [shot()]))).toBe('forbidden');
+		const [fid] = await addFiles(who.ana, 'ticket', id, [shot()]);
+		const [sid] = await addFiles(who.ana, 'ticket', secret, [shot()]);
+		expect((await files('it', id))?.canEdit).toBe(false);
+		expect((await openFile(who.it, fid)).fileName).toBe('error.pdf');
+		expect(await files('it', secret)).toBeNull();
+		expect(await code(() => openFile(who.it, sid))).toBe('not_found');
+		expect(await code(() => openFile(who.ben, fid))).toBe('not_found');
+		expect((await openFile(who.cf, sid)).fileName).toBe('error.pdf');
+		expect(
+			await code(() => updateTicket(who.it, { ticketId: id, status: 'resolved', priority: 'normal', assignee: '' }))
+		).toBe('ok');
+		expect((await files('ana', id))?.canEdit).toBe(false);
+		expect(await code(() => addFiles(who.ana, 'ticket', id, [shot()]))).toBe('forbidden');
 	});
 });

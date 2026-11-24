@@ -5,18 +5,29 @@ import { cancelChange, CHANGE_LABELS, ownPendingChange, requestChange } from '#l
 import { DOCUMENT_CATEGORIES, EXIT_TYPES } from '#lib/server/db/schema/org.ts';
 import { exitInterviewView, submitExitInterview } from '#lib/server/exit-interviews.ts';
 import { exitRights, recordExit, rehire, withdrawExit } from '#lib/server/exits.ts';
+import { listFiles } from '#lib/server/attachments.ts';
 import { deleteDocument, listDocuments, uploadDocument } from '#lib/server/documents.ts';
 import { employeeChoices, getEmployee, updateEmployee } from '#lib/server/employees.ts';
+import { attachmentAction } from '#lib/server/http/attachments.ts';
 import { employeeActionError, formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { adjustLeave, leaveBalances } from '#lib/server/leave.ts';
 import { tenantToday } from '#lib/server/lifecycle.ts';
 import { addListEntry, profileLists, removeListEntry, updateOwnDetails } from '#lib/server/profile.ts';
-import { requireMember, requirePerm, userCtx } from '#lib/server/rbac/access.ts';
+import { requireMember, requirePerm, userCtx, type Access } from '#lib/server/rbac/access.ts';
 import { assignShift, employeeShift, removeShiftAssignment } from '#lib/server/shifts.ts';
 import { noticeTerms, ownResignation, submitResignation, withdrawResignation } from '#lib/server/resignations.ts';
-import { withTenant } from '#lib/server/tenancy/index.ts';
+import { withTenant, type Tx } from '#lib/server/tenancy/index.ts';
 import type { Actions, PageServerLoad } from './$types';
+
+async function ownResignationView(tx: Tx, access: Access, employeeId: string) {
+	const pending = await ownResignation(tx, access, employeeId);
+	return {
+		pending,
+		terms: await noticeTerms(tx),
+		files: pending ? await listFiles(tx, access, 'resignation', pending.id) : null
+	};
+}
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const m = requirePerm(locals, 'employee.read');
@@ -34,9 +45,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			exitTypes: EXIT_TYPES,
 			exitInterview: await exitInterviewView(tx, m.access, record.employee),
 			resignation:
-				m.access.employeeId === record.employee.id
-					? { pending: await ownResignation(tx, m.access, record.employee.id), terms: await noticeTerms(tx) }
-					: null,
+				m.access.employeeId === record.employee.id ? await ownResignationView(tx, m.access, record.employee.id) : null,
 			leave: await leaveBalances(tx, m.access, record.employee),
 			shift: await employeeShift(tx, m.access, record.employee, await tenantToday(tx)),
 			checklists: await employeeChecklists(tx, m.access, record.employee),
@@ -143,6 +152,12 @@ export const actions: Actions = {
 			return profileError(err, locals.requestId);
 		}
 		return { resigned: true };
+	},
+	resignationFiles: async ({ request, locals, params }) => {
+		const m = requireMember(locals);
+		const own = await withTenant(userCtx(m), (tx) => ownResignation(tx, m.access, params.employeeId));
+		if (!own) return fail(404, { fileMessage: 'You have no open resignation.' });
+		return attachmentAction(m, await request.formData(), 'resignation', own.id, locals.requestId);
 	},
 	withdrawResignation: async ({ request, locals }) => {
 		const m = requireMember(locals);

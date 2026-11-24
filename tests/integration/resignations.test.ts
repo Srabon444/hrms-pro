@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pendingApprovals } from '../../src/lib/server/approvals';
+import { addFiles, listFiles, openFile } from '../../src/lib/server/attachments';
 import { closePools } from '../../src/lib/server/db';
 import { employees, memberships, notifications, resignations } from '../../src/lib/server/db/schema';
 import { addDays, dateIn } from '../../src/lib/server/dates';
@@ -198,5 +199,21 @@ describe('resignations', () => {
 		expect(await resignation(mine.id)).toMatchObject({ status: 'rejected', managerNote: 'Stay a while' });
 		expect(await titles(ids.miaMembership)).toEqual(['Your resignation was declined by your manager']);
 		expect(await titles(ids.hrMembership)).not.toContain('Mi Mia has resigned');
+	});
+
+	it('keeps the resignation letter readable by the employee and HR, editable only while open', async () => {
+		const letter = () => new File(['%PDF-1.7 letter'], 'letter.pdf');
+		await submitResignation(who.stranger, ids.stranger, { lastDay: addDays(today, 45), reason: 'Moving' });
+		const { id } = await openOf('stranger');
+		const files = (key: string) => withTenant(sys(), (tx) => listFiles(tx, who[key].access, 'resignation', id));
+		const [fid] = await addFiles(who.stranger, 'resignation', id, [letter()]);
+		expect(await code(addFiles(who.hr, 'resignation', id, [letter()]))).toBe('forbidden');
+		expect(await files('boss')).toBeNull();
+		expect(await code(openFile(who.boss, fid))).toBe('not_found');
+		expect((await openFile(who.hr, fid)).fileName).toBe('letter.pdf');
+		expect(await code(decideResignation(who.hr, id, { decision: 'reject', note: 'Stay' }))).toBe('ok');
+		expect((await files('stranger'))?.canEdit).toBe(false);
+		expect((await openFile(who.stranger, fid)).fileName).toBe('letter.pdf');
+		expect(await code(addFiles(who.stranger, 'resignation', id, [letter()]))).toBe('forbidden');
 	});
 });

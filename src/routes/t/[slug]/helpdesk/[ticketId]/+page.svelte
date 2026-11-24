@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { TICKET_PRIORITY_LABELS, TICKET_STATUS_LABELS } from '#lib/helpdesk-labels.ts';
@@ -78,6 +79,10 @@
 			<div class="self-end"><Button type="submit">Save</Button></div>
 		</form>
 	</section>
+{/if}
+
+{#if data.attachments}
+	<Attachments slug={data.tenant.slug} attachments={data.attachments} {form} />
 {/if}
 
 <section class="mt-4 max-w-4xl" aria-label="Conversation">
