@@ -207,7 +207,13 @@ export async function verifyChallenge(id: string | undefined, code: string, meta
 	return finish(user, meta);
 }
 
+async function assertTotpOff(userId: string) {
+	if ((await userById(userId))?.totpEnabled)
+		throw new AppError('totp_enabled', 'Two-factor sign-in is already on. Turn it off with your password first.', 409);
+}
+
 export async function beginTotpEnrolment(userId: string, email: string): Promise<{ secret: string; uri: string }> {
+	await assertTotpOff(userId);
 	const secret = newTotpSecret();
 	await (await redisReady()).set(rkey('totp-enrol', userId), secret, 'PX', 10 * 60_000);
 	return { secret, uri: otpauthUri(secret, email, 'HRMS') };
@@ -216,6 +222,7 @@ export async function beginTotpEnrolment(userId: string, email: string): Promise
 export async function confirmTotpEnrolment(userId: string, code: string): Promise<string[]> {
 	const secret = await (await redisReady()).get(rkey('totp-enrol', userId));
 	if (!secret) throw new AppError('enrolment_expired', 'Setup expired, start again');
+	await assertTotpOff(userId);
 	const step = matchTotp(secret, code.trim(), now());
 	if (step === null) throw new AppError('wrong_code', 'That code is not valid');
 	const codes = Array.from({ length: 10 }, () => base32Encode(randomBytes(10)).toLowerCase());

@@ -69,6 +69,13 @@ describe('password sign-in and sessions', () => {
 });
 
 describe('two-factor', () => {
+	it('will not replace an active second factor without turning it off first', async () => {
+		const u = await newUser();
+		const { secret } = await beginTotpEnrolment(u.id, u.email);
+		await confirmTotpEnrolment(u.id, hotp(base32Decode(secret), timeStep(new Date())));
+		await expect(beginTotpEnrolment(u.id, u.email)).rejects.toMatchObject({ code: 'totp_enabled' });
+	});
+
 	it('enrols, challenges, blocks code replay and accepts a recovery code once', async () => {
 		const u = await newUser();
 		const { secret } = await beginTotpEnrolment(u.id, u.email);
