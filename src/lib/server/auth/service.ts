@@ -368,7 +368,10 @@ export async function registerFromInvitation(
 	if (!inv) throw new AppError('invitation_invalid', 'This invitation is invalid or has expired', 410);
 	if (inv.userExists) throw new AppError('email_taken', 'You already have an account; sign in to accept', 409);
 	const userId = await createUser({ email: inv.email, name: input.name, password: input.password });
-	await acceptInvitation(token, userId);
+	await acceptInvitation(token, userId).catch(async (err) => {
+		await authPool().db.delete(users).where(eq(users.id, userId));
+		throw err;
+	});
 	const s = await createSession(userId, meta);
 	return { ...s, tenantSlug: inv.tenantSlug };
 }

@@ -15,6 +15,8 @@ import {
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
 import { resolveTenantAccess } from '../../src/lib/server/tenancy/resolve';
 import { createInvitation } from '../../src/lib/server/invitations';
+import { registerFromInvitation } from '../../src/lib/server/auth/service';
+import { findUserByEmail } from '../../src/lib/server/auth/users';
 import { createTenant, createUser } from './helpers';
 
 let tenant: { id: string; slug: string };
@@ -143,6 +145,28 @@ describe('member management guards', () => {
 		await expect(authPool().sql`select auth_accept_invitation(${sha256(token)}, ${joiner.id})`).rejects.toThrow(
 			'invitation_invalid'
 		);
+	});
+
+	it('leaves no account behind when registering from an invitation that can no longer be accepted', async () => {
+		const owner = await actorFor(await member(['owner']));
+		const inviter = await member(['hr_admin']);
+		const email = 'stale@members.test';
+		const { token } = await withTenant(systemCtx(tenant.id), (tx) =>
+			createInvitation(tx, { tenantId: tenant.id, email, roleIds: [], invitedByMembershipId: inviter.id })
+		);
+		await setMemberStatus(owner, inviter.id, 'disabled');
+		await withTenant(systemCtx(tenant.id), (tx) =>
+			tx
+				.update(invitations)
+				.set({ revokedAt: null })
+				.where(eq(invitations.tokenHash, sha256(token)))
+		);
+		expect(
+			await code(
+				registerFromInvitation(token, { name: 'Stale', password: 'correct horse battery staple' }, { ip: '10.1.1.1' })
+			)
+		).toBe('invitation_invalid');
+		expect(await findUserByEmail(email)).toBeUndefined();
 	});
 });
 
