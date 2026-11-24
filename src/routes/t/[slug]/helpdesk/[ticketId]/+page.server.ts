@@ -2,7 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import { z } from 'zod';
 import { commentOnTicket, requesterAction, ticketView, updateTicket } from '#lib/server/helpdesk.ts';
 import { listFiles } from '#lib/server/attachments.ts';
-import { attachmentAction } from '#lib/server/http/attachments.ts';
+import { attachmentAction, pickFiles } from '#lib/server/http/attachments.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError } from '#lib/server/http/forms.ts';
 import { sendAll } from '#lib/server/notifications.ts';
@@ -23,14 +23,15 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 const act =
 	(
-		step: (m: ReturnType<typeof requireMember>, raw: Record<string, string>) => Promise<Mail[]>,
+		step: (m: ReturnType<typeof requireMember>, raw: Record<string, string>, files: File[]) => Promise<Mail[]>,
 		done: string
 	): Actions[string] =>
 	async ({ request, locals, params }) => {
 		const m = requireMember(locals);
-		const form = formFields(await request.formData());
+		const data = await request.formData();
+		const form = formFields(data);
 		try {
-			await sendAll(await step(m, { ...form, ticketId: params.ticketId }));
+			await sendAll(await step(m, { ...form, ticketId: params.ticketId }, pickFiles(data)));
 			return { done };
 		} catch (err) {
 			if (err instanceof z.ZodError) return fail(400, { message: err.issues[0].message, values: form });

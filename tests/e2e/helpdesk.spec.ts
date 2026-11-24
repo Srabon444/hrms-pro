@@ -48,17 +48,25 @@ test('an employee raises tickets, IT works the open one and the confidential one
 	await expect(it.getByTestId('ticket-status')).toHaveText('Waiting on requester');
 	await it.getByLabel('Comment').fill('Restart the router first');
 	await it.getByLabel('Internal note').check();
+	await it
+		.getByLabel(/^Attach files/)
+		.setInputFiles({ name: 'router-log.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 log') });
 	await it.getByRole('button', { name: 'Add comment' }).click();
 	await expect(it.getByRole('status')).toHaveText('Comment added.');
 	await it.getByLabel('Comment').fill('Which office are you in?');
 	await it.getByRole('button', { name: 'Add comment' }).click();
 	await expect(it.getByTestId('ticket-comment')).toHaveCount(2);
+	await expect(it.getByTestId('comment-file')).toHaveText(['router-log.pdf']);
 
 	await page.reload();
 	await expect(page.getByTestId('ticket-comment')).toHaveText([/Which office are you in\?/]);
 	await page.getByLabel('Comment').fill('Dhaka office');
+	await page
+		.getByLabel(/^Attach files/)
+		.setInputFiles({ name: 'screen.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 screen') });
 	await page.getByRole('button', { name: 'Add comment' }).click();
 	await expect(page.getByTestId('ticket-status')).toHaveText('Open');
+	await expect(page.getByTestId('comment-file')).toHaveText(['screen.pdf']);
 
 	await it.reload();
 	await handle.getByLabel('Status').selectOption('resolved');

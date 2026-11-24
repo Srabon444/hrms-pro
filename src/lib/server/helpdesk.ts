@@ -18,7 +18,8 @@ import { AppError } from './errors';
 import { advisoryLock, LOCK } from './locks';
 import { notify } from './notifications';
 import { activeMemberships } from './approval-chain';
-import type { AttachmentRules } from './attachments';
+import { insertFiles, prepareFiles, type AttachmentRules } from './attachments';
+import { discardFiles, filesFor } from './file-store';
 import { scopesOf, userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope } from './rbac/scope';
 import { withTenant, type Tx } from './tenancy';
@@ -234,6 +235,26 @@ export const ticketAttachments: AttachmentRules = {
 		return !!t && !settled(t.status);
 	}
 };
+export const ticketCommentAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		const [c] = await tx
+			.select({
+				internal: ticketComments.internal,
+				requester: tickets.requesterEmployeeId,
+				confidential: ticketCategories.confidential
+			})
+			.from(ticketComments)
+			.innerJoin(tickets, eq(tickets.id, ticketComments.ticketId))
+			.innerJoin(ticketCategories, eq(ticketCategories.id, tickets.categoryId))
+			.where(and(eq(ticketComments.id, id), await visibleTickets(tx, access)));
+		if (!c) return false;
+		return !c.internal || inScope(await resolveScope(tx, access, agentPerm(c.confidential)), c.requester);
+	},
+	async canEdit() {
+		return false;
+	}
+};
+
 const label = (t: { number: number; subject: string }) => `#${t.number} ${t.subject}`;
 
 export async function updateTicket(m: Member, raw: Record<string, string>) {
@@ -283,19 +304,24 @@ export async function updateTicket(m: Member, raw: Record<string, string>) {
 	});
 }
 
-export async function commentOnTicket(m: Member, raw: Record<string, string>) {
+export async function commentOnTicket(m: Member, raw: Record<string, string>, attached: File[] = []) {
 	const input = commentSchema.parse(raw);
+	const stored = attached.length ? await prepareFiles(m.tenant.id, 'ticket_comment', attached) : [];
 	return withTenant(userCtx(m), async (tx) => {
 		const t = await lockedTicket(tx, m.access, input.ticketId);
 		if (t.status === 'closed') throw closed();
 		if (input.internal && !t.agent) throw new AppError('forbidden', 'Only the helpdesk can add internal notes.', 403);
-		await tx.insert(ticketComments).values({
-			tenantId: m.tenant.id,
-			ticketId: t.id,
-			authorMembershipId: m.access.membershipId,
-			body: input.body,
-			internal: input.internal
-		});
+		const [comment] = await tx
+			.insert(ticketComments)
+			.values({
+				tenantId: m.tenant.id,
+				ticketId: t.id,
+				authorMembershipId: m.access.membershipId,
+				body: input.body,
+				internal: input.internal
+			})
+			.returning({ id: ticketComments.id });
+		if (stored.length) await insertFiles(tx, userCtx(m), 'ticket_comment', comment.id, stored);
 		const fromRequester = t.requester && !input.internal;
 		if (fromRequester && t.status === 'waiting')
 			await tx.update(tickets).set({ status: 'open' }).where(eq(tickets.id, t.id));
@@ -314,6 +340,9 @@ export async function commentOnTicket(m: Member, raw: Record<string, string>) {
 			{ category: 'helpdesk', title: `New comment on ticket ${label(t)}`, link: `helpdesk/${t.id}` },
 			m.tenant.slug
 		);
+	}).catch(async (err) => {
+		await discardFiles(stored);
+		throw err;
 	});
 }
 
@@ -419,9 +448,14 @@ export async function ticketView(tx: Tx, access: Access, id: string) {
 		.from(ticketComments)
 		.where(and(eq(ticketComments.ticketId, id), agent ? undefined : eq(ticketComments.internal, false)))
 		.orderBy(asc(ticketComments.createdAt), asc(ticketComments.id));
+	const attached = await filesFor(
+		tx,
+		'ticket_comment',
+		comments.map((c) => c.id)
+	);
 	return {
 		...row,
-		comments,
+		comments: comments.map((c) => ({ ...c, files: attached.get(c.id) ?? [] })),
 		agent,
 		isRequester: row.ticket.requesterEmployeeId === access.employeeId,
 		agents: agent ? await agentsFor(tx, row.confidential) : []

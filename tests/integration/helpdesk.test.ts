@@ -347,4 +347,24 @@ describe('helpdesk', () => {
 		expect((await files('ana', id))?.canEdit).toBe(false);
 		expect(await code(() => addFiles(who.ana, 'ticket', id, [shot()]))).toBe('forbidden');
 	});
+
+	it('sends files with a reply and keeps files on internal notes to the helpdesk', async () => {
+		const doc = (name: string) => new File([`%PDF-1.7 ${name}`], name);
+		const id = await raise('ana', 'IT support', 'Monitor flicker');
+		const reply = (key: string, body: string, file: File, internal = false) =>
+			code(() => commentOnTicket(who[key], { ticketId: id, body, internal: internal ? 'on' : '' }, [file]));
+		expect(await reply('ana', 'Photo attached', doc('photo.pdf'))).toBe('ok');
+		expect(await reply('it', 'Vendor quote', doc('quote.pdf'), true)).toBe('ok');
+		expect(await reply('ana', 'Wrong file', new File(['hello'], 'notes.txt'))).toBe('unsupported_file');
+		const seen = async (key: string) => (await view(key, id))!.comments.map((c) => c.files.map((f) => f.filename));
+		expect(await seen('ana')).toEqual([['photo.pdf']]);
+		expect(await seen('it')).toEqual([['photo.pdf'], ['quote.pdf']]);
+		const [photo, quote] = (await view('it', id))!.comments.map((c) => c.files[0].id);
+		expect((await openFile(who.it, photo)).fileName).toBe('photo.pdf');
+		expect((await openFile(who.ana, photo)).fileName).toBe('photo.pdf');
+		expect(await code(() => openFile(who.ana, quote))).toBe('not_found');
+		expect(await code(() => openFile(who.ben, photo))).toBe('not_found');
+		const first = (await view('ana', id))!.comments[0].id;
+		expect(await code(() => addFiles(who.ana, 'ticket_comment', first, [doc('late.pdf')]))).toBe('forbidden');
+	});
 });

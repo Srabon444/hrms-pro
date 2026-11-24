@@ -96,12 +96,23 @@
 				{c.author ?? 'Former member'} · {when(c.at)}{c.internal ? ' · internal note' : ''}
 			</p>
 			<p class="mt-1 text-sm whitespace-pre-wrap text-slate-800">{c.body}</p>
+			{#if c.files.length}
+				<ul class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+					{#each c.files as f (f.id)}
+						<li data-testid="comment-file">
+							<a href="/t/{data.tenant.slug}/files/{f.id}" class="break-all text-brand-700 hover:underline">
+								{f.filename}
+							</a>
+						</li>
+					{/each}
+				</ul>
+			{/if}
 		</article>
 	{:else}
 		<p class="mt-2 text-sm text-slate-600">No comments yet.</p>
 	{/each}
 	{#if open}
-		<form method="POST" action="?/comment" class="mt-4 space-y-2">
+		<form method="POST" action="?/comment" enctype="multipart/form-data" class="mt-4 space-y-2">
 			<label class="block text-sm font-medium text-slate-700">
 				Comment
 				<textarea name="body" required maxlength="5000" rows="3" class={input}></textarea>
@@ -112,6 +123,16 @@
 					Internal note (hidden from the requester)
 				</label>
 			{/if}
+			<label class="block text-sm text-slate-700">
+				Attach files <span class="text-slate-500">(optional, up to 5)</span>
+				<input
+					name="files"
+					type="file"
+					multiple
+					accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+					class="mt-1 block w-full text-sm"
+				/>
+			</label>
 			<Button type="submit">Add comment</Button>
 		</form>
 	{/if}

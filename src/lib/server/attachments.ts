@@ -7,7 +7,7 @@ import { changeAttachments } from './change-requests';
 import { checklistItemAttachments } from './checklists';
 import { auditEvent } from './audit';
 import { discardFiles } from './file-store';
-import { ticketAttachments } from './helpdesk';
+import { ticketAttachments, ticketCommentAttachments } from './helpdesk';
 import { leaveAttachments } from './leave-requests';
 import { loanAttachments } from './loans';
 import { files, MAX_ATTACHMENTS, MAX_DOCUMENT_BYTES, type AttachmentOwner } from './db/schema';
@@ -38,7 +38,8 @@ const owners = (): Record<AttachmentOwner, AttachmentRules> => ({
 	loan: loanAttachments,
 	offer: offerAttachments,
 	resignation: resignationAttachments,
-	ticket: ticketAttachments
+	ticket: ticketAttachments,
+	ticket_comment: ticketCommentAttachments
 });
 const ALLOWED = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
 
