@@ -4,6 +4,7 @@ import { branches, departments, designations, grades, holidays } from './db/sche
 import { FK_VIOLATION, pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { AppError } from './errors';
 import { recomputeAttendance } from './attendance';
+import { timeZoneSchema } from './settings';
 import { dropHolidayFromLeave } from './leave-requests';
 import { advisoryLock, LOCK } from './locks';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
@@ -20,10 +21,17 @@ const itemSchema = z.object({
 	name: nameSchema,
 	parentId: optionalId.optional(),
 	address: z.string().trim().max(300).optional(),
+	timezone: z.preprocess((v) => (v === '' ? null : v), timeZoneSchema.nullable()).optional(),
 	rank: z.coerce.number().int().min(0).max(1000).optional()
 });
 
-export type OrgItemInput = { name: string; parentId?: string; address?: string; rank?: string | number };
+export type OrgItemInput = {
+	name: string;
+	parentId?: string;
+	address?: string;
+	timezone?: string;
+	rank?: string | number;
+};
 
 async function guarded<T>(fn: () => Promise<T>, what: string): Promise<T> {
 	try {
@@ -62,7 +70,7 @@ const LABEL: Record<OrgKind, string> = {
 
 function values(kind: OrgKind, input: z.output<typeof itemSchema>) {
 	if (kind === 'department') return { name: input.name, parentId: input.parentId ?? null };
-	if (kind === 'branch') return { name: input.name, address: input.address || null };
+	if (kind === 'branch') return { name: input.name, address: input.address || null, timezone: input.timezone ?? null };
 	if (kind === 'grade') return { name: input.name, rank: input.rank ?? 0 };
 	return { name: input.name };
 }
@@ -119,7 +127,7 @@ export async function removeOrgItem(ctx: TenantCtx, kind: OrgKind, id: string): 
 export async function orgStructure(tx: Tx) {
 	const [b, d, des, g] = await Promise.all([
 		tx
-			.select({ id: branches.id, name: branches.name, address: branches.address })
+			.select({ id: branches.id, name: branches.name, address: branches.address, timezone: branches.timezone })
 			.from(branches)
 			.orderBy(asc(branches.name)),
 		tx

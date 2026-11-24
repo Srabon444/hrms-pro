@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, gte, inArray, lte, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { computeDay, shiftDayOf, zonedInstant, type DayResult } from './attendance-day';
+import { computeDay, localMinutes, shiftDayOf, shiftWindow, zonedInstant, type DayResult } from './attendance-day';
 import { now } from './clock';
 import { addDays, dateIn } from './dates';
 import { authPool } from './db';
@@ -28,11 +28,33 @@ import type { Shift } from './shifts';
 type Member = ReturnType<typeof requireMember>;
 type DayRow = typeof attendanceDays.$inferInsert;
 
-export async function calendar(tx: Tx) {
+export const employeeZone = sql<string>`coalesce((select b.timezone from branches b where b.id = employees.branch_id), (select s.timezone from tenant_settings s), 'UTC')`;
+
+export async function calendar(tx: Tx, employeeId?: string | null) {
 	const [s] = await tx
-		.select({ tz: tenantSettings.timezone, weekendDays: tenantSettings.weekendDays })
+		.select({
+			tz: employeeId
+				? sql<string>`coalesce((select b.timezone from employees e join branches b on b.id = e.branch_id where e.id = ${employeeId}), tenant_settings.timezone)`
+				: tenantSettings.timezone,
+			weekendDays: tenantSettings.weekendDays
+		})
 		.from(tenantSettings);
 	return { timeZone: s?.tz ?? 'UTC', weekendDays: s?.weekendDays ?? [5, 6] };
+}
+
+export async function punchDay(tx: Tx, employeeId: string, at: Date) {
+	const { timeZone: current } = await calendar(tx, employeeId);
+	const place = async (timeZone: string) => {
+		const local = dateIn(at, timeZone);
+		const shift = await shiftOn(tx, employeeId, local);
+		return { day: shift ? shiftDayOf(at, shift, timeZone) : local, timeZone, shift };
+	};
+	const guess = await place(current);
+	const [kept] = await tx
+		.select({ timeZone: attendanceDays.timeZone })
+		.from(attendanceDays)
+		.where(and(eq(attendanceDays.employeeId, employeeId), eq(attendanceDays.date, guess.day)));
+	return kept?.timeZone && kept.timeZone !== current ? place(kept.timeZone) : guess;
 }
 
 const dates = (from: string, to: string) => {
@@ -42,22 +64,39 @@ const dates = (from: string, to: string) => {
 };
 
 export async function recomputeAttendance(tx: Tx, tenantId: string, from: string, to: string, employeeIds?: string[]) {
-	const { timeZone, weekendDays } = await calendar(tx);
+	const { weekendDays } = await calendar(tx);
 	const at = now();
-	const last = [to, dateIn(at, timeZone)].sort()[0];
-	if (from > last) return;
-	const people = await tx
-		.select({ id: employees.id, joinDate: employees.joinDate, exitDate: employees.exitDate })
-		.from(employees)
-		.where(
-			and(
-				lte(employees.joinDate, last),
-				or(sql`${employees.exitDate} is null`, gte(employees.exitDate, from)),
-				employeeIds ? inArray(employees.id, employeeIds) : undefined
+	const people = (
+		await tx
+			.select({ id: employees.id, joinDate: employees.joinDate, exitDate: employees.exitDate, zone: employeeZone })
+			.from(employees)
+			.where(
+				and(
+					lte(employees.joinDate, to),
+					or(sql`${employees.exitDate} is null`, gte(employees.exitDate, from)),
+					employeeIds ? inArray(employees.id, employeeIds) : undefined
+				)
 			)
-		);
+	)
+		.map((p) => ({ ...p, last: [to, dateIn(at, p.zone)].sort()[0] }))
+		.filter((p) => from <= p.last);
 	if (!people.length) return;
+	const last = people.map((p) => p.last).sort()[people.length - 1];
 	const ids = people.map((p) => p.id);
+	const kept = new Map(
+		(
+			await tx
+				.select({ employeeId: attendanceDays.employeeId, date: attendanceDays.date, zone: attendanceDays.timeZone })
+				.from(attendanceDays)
+				.where(
+					and(
+						inArray(attendanceDays.employeeId, ids),
+						gte(attendanceDays.date, addDays(from, -1)),
+						lte(attendanceDays.date, last)
+					)
+				)
+		).map((d) => [`${d.employeeId}:${d.date}`, d.zone])
+	);
 	const allShifts = new Map((await tx.select().from(shifts)).map((s) => [s.id, s]));
 	const fallback = [...allShifts.values()].find((s) => s.isDefault);
 	const assignments = await tx
@@ -114,8 +153,8 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 		.where(
 			and(
 				inArray(attendancePunches.employeeId, ids),
-				sql`${attendancePunches.at} >= (${addDays(from, -1)}::date)::timestamp at time zone ${timeZone}`,
-				sql`${attendancePunches.at} < (${addDays(last, 2)}::date)::timestamp at time zone ${timeZone}`
+				gte(attendancePunches.at, new Date(`${addDays(from, -2)}T00:00:00Z`)),
+				lt(attendancePunches.at, new Date(`${addDays(last, 3)}T00:00:00Z`))
 			)
 		);
 	const punchesOf = Map.groupBy(punches, (p) => p.employeeId);
@@ -124,9 +163,20 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 	for (const p of people) {
 		const mine = assignments.filter((a) => a.employeeId === p.id);
 		const own = (punchesOf.get(p.id) ?? []).map((x) => x.at);
-		for (const date of dates(from, last)) {
+		const shiftFor = (date: string): Shift | undefined => {
 			const a = mine.find((x) => x.effectiveFrom <= date);
-			const shift: Shift | undefined = a ? allShifts.get(a.shiftId) : fallback;
+			return a ? allShifts.get(a.shiftId) : fallback;
+		};
+		const zoneFor = (date: string) => kept.get(`${p.id}:${date}`) ?? p.zone;
+		for (const date of dates(from, p.last)) {
+			const shift = shiftFor(date);
+			const timeZone = zoneFor(date);
+			const before = addDays(date, -1);
+			const prior = shiftFor(before);
+			const taken =
+				prior && zoneFor(before) !== timeZone
+					? own.filter((x) => localMinutes(x, before, zoneFor(before)) >= shiftWindow(prior).to)
+					: own;
 			const employed = date >= p.joinDate && (!p.exitDate || date <= p.exitDate);
 			const day: DayResult | null =
 				employed && shift
@@ -134,7 +184,7 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 							date,
 							shift,
 							timeZone,
-							punches: own,
+							punches: taken,
 							weekend: weekendDays.includes(new Date(`${date}T00:00:00Z`).getUTCDay()),
 							holiday: off.has(date),
 							leave: leave.get(`${p.id}:${date}`) ?? null,
@@ -142,7 +192,7 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 							now: at
 						})
 					: null;
-			if (day) upserts.push({ tenantId, employeeId: p.id, date, shiftId: shift!.id, ...day });
+			if (day) upserts.push({ tenantId, employeeId: p.id, date, shiftId: shift!.id, timeZone, ...day });
 			else cleared.push({ employeeId: p.id, date });
 		}
 	}
@@ -158,7 +208,8 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 					firstIn: sql`excluded.first_in`,
 					lastOut: sql`excluded.last_out`,
 					workedMinutes: sql`excluded.worked_minutes`,
-					lateMinutes: sql`excluded.late_minutes`
+					lateMinutes: sql`excluded.late_minutes`,
+					timeZone: sql`excluded.time_zone`
 				}
 			});
 	for (let i = 0; i < cleared.length; i += 5000)
@@ -191,10 +242,7 @@ async function savePunch(
 	source: 'web' | 'manual',
 	ip: string | null
 ) {
-	const { timeZone } = await calendar(tx);
-	const local = dateIn(at, timeZone);
-	const shift = await shiftOn(tx, e.id, local);
-	const day = shift ? shiftDayOf(at, shift, timeZone) : local;
+	const { day } = await punchDay(tx, e.id, at);
 	if (day < e.joinDate || (e.exitDate && day > e.exitDate) || e.status === 'exited')
 		throw new AppError('not_employed', 'Punches only count while employed.', 400);
 	const saved = await tx
@@ -203,7 +251,7 @@ async function savePunch(
 		.onConflictDoNothing()
 		.returning({ id: attendancePunches.id });
 	if (!saved.length) throw new AppError('duplicate', 'That punch is already recorded.', 409);
-	await recomputeAttendance(tx, m.tenant.id, addDays(day, -1), day, [e.id]);
+	await recomputeAttendance(tx, m.tenant.id, addDays(day, -1), addDays(day, 1), [e.id]);
 }
 
 export async function punch(m: Member, ip: string | null) {
@@ -236,7 +284,7 @@ export async function addManualPunch(m: Member, employeeId: string, raw: Record<
 			throw new AppError('forbidden', 'You cannot record attendance for this person.', 403);
 		if (m.access.employeeId === e.id)
 			throw new AppError('self_change', 'Someone else has to add punches for you.', 403);
-		const when = zonedInstant(input.at, (await calendar(tx)).timeZone);
+		const when = zonedInstant(input.at, (await calendar(tx, e.id)).timeZone);
 		if (when > now()) throw new AppError('future', 'A punch cannot be in the future.', 400);
 		await savePunch(tx, m, e, when, 'manual', null);
 	});
@@ -266,7 +314,6 @@ export async function importPunches(m: Member, table: string[][]) {
 	const codeAt = cols.indexOf('employee_code');
 	const stampAt = cols.indexOf('timestamp');
 	return withTenant(userCtx(m), async (tx) => {
-		const { timeZone } = await calendar(tx);
 		const scope = await resolveScope(tx, m.access, 'attendance.manage');
 		const selfAllowed = await singleAdmin(tx);
 		const people = new Map(
@@ -276,7 +323,8 @@ export async function importPunches(m: Member, table: string[][]) {
 						id: employees.id,
 						code: employees.code,
 						joinDate: employees.joinDate,
-						exitDate: employees.exitDate
+						exitDate: employees.exitDate,
+						zone: employeeZone
 					})
 					.from(employees)
 					.where(scopeWhere(scope, employees.id))
@@ -284,12 +332,12 @@ export async function importPunches(m: Member, table: string[][]) {
 		);
 		const at = now();
 		const errors: ImportRowError[] = [];
-		const list: { employeeId: string; at: Date }[] = [];
+		const list: { employeeId: string; at: Date; day: string }[] = [];
 		for (const [i, cells] of body.entries()) {
 			const line = i + 2;
 			const e = people.get((cells[codeAt] ?? '').trim().toLowerCase());
-			const when = readStamp((cells[stampAt] ?? '').trim(), timeZone);
-			const day = when && dateIn(when, timeZone);
+			const when = e && readStamp((cells[stampAt] ?? '').trim(), e.zone);
+			const day = when && dateIn(when, e.zone);
 			const problem = !e
 				? 'Unknown employee code.'
 				: e.id === m.access.employeeId && !selfAllowed
@@ -302,7 +350,7 @@ export async function importPunches(m: Member, table: string[][]) {
 								? "The punch falls outside this person's employment."
 								: null;
 			if (problem) errors.push({ line, message: problem });
-			else list.push({ employeeId: e!.id, at: when! });
+			else list.push({ employeeId: e!.id, at: when!, day: day! });
 		}
 		if (errors.length) throw new ImportFailed(errors.slice(0, 50));
 		let added = 0;
@@ -322,8 +370,8 @@ export async function importPunches(m: Member, table: string[][]) {
 					.onConflictDoNothing()
 					.returning({ id: attendancePunches.id })
 			).length;
-		const days = list.map((r) => dateIn(r.at, timeZone)).sort();
-		await recomputeAttendance(tx, m.tenant.id, addDays(days[0], -1), days[days.length - 1], [
+		const days = list.map((r) => r.day).sort();
+		await recomputeAttendance(tx, m.tenant.id, addDays(days[0], -1), addDays(days[days.length - 1], 1), [
 			...new Set(list.map((r) => r.employeeId))
 		]);
 		return { added, skipped: body.length - added };
@@ -334,7 +382,7 @@ const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 
 export async function attendanceMonth(tx: Tx, access: Access, employeeId: string, month?: string) {
 	if (!inScope(await resolveScope(tx, access, 'attendance.read'), employeeId)) return null;
-	const { timeZone } = await calendar(tx);
+	const { timeZone } = await calendar(tx, employeeId);
 	const today = dateIn(now(), timeZone);
 	const m = monthSchema.safeParse(month).success ? month! : today.slice(0, 7);
 	const from = `${m}-01`;
@@ -347,7 +395,8 @@ export async function attendanceMonth(tx: Tx, access: Access, employeeId: string
 			firstIn: attendanceDays.firstIn,
 			lastOut: attendanceDays.lastOut,
 			workedMinutes: attendanceDays.workedMinutes,
-			lateMinutes: attendanceDays.lateMinutes
+			lateMinutes: attendanceDays.lateMinutes,
+			timeZone: attendanceDays.timeZone
 		})
 		.from(attendanceDays)
 		.where(and(eq(attendanceDays.employeeId, employeeId), gte(attendanceDays.date, from), lte(attendanceDays.date, to)))
@@ -357,10 +406,7 @@ export async function attendanceMonth(tx: Tx, access: Access, employeeId: string
 
 export async function todayPunches(tx: Tx, access: Access) {
 	if (!access.employeeId) return null;
-	const { timeZone } = await calendar(tx);
-	const at = now();
-	const shift = await shiftOn(tx, access.employeeId, dateIn(at, timeZone));
-	const day = shift ? shiftDayOf(at, shift, timeZone) : dateIn(at, timeZone);
+	const { day, timeZone, shift } = await punchDay(tx, access.employeeId, now());
 	const rows = await tx
 		.select({ at: attendancePunches.at, source: attendancePunches.source })
 		.from(attendancePunches)
@@ -391,7 +437,8 @@ export async function teamDay(tx: Tx, access: Access, date: string) {
 			firstIn: attendanceDays.firstIn,
 			lastOut: attendanceDays.lastOut,
 			workedMinutes: attendanceDays.workedMinutes,
-			lateMinutes: attendanceDays.lateMinutes
+			lateMinutes: attendanceDays.lateMinutes,
+			timeZone: attendanceDays.timeZone
 		})
 		.from(employees)
 		.leftJoin(attendanceDays, and(eq(attendanceDays.employeeId, employees.id), eq(attendanceDays.date, date)))
@@ -409,8 +456,12 @@ export async function teamDay(tx: Tx, access: Access, date: string) {
 
 export async function recomputeTenantAttendance(tenantId: string) {
 	await withTenant(systemCtx(tenantId), async (tx) => {
-		const today = dateIn(now(), (await calendar(tx)).timeZone);
-		await recomputeAttendance(tx, tenantId, addDays(today, -1), today);
+		const zones = await tx.execute<{ zone: string }>(
+			sql`select timezone as zone from tenant_settings union select timezone from branches where timezone is not null`
+		);
+		const at = now();
+		const days = zones.map((z) => dateIn(at, z.zone)).sort();
+		if (days.length) await recomputeAttendance(tx, tenantId, addDays(days[0], -1), days[days.length - 1]);
 	});
 }
 

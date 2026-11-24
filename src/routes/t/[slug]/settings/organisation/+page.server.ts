@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { CURRENCIES } from '#lib/money.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { requirePerm, userCtx } from '#lib/server/rbac/access.ts';
-import { readSettings, saveSettings } from '#lib/server/settings.ts';
+import { readSettings, saveSettings, TIMEZONES } from '#lib/server/settings.ts';
 import { withTenant } from '#lib/server/tenancy/index.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -20,7 +20,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			weekendDays: s.weekendDays,
 			employeeCodePrefix: s.employeeCodePrefix
 		},
-		timezones: Intl.supportedValuesOf('timeZone'),
+		timezones: TIMEZONES,
 		currencies: Object.keys(CURRENCIES)
 	};
 };

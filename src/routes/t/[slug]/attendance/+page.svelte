@@ -8,11 +8,14 @@
 	let kind = $state('regularization');
 	const rowErrors = $derived(form && 'rows' in form ? (form.rows as { line: number; message: string }[]) : []);
 	const tz = $derived(data.now?.timeZone ?? data.month?.timeZone ?? 'UTC');
-	const time = (d: Date | null) =>
+	const time = (d: Date | null, zone?: string | null) =>
 		d
-			? new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(
-					d
-				)
+			? new Intl.DateTimeFormat('en-GB', {
+					timeZone: zone ?? tz,
+					hour: '2-digit',
+					minute: '2-digit',
+					hourCycle: 'h23'
+				}).format(d)
 			: '—';
 	const hours = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
 	const label: Record<string, string> = {
@@ -31,10 +34,11 @@
 		lastOut: Date | null;
 		workedMinutes: number | null;
 		lateMinutes: number | null;
+		timeZone: string | null;
 	}) =>
 		[
 			d.status ? label[d.status] : 'Not in yet',
-			d.firstIn ? `${time(d.firstIn)}–${time(d.lastOut)}` : '',
+			d.firstIn ? `${time(d.firstIn, d.timeZone)}–${time(d.lastOut, d.timeZone)}` : '',
 			d.workedMinutes ? hours(d.workedMinutes) : '',
 			d.lateMinutes ? `${d.lateMinutes} min late` : ''
 		]

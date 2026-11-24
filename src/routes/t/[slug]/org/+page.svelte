@@ -6,7 +6,14 @@
 	let { data, form }: PageProps = $props();
 	const input = 'input px-2 py-1';
 	const parentName = (id: string | null) => data.departments.find((d) => d.id === id)?.name;
-	type Row = { id: string; name: string; parentId?: string | null; address?: string | null; rank?: number };
+	type Row = {
+		id: string;
+		name: string;
+		parentId?: string | null;
+		address?: string | null;
+		timezone?: string | null;
+		rank?: number;
+	};
 	const sections: { kind: 'department' | 'branch' | 'designation' | 'grade'; title: string; rows: Row[] }[] = $derived([
 		{ kind: 'department', title: 'Departments', rows: data.departments },
 		{ kind: 'branch', title: 'Branches', rows: data.branches },
@@ -26,6 +33,13 @@
 		{#each data.departments.filter((d) => d.id !== self) as d (d.id)}
 			<option value={d.id} selected={d.id === current}>{d.name}</option>
 		{/each}
+	</select>
+{/snippet}
+
+{#snippet zoneSelect(current: string | null, label: string)}
+	<select name="timezone" aria-label={label} class={input}>
+		<option value="">Company time zone</option>
+		{#each data.timezones as tz (tz)}<option value={tz} selected={tz === current}>{tz}</option>{/each}
 	</select>
 {/snippet}
 
@@ -57,6 +71,7 @@
 									aria-label="Address of {row.name}"
 									class={input}
 								/>
+								{@render zoneSelect(row.timezone ?? null, `Time zone of ${row.name}`)}
 							{:else if section.kind === 'grade'}
 								<input
 									name="rank"
@@ -97,6 +112,7 @@
 					{@render parentSelect(null, null, 'Parent of new department')}
 				{:else if section.kind === 'branch'}
 					<input name="address" placeholder="Address" aria-label="New branch address" class={input} />
+					{@render zoneSelect(null, 'New branch time zone')}
 				{:else if section.kind === 'grade'}
 					<input
 						name="rank"

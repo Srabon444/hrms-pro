@@ -274,3 +274,5 @@ revoke all on function public.auth_accept_invitation(text, uuid) from public;
 grant execute on function public.auth_accept_invitation(text, uuid) to hrms_auth;
 
 update letter_templates set body = replace(body, 'BDT {{salary.', '{{salary.currency}} {{salary.') where body like '%BDT {{salary.%';
+
+update attendance_days d set time_zone = s.timezone from tenant_settings s where s.tenant_id = d.tenant_id and d.time_zone is null;

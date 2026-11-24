@@ -7,13 +7,15 @@ import { AppError } from './errors';
 import { advisoryLock, LOCK } from './locks';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
 
-const TIMEZONES = new Set(Intl.supportedValuesOf('timeZone'));
+export const TIMEZONES = Intl.supportedValuesOf('timeZone');
+const ZONES = new Set(TIMEZONES);
+export const timeZoneSchema = z.string().refine((tz) => ZONES.has(tz), 'Pick a valid time zone.');
 const checkbox = z.preprocess((v) => v === 'on' || v === true, z.boolean());
 
 export const settingsSchema = z.object({
 	legalName: z.string().trim().max(200),
 	address: z.string().trim().max(500),
-	timezone: z.string().refine((tz) => TIMEZONES.has(tz), 'Pick a valid time zone.'),
+	timezone: timeZoneSchema,
 	currency: z.string().refine((c) => Object.hasOwn(CURRENCIES, c), 'Pick a currency from the list.'),
 	fiscalYearStartMonth: z.coerce.number().int().min(1).max(12),
 	weekendDays: z

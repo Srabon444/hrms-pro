@@ -13,6 +13,7 @@ import {
 	updateOrgItem
 } from '#lib/server/org.ts';
 import { requirePerm, userCtx } from '#lib/server/rbac/access.ts';
+import { TIMEZONES } from '#lib/server/settings.ts';
 import { withTenant } from '#lib/server/tenancy/index.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -27,6 +28,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	return withTenant(userCtx(m), async (tx) => ({
 		...(await orgStructure(tx)),
 		year,
+		timezones: TIMEZONES,
 		holidays: await holidaysOf(tx, year)
 	}));
 };
@@ -35,6 +37,7 @@ const item = (form: FormData) => ({
 	name: field(form, 'name'),
 	parentId: field(form, 'parentId'),
 	address: field(form, 'address'),
+	timezone: field(form, 'timezone'),
 	rank: field(form, 'rank') || undefined
 });
 

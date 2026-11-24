@@ -19,11 +19,11 @@ import { citext, tenantBase, tenantKey, tfk, tstz } from './_helpers';
 const nameCheck = (table: string, col: unknown) =>
 	check(`${table}_name_ck`, sql`length(trim(${col})) between 1 and 120`);
 
-export const branches = pgTable('branches', { ...tenantBase(), name: text().notNull(), address: text() }, (t) => [
-	tenantKey('branches', t),
-	unique('branches_name_uq').on(t.tenantId, t.name),
-	nameCheck('branches', t.name)
-]);
+export const branches = pgTable(
+	'branches',
+	{ ...tenantBase(), name: text().notNull(), address: text(), timezone: text() },
+	(t) => [tenantKey('branches', t), unique('branches_name_uq').on(t.tenantId, t.name), nameCheck('branches', t.name)]
+);
 
 export const departments = pgTable(
 	'departments',

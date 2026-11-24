@@ -18,7 +18,7 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('invitations', 'plain', '{id,tenant_id,email,role_ids,employee_id,invited_by_membership_id,expires_at,accepted_at,revoked_at}'),
 	('tenant_settings', 'plain', '{id,tenant_id,legal_name,logo_file_id,address,currency,timezone,fiscal_year_start_month,weekend_days,payroll_proration_basis,meal_payroll_lag_months,late_policy_count,late_policy_penalty,require2fa_for_sensitive,allow_single_admin_approval,retention_candidates_days,retention_tickets_days,retention_audit_days,ex_employee_access_days,employee_code_prefix,notice_period_days,overtime_daily_cap_minutes,comp_off_expiry_days,meal_cutoff_time,meal_mode,meal_working_days_only,meal_billing_mode,pf_employee_rate_bp,pf_employer_rate_bp,overtime_rate_bp,overtime_monthly_hours,bonus_rate_bp,bonus_min_service_months,arrears_lookback_months,gratuity_days_per_year,gratuity_min_years,pf_vesting_months}'),
 	('files', 'plain', '{id,tenant_id,filename,mime,size,owner_type,owner_id,uploaded_by_user_id}'),
-	('branches', 'plain', '{id,tenant_id,name,address}'),
+	('branches', 'plain', '{id,tenant_id,name,address,timezone}'),
 	('departments', 'plain', '{id,tenant_id,name,parent_id,head_employee_id}'),
 	('employees', 'plain', '{id,tenant_id,code,full_name,work_email,personal_email,phone,gender,blood_group,department_id,designation_id,grade_id,branch_id,manager_id,employment_type,join_date,probation_end_date,confirmation_date,status,exit_date,exit_reason,exit_type}'),
 	('employee_history', 'plain', '{id,tenant_id,employee_id,field,old_value,new_value,changed_by_user_id}'),

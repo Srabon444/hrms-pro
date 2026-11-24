@@ -94,7 +94,8 @@ export const attendanceDays = pgTable(
 		firstIn: tstz(),
 		lastOut: tstz(),
 		workedMinutes: smallint().notNull().default(0),
-		lateMinutes: smallint().notNull().default(0)
+		lateMinutes: smallint().notNull().default(0),
+		timeZone: text()
 	},
 	(t) => [
 		tenantKey('attendance_days', t),

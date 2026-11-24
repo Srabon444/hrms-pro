@@ -2,9 +2,9 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { activeMemberships, approvers, deciderWhere, rightsOver, singleAdmin } from './approval-chain';
 import type { ApprovalItem } from './approvals';
-import { calendar, recomputeAttendance, shiftOn } from './attendance';
+import { calendar, employeeZone, punchDay, recomputeAttendance } from './attendance';
 import { compDays, creditCompOff } from './comp-off';
-import { shiftDayOf, zonedInstant } from './attendance-day';
+import { zonedInstant } from './attendance-day';
 import { now } from './clock';
 import { addDays, dateIn } from './dates';
 import {
@@ -74,7 +74,7 @@ export async function requestAttendance(m: Member, raw: Record<string, string>) 
 		const e = await lockEmployee(tx, m.access, m.access.employeeId);
 		if (!inScope(await resolveScope(tx, m.access, 'attendance.punch'), e.id))
 			throw new AppError('forbidden', 'You cannot ask for attendance changes.', 403);
-		const { timeZone, weekendDays } = await calendar(tx);
+		const { timeZone, weekendDays } = await calendar(tx, e.id);
 		const at = now();
 		const today = dateIn(at, timeZone);
 		let date: string;
@@ -82,8 +82,7 @@ export async function requestAttendance(m: Member, raw: Record<string, string>) 
 		if (input.kind === 'regularization') {
 			punchAt = zonedInstant(input.at, timeZone);
 			if (punchAt > at) throw new AppError('future', 'A missed punch cannot be in the future.', 400);
-			const shift = await shiftOn(tx, e.id, dateIn(punchAt, timeZone));
-			date = shift ? shiftDayOf(punchAt, shift, timeZone) : dateIn(punchAt, timeZone);
+			date = (await punchDay(tx, e.id, punchAt)).day;
 			const [taken] = await tx
 				.select({ id: attendancePunches.id })
 				.from(attendancePunches)
@@ -178,7 +177,7 @@ export async function getAttendanceRequest(tx: Tx, access: Access, requestId: st
 	const found = await load(tx, access, requestId, false);
 	if (!found) return null;
 	const { r, e, rights } = found;
-	const { timeZone } = await calendar(tx);
+	const { timeZone } = await calendar(tx, e.id);
 	const day = await dayOf(tx, e.id, r.date);
 	return {
 		id: r.id,
@@ -269,7 +268,7 @@ export async function decideAttendance(m: Member, requestId: string, raw: Record
 			await recomputeAttendance(tx, m.tenant.id, addDays(r.date, -1), r.date, [r.employeeId]);
 		}
 		if (approve && r.kind === 'wfh') await recomputeAttendance(tx, m.tenant.id, r.date, r.date, [r.employeeId]);
-		const { timeZone } = await calendar(tx);
+		const { timeZone } = await calendar(tx, r.employeeId);
 		return notify(
 			tx,
 			m.tenant.id,
@@ -298,7 +297,7 @@ export async function cancelAttendanceRequest(m: Member, requestId: string) {
 		if (!found) throw notFound();
 		const { r, rights } = found;
 		if (!rights.canCancel) throw new AppError('forbidden', 'You cannot cancel this request.', 403);
-		if (!cancellable(r, dateIn(now(), (await calendar(tx)).timeZone)))
+		if (!cancellable(r, dateIn(now(), (await calendar(tx, r.employeeId)).timeZone)))
 			throw new AppError('not_cancellable', 'Only pending requests or upcoming work from home can be cancelled.', 409);
 		await tx.update(attendanceRequests).set({ status: 'cancelled' }).where(eq(attendanceRequests.id, r.id));
 	});
@@ -306,7 +305,7 @@ export async function cancelAttendanceRequest(m: Member, requestId: string) {
 
 export async function myAttendanceRequests(tx: Tx, access: Access) {
 	if (!access.employeeId) return [];
-	const { timeZone } = await calendar(tx);
+	const { timeZone } = await calendar(tx, access.employeeId);
 	const today = dateIn(now(), timeZone);
 	const rows = await tx
 		.select()
@@ -325,9 +324,8 @@ export async function myAttendanceRequests(tx: Tx, access: Access) {
 
 export async function attendanceApprovals(tx: Tx, access: Access): Promise<ApprovalItem[]> {
 	const me = access.employeeId;
-	const { timeZone } = await calendar(tx);
 	const rows = await tx
-		.select({ r: attendanceRequests, name: employees.fullName })
+		.select({ r: attendanceRequests, name: employees.fullName, zone: employeeZone })
 		.from(attendanceRequests)
 		.innerJoin(employees, eq(employees.id, attendanceRequests.employeeId))
 		.leftJoin(departments, eq(departments.id, employees.departmentId))
@@ -337,10 +335,10 @@ export async function attendanceApprovals(tx: Tx, access: Access): Promise<Appro
 	const single = rows.some(({ r }) => r.employeeId === me) && (await singleAdmin(tx));
 	return rows
 		.filter(({ r }) => r.employeeId !== me || single)
-		.map(({ r, name }) => ({
+		.map(({ r, name, zone }) => ({
 			id: r.id,
 			kind: 'Attendance',
-			title: `${name}: ${describe(r, timeZone)}`,
+			title: `${name}: ${describe(r, zone)}`,
 			requestedBy: name,
 			at: r.createdAt,
 			link: `approvals/attendance/${r.id}`
