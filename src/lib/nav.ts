@@ -11,7 +11,16 @@ export const NAV: NavItem[] = [
 	{
 		href: 'reports',
 		label: 'Reports',
-		perm: ['report.headcount', 'report.attendance', 'report.leave', 'report.payroll']
+		perm: [
+			'report.headcount',
+			'report.attendance',
+			'report.leave',
+			'report.payroll',
+			'report.meal',
+			'report.expense',
+			'report.recruitment',
+			'report.utilisation'
+		]
 	},
 	{ href: 'approvals', label: 'Approvals' },
 	{ href: 'tasks', label: 'Tasks' },

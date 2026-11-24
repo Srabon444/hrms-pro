@@ -1,7 +1,19 @@
-import { and, asc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
-import { taka } from '../../money';
-import { departments, employees, payrollRuns, payslips } from '../db/schema';
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
+import { mealCharge, taka } from '../../money';
+import {
+	departments,
+	employees,
+	expenseCategories,
+	expenseClaims,
+	expenseItems,
+	mealOrders,
+	mealTypes,
+	mealVendors,
+	payrollRuns,
+	payslips
+} from '../db/schema';
 import { scopeWhere } from '../rbac/scope';
+import { add, amount, byDepartment, departmentColumn, inTaka, personColumns, type Tally } from './groups';
 import type { Cell, Column, ReportDef, Row, Section } from './types';
 
 export const MIN_PAYROLL_GROUP = 5;
@@ -123,5 +135,192 @@ export const payrollCostReport: ReportDef = {
 				}))
 			});
 		return sections;
+	}
+};
+
+type PersonTally = { id: string; name: string; code: string; department: string | null; tally: Tally };
+
+function people<T extends { employeeId: string; name: string; code: string; department: string | null }>(
+	rows: T[],
+	keys: string[],
+	tallyOf: (r: T) => Tally
+) {
+	const out = new Map<string, PersonTally>();
+	for (const r of rows) {
+		if (!out.has(r.employeeId))
+			out.set(r.employeeId, {
+				id: r.employeeId,
+				name: r.name,
+				code: r.code,
+				department: r.department,
+				tally: Object.fromEntries(keys.map((k) => [k, 0]))
+			});
+		add(out.get(r.employeeId)!.tally, tallyOf(r));
+	}
+	return [...out.values()].sort((a, b) => a.name.localeCompare(b.name) || a.code.localeCompare(b.code));
+}
+
+const personRows = (list: PersonTally[]): Row[] =>
+	list.map((p) => ({ employeeId: p.id, cells: { name: p.name, code: p.code, department: p.department, ...p.tally } }));
+
+function totalled(groups: Map<string, Tally>, label: string, labelKey: string, keys: string[]): Row[] {
+	const total: Tally = Object.fromEntries(keys.map((k) => [k, 0]));
+	const rows = [...groups].map(([name, t]) => {
+		add(total, t);
+		return { cells: { [labelKey]: name, ...t } };
+	});
+	return [...rows, { cells: { [labelKey]: label, ...total } }];
+}
+
+const MEAL_MONEY = ['cost', 'staff', 'company'];
+
+export const mealReport: ReportDef = {
+	id: 'meal',
+	title: 'Meals',
+	permission: 'report.meal',
+	async build(tx, { scope, params: { from, to, departmentId } }) {
+		const orders = await tx
+			.select({
+				employeeId: mealOrders.employeeId,
+				name: employees.fullName,
+				code: employees.code,
+				department: departments.name,
+				vendor: mealVendors.name,
+				meal: mealTypes.name,
+				status: mealOrders.status,
+				guests: mealOrders.guestQty,
+				unitCost: sql<number>`${mealOrders.unitCost}`,
+				subsidyPct: sql<number>`${mealOrders.subsidyPct}`
+			})
+			.from(mealOrders)
+			.innerJoin(employees, eq(employees.id, mealOrders.employeeId))
+			.leftJoin(departments, eq(departments.id, employees.departmentId))
+			.innerJoin(mealTypes, eq(mealTypes.id, mealOrders.mealTypeId))
+			.innerJoin(mealVendors, eq(mealVendors.id, mealTypes.vendorId))
+			.where(
+				and(
+					scopeWhere(scope, employees.id),
+					departmentId ? eq(employees.departmentId, departmentId) : undefined,
+					gte(mealOrders.date, from),
+					lte(mealOrders.date, to),
+					isNotNull(mealOrders.unitCost)
+				)
+			)
+			.orderBy(asc(mealVendors.name), asc(mealTypes.name));
+		const keys = ['plates', 'guests', ...MEAL_MONEY];
+		const tallyOf = (o: (typeof orders)[number]): Tally => {
+			const plates = o.status === 'ordered' ? 1 : 0;
+			const cost = (plates + o.guests) * o.unitCost;
+			const staff = mealCharge(plates === 1, o.guests, o.unitCost, o.subsidyPct);
+			return { plates, guests: o.guests, cost, staff, company: cost - staff };
+		};
+		const meals = new Map<string, Tally>();
+		for (const o of orders) {
+			const key = `${o.vendor} · ${o.meal}`;
+			if (!meals.has(key)) meals.set(key, Object.fromEntries(keys.map((k) => [k, 0])));
+			add(meals.get(key)!, tallyOf(o));
+		}
+		const list = people(orders, keys, tallyOf);
+		const columns: Column[] = [
+			{ key: 'plates', label: 'Plates', numeric: true },
+			{ key: 'guests', label: 'Guests', numeric: true },
+			amount('cost', 'Cost'),
+			amount('staff', 'Staff share'),
+			amount('company', 'Company share')
+		];
+		return [
+			{
+				key: 'meals',
+				title: 'By meal',
+				columns: [{ key: 'meal', label: 'Meal' }, ...columns],
+				rows: inTaka(totalled(meals, 'All meals', 'meal', keys), MEAL_MONEY)
+			},
+			{
+				key: 'departments',
+				title: 'By department',
+				columns: [departmentColumn, ...columns],
+				rows: inTaka(byDepartment(list, keys), MEAL_MONEY)
+			},
+			{
+				key: 'employees',
+				title: 'By employee',
+				columns: [...personColumns, ...columns],
+				rows: inTaka(personRows(list), MEAL_MONEY)
+			}
+		];
+	}
+};
+
+const EXPENSE_MONEY = ['approved', 'paid', 'total'];
+
+export const expenseReport: ReportDef = {
+	id: 'expense',
+	title: 'Expenses',
+	permission: 'report.expense',
+	async build(tx, { scope, params: { from, to, departmentId } }) {
+		const items = await tx
+			.select({
+				employeeId: expenseClaims.employeeId,
+				name: employees.fullName,
+				code: employees.code,
+				department: departments.name,
+				category: expenseCategories.name,
+				status: expenseClaims.status,
+				amount: expenseItems.amount
+			})
+			.from(expenseItems)
+			.innerJoin(expenseClaims, eq(expenseClaims.id, expenseItems.claimId))
+			.innerJoin(expenseCategories, eq(expenseCategories.id, expenseItems.categoryId))
+			.innerJoin(employees, eq(employees.id, expenseClaims.employeeId))
+			.leftJoin(departments, eq(departments.id, employees.departmentId))
+			.where(
+				and(
+					scopeWhere(scope, employees.id),
+					departmentId ? eq(employees.departmentId, departmentId) : undefined,
+					inArray(expenseClaims.status, ['approved', 'paid']),
+					gte(expenseItems.spentOn, from),
+					lte(expenseItems.spentOn, to)
+				)
+			)
+			.orderBy(asc(expenseCategories.name));
+		const tallyOf = (i: (typeof items)[number]): Tally => ({
+			items: 1,
+			approved: i.status === 'approved' ? i.amount : 0,
+			paid: i.status === 'paid' ? i.amount : 0,
+			total: i.amount
+		});
+		const keys = ['items', ...EXPENSE_MONEY];
+		const categories = new Map<string, Tally>();
+		for (const i of items) {
+			if (!categories.has(i.category)) categories.set(i.category, Object.fromEntries(keys.map((k) => [k, 0])));
+			add(categories.get(i.category)!, tallyOf(i));
+		}
+		const list = people(items, keys, tallyOf);
+		const columns: Column[] = [
+			{ key: 'items', label: 'Items', numeric: true },
+			amount('approved', 'Approved, unpaid'),
+			amount('paid', 'Paid'),
+			amount('total', 'Total')
+		];
+		return [
+			{
+				key: 'categories',
+				title: 'By category',
+				columns: [{ key: 'category', label: 'Category' }, ...columns],
+				rows: inTaka(totalled(categories, 'All categories', 'category', keys), EXPENSE_MONEY)
+			},
+			{
+				key: 'departments',
+				title: 'By department',
+				columns: [departmentColumn, ...columns],
+				rows: inTaka(byDepartment(list, keys), EXPENSE_MONEY)
+			},
+			{
+				key: 'employees',
+				title: 'By employee',
+				columns: [...personColumns, ...columns],
+				rows: inTaka(personRows(list), EXPENSE_MONEY)
+			}
+		];
 	}
 };

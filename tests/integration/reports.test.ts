@@ -4,8 +4,24 @@ import { withTestNow } from '../../src/lib/server/clock';
 import { closePools } from '../../src/lib/server/db';
 import {
 	attendanceDays,
+	candidateStageHistory,
+	candidates,
 	departments,
 	employees,
+	expenseCategories,
+	expenseClaims,
+	expenseItems,
+	interviews,
+	jobOpenings,
+	mealOrders,
+	mealTypes,
+	mealVendors,
+	offers,
+	pipelineStages,
+	projects,
+	shifts,
+	timesheetEntries,
+	timesheets,
 	leaveRequestDays,
 	leaveRequests,
 	leaveTypes,
@@ -34,6 +50,7 @@ import { getObject } from '../../src/lib/server/storage';
 import type { Report } from '../../src/lib/server/reports/types';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
 import { createTenant, createUser } from './helpers';
+import type { Permission } from '../../src/lib/rbac/permissions';
 
 let tenant: { id: string; slug: string };
 const ids: Record<string, string> = {};
@@ -209,7 +226,10 @@ describe('headcount report', () => {
 		expect(reportsFor(who.hr)).toEqual([
 			{ id: 'headcount', title: 'Headcount and attrition' },
 			{ id: 'attendance', title: 'Attendance' },
-			{ id: 'leave', title: 'Leave taken' }
+			{ id: 'leave', title: 'Leave taken' },
+			{ id: 'expense', title: 'Expenses' },
+			{ id: 'recruitment', title: 'Recruitment funnel' },
+			{ id: 'utilisation', title: 'Utilisation' }
 		]);
 	});
 
@@ -333,11 +353,7 @@ describe('sharing reports', () => {
 	});
 });
 
-async function grant(
-	roleKey: string,
-	permission: 'report.attendance' | 'report.leave' | 'report.payroll',
-	scope: string
-) {
+async function grant(roleKey: string, permission: Permission, scope: string) {
 	await withTenant(sys(), async (tx) => {
 		const [r] = await tx.select().from(roles).where(eq(roles.key, roleKey));
 		await tx.insert(rolePermissions).values({ tenantId: tenant.id, roleId: r.id, permission, scope });
@@ -652,6 +668,365 @@ describe('payroll cost report', () => {
 		expect(table(sep, 'departments')).toEqual([
 			{ department: 'Engineering', ...hidden },
 			{ department: 'All departments', ...hidden }
+		]);
+	});
+});
+
+describe('meal, expense, recruitment and utilisation reports', () => {
+	beforeAll(async () => {
+		await member('meal', ['meal_manager'], null);
+		await member('fin', ['finance'], null);
+		await member('rec', ['recruiter'], null);
+		const by = mem.hr.user.userId;
+		await withTenant(sys(), async (tx) => {
+			const vendor = async (name: string, meal: string) => {
+				const [v] = await tx
+					.insert(mealVendors)
+					.values({ tenantId: tenant.id, name })
+					.returning({ id: mealVendors.id });
+				const [t] = await tx
+					.insert(mealTypes)
+					.values({ tenantId: tenant.id, name: meal, vendorId: v.id })
+					.returning({ id: mealTypes.id });
+				return t.id;
+			};
+			const lunch = await vendor('Vendor A', 'Lunch');
+			const dinner = await vendor('Vendor B', 'Dinner');
+			const order = (
+				employeeId: string,
+				date: string,
+				mealTypeId: string,
+				status: string,
+				guestQty: number,
+				unitCost: number | null,
+				subsidyPct: number | null
+			) => ({
+				tenantId: tenant.id,
+				employeeId,
+				date,
+				mealTypeId,
+				status,
+				guestQty,
+				unitCost,
+				subsidyPct
+			});
+			await tx
+				.insert(mealOrders)
+				.values([
+					order(ids.ana, '2026-09-30', lunch, 'ordered', 0, 10_000, 50),
+					order(ids.ana, '2026-10-01', lunch, 'ordered', 0, 10_000, 50),
+					order(ids.ana, '2026-10-02', lunch, 'ordered', 2, 10_000, 50),
+					order(ids.ana, '2026-10-03', lunch, 'opted_out', 0, 10_000, 50),
+					order(ids.ana, '2026-10-04', lunch, 'ordered', 0, null, null),
+					order(ids.ana, '2026-11-01', lunch, 'ordered', 0, 10_000, 50),
+					order(ids.bo, '2026-10-05', dinner, 'ordered', 0, 15_000, 0),
+					order(ids.ab, '2026-10-06', lunch, 'ordered', 1, 10_000, 50)
+				]);
+
+			const category = async (name: string) =>
+				(
+					await tx
+						.insert(expenseCategories)
+						.values({ tenantId: tenant.id, name })
+						.returning({ id: expenseCategories.id })
+				)[0].id;
+			const travel = await category('Travel');
+			const food = await category('Food');
+			const claim = async (employeeId: string, status: string, items: [string, string, number][]) => {
+				const [c] = await tx
+					.insert(expenseClaims)
+					.values({
+						tenantId: tenant.id,
+						employeeId,
+						title: 'Claim',
+						status,
+						total: items.reduce((n, i) => n + i[2], 0),
+						submittedByUserId: by
+					})
+					.returning({ id: expenseClaims.id });
+				await tx.insert(expenseItems).values(
+					items.map(([categoryId, spentOn, amount]) => ({
+						tenantId: tenant.id,
+						claimId: c.id,
+						categoryId,
+						spentOn,
+						description: 'Item',
+						amount
+					}))
+				);
+			};
+			await claim(ids.ana, 'approved', [
+				[travel, '2026-10-03', 50_000],
+				[food, '2026-10-04', 20_000]
+			]);
+			await claim(ids.ana, 'paid', [[travel, '2026-09-30', 99_900]]);
+			await claim(ids.ana, 'approved', [
+				[food, '2026-10-31', 5_000],
+				[food, '2026-11-01', 7_000]
+			]);
+			await claim(ids.bo, 'paid', [[travel, '2026-10-10', 30_000]]);
+			await claim(ids.bo, 'submitted', [[food, '2026-10-11', 11_100]]);
+			await claim(ids.bo, 'rejected', [[travel, '2026-10-11', 22_200]]);
+			await claim(ids.ab, 'paid', [[food, '2026-10-12', 10_000]]);
+
+			const opening = async (title: string, departmentId: string | null, status: string) => {
+				const [o] = await tx
+					.insert(jobOpenings)
+					.values({ tenantId: tenant.id, title, departmentId, status })
+					.returning({ id: jobOpenings.id });
+				const stage: Record<string, string> = {};
+				for (const [i, kind] of ['active', 'hired', 'rejected'].entries())
+					stage[kind] = (
+						await tx
+							.insert(pipelineStages)
+							.values({ tenantId: tenant.id, openingId: o.id, name: kind, sortOrder: i, kind })
+							.returning({ id: pipelineStages.id })
+					)[0].id;
+				const candidate = async (fullName: string, createdAt: string) =>
+					(
+						await tx
+							.insert(candidates)
+							.values({
+								tenantId: tenant.id,
+								openingId: o.id,
+								stageId: stage.active,
+								fullName,
+								createdAt: new Date(createdAt)
+							})
+							.returning({ id: candidates.id })
+					)[0].id;
+				const move = (candidateId: string, kind: string, at: string) =>
+					tx.insert(candidateStageHistory).values({
+						tenantId: tenant.id,
+						candidateId,
+						fromStageId: stage.active,
+						toStageId: stage[kind],
+						createdAt: new Date(at)
+					});
+				const interview = (candidateId: string, at: string, status: string) =>
+					tx.insert(interviews).values({
+						tenantId: tenant.id,
+						candidateId,
+						title: 'Interview',
+						scheduledAt: new Date(at),
+						durationMinutes: 60,
+						status
+					});
+				return { candidate, move, interview };
+			};
+			const backend = await opening('Backend engineer', dept.Engineering, 'open');
+			const c1 = await backend.candidate('C1', '2026-10-05T04:00:00Z');
+			await backend.interview(c1, '2026-10-10T04:00:00Z', 'scheduled');
+			await backend.interview(c1, '2026-10-11T04:00:00Z', 'scheduled');
+			await tx.insert(offers).values({
+				tenantId: tenant.id,
+				candidateId: c1,
+				monthlyGross: 10_000_000,
+				joinDate: '2026-11-15',
+				status: 'accepted',
+				decidedAt: new Date('2026-10-14T04:00:00Z'),
+				createdAt: new Date('2026-10-12T04:00:00Z')
+			});
+			await backend.move(c1, 'hired', '2026-10-20T04:00:00Z');
+			const c2 = await backend.candidate('C2', '2026-10-06T04:00:00Z');
+			await backend.interview(c2, '2026-10-11T04:00:00Z', 'cancelled');
+			await backend.move(c2, 'rejected', '2026-10-15T04:00:00Z');
+			await tx.insert(offers).values({
+				tenantId: tenant.id,
+				candidateId: c2,
+				monthlyGross: 9_000_000,
+				joinDate: '2026-11-15',
+				status: 'declined',
+				decidedAt: new Date('2026-10-14T04:00:00Z'),
+				createdAt: new Date('2026-10-13T04:00:00Z')
+			});
+			const c3 = await backend.candidate('C3', '2026-09-20T04:00:00Z');
+			await backend.interview(c3, '2026-10-02T04:00:00Z', 'scheduled');
+			await backend.move(c3, 'rejected', '2026-11-02T04:00:00Z');
+			await tx.insert(offers).values({
+				tenantId: tenant.id,
+				candidateId: c3,
+				monthlyGross: 9_000_000,
+				joinDate: '2026-12-15',
+				status: 'accepted',
+				decidedAt: new Date('2026-11-03T04:00:00Z'),
+				createdAt: new Date('2026-10-30T04:00:00Z')
+			});
+			await backend.candidate('C4', '2026-10-31T20:00:00Z');
+			const ops = await opening('Ops lead', dept.Operations, 'closed');
+			await ops.candidate('C7', '2026-08-01T04:00:00Z');
+			const designer = await opening('Designer', null, 'on_hold');
+			await designer.candidate('C5', '2026-10-01T04:00:00Z');
+			await designer.candidate('C6', '2026-09-30T19:00:00Z');
+
+			const [general] = await tx.select().from(shifts).where(eq(shifts.isDefault, true));
+			await tx.update(attendanceDays).set({ shiftId: general.id });
+			const project = async (code: string, billable: boolean) =>
+				(
+					await tx
+						.insert(projects)
+						.values({
+							tenantId: tenant.id,
+							code,
+							name: `${code} project`,
+							client: billable ? 'Client Co' : '',
+							billable
+						})
+						.returning({ id: projects.id })
+				)[0].id;
+			const app = await project('APP', true);
+			const internal = await project('INT', false);
+			const sheet = async (
+				employeeId: string,
+				weekStart: string,
+				status: string,
+				entries: [string, string, number][]
+			) => {
+				const [t] = await tx
+					.insert(timesheets)
+					.values({
+						tenantId: tenant.id,
+						employeeId,
+						weekStart,
+						status,
+						submittedAt: new Date(),
+						decidedAt: status === 'approved' ? new Date() : null
+					})
+					.returning({ id: timesheets.id });
+				await tx.insert(timesheetEntries).values(
+					entries.map(([projectId, workDate, minutes]) => ({
+						tenantId: tenant.id,
+						timesheetId: t.id,
+						projectId,
+						workDate,
+						minutes
+					}))
+				);
+			};
+			await sheet(ids.ana, '2026-09-28', 'approved', [
+				[app, '2026-09-30', 480],
+				[app, '2026-10-01', 360],
+				[app, '2026-10-02', 240],
+				[internal, '2026-10-02', 120]
+			]);
+			await sheet(ids.bo, '2026-10-05', 'submitted', [[app, '2026-10-10', 480]]);
+			await sheet(ids.ab, '2026-10-12', 'approved', [[internal, '2026-10-15', 480]]);
+			await sheet(ids.ab, '2026-10-26', 'approved', [[internal, '2026-11-01', 480]]);
+		});
+		for (const p of ['report.meal', 'report.expense', 'report.recruitment', 'report.utilisation'] as const)
+			await grant('dept_reports', p, 'department');
+	});
+
+	it('splits priced meals into cost, staff share and company share', async () => {
+		const r = await run('meal', 'meal', october);
+		expect(table(r, 'meals')).toEqual([
+			{ meal: 'Vendor A · Lunch', plates: 3, guests: 3, cost: '600.00', staff: '450.00', company: '150.00' },
+			{ meal: 'Vendor B · Dinner', plates: 1, guests: 0, cost: '150.00', staff: '150.00', company: '0.00' },
+			{ meal: 'All meals', plates: 4, guests: 3, cost: '750.00', staff: '600.00', company: '150.00' }
+		]);
+		expect(table(r, 'employees').map((c) => [c.name, c.plates, c.guests, c.cost, c.staff, c.company])).toEqual([
+			['Ab', 1, 1, '200.00', '150.00', '50.00'],
+			['Ana', 2, 2, '400.00', '300.00', '100.00'],
+			['Bo', 1, 0, '150.00', '150.00', '0.00']
+		]);
+		expect(table(r, 'departments').map((c) => [c.department, c.plates, c.cost])).toEqual([
+			['Engineering', 3, '550.00'],
+			['Operations', 1, '200.00'],
+			['All departments', 4, '750.00']
+		]);
+		expect(names(await run('dh', 'meal', october), 'employees')).toEqual(['Ana', 'Bo']);
+		expect(names(await run('fin', 'meal', { ...october, department: dept.Operations }), 'employees')).toEqual(['Ab']);
+		expect(await fails('emp', 'meal', october)).toBe('not_found');
+	});
+
+	it('totals approved and paid expense items by the day they were spent', async () => {
+		const r = await run('fin', 'expense', october);
+		expect(table(r, 'categories')).toEqual([
+			{ category: 'Food', items: 3, approved: '250.00', paid: '100.00', total: '350.00' },
+			{ category: 'Travel', items: 2, approved: '500.00', paid: '300.00', total: '800.00' },
+			{ category: 'All categories', items: 5, approved: '750.00', paid: '400.00', total: '1150.00' }
+		]);
+		expect(table(r, 'employees').map((c) => [c.name, c.items, c.approved, c.paid, c.total])).toEqual([
+			['Ab', 1, '0.00', '100.00', '100.00'],
+			['Ana', 3, '750.00', '0.00', '750.00'],
+			['Bo', 1, '0.00', '300.00', '300.00']
+		]);
+		expect(table(r, 'departments').at(-1)).toEqual({
+			department: 'All departments',
+			items: 5,
+			approved: '750.00',
+			paid: '400.00',
+			total: '1150.00'
+		});
+		expect(names(await run('dh', 'expense', october), 'employees')).toEqual(['Ana', 'Bo']);
+		expect(await fails('meal', 'expense', october)).toBe('not_found');
+	});
+
+	it('counts funnel steps that happened in the period, in the company time zone', async () => {
+		const r = await run('rec', 'recruitment', october);
+		const step = (
+			applied: number,
+			interviewed: number,
+			offered: number,
+			accepted: number,
+			hired: number,
+			rejected: number
+		) => ({
+			applied,
+			interviewed,
+			offered,
+			accepted,
+			hired,
+			rejected
+		});
+		expect(table(r, 'openings')).toEqual([
+			{ opening: 'Backend engineer', department: 'Engineering', status: 'open', ...step(2, 2, 3, 1, 1, 1) },
+			{ opening: 'Designer', department: null, status: 'on_hold', ...step(2, 0, 0, 0, 0, 0) },
+			{ opening: 'All openings', department: null, status: null, ...step(4, 2, 3, 1, 1, 1) }
+		]);
+		const eng = await run('rec', 'recruitment', { ...october, department: dept.Engineering });
+		expect(table(eng, 'openings').map((c) => c.opening)).toEqual(['Backend engineer', 'All openings']);
+		const dh = await run('dh', 'recruitment', october);
+		expect(table(dh, 'openings').map((c) => c.opening)).toEqual(['Backend engineer', 'All openings']);
+		const august = await run('rec', 'recruitment', { from: '2026-08-01', to: '2026-08-31' });
+		expect(table(august, 'openings').map((c) => [c.opening, c.applied])).toEqual([
+			['Backend engineer', 0],
+			['Designer', 0],
+			['Ops lead', 1],
+			['All openings', 1]
+		]);
+	});
+
+	it('compares billable approved hours with scheduled capacity', async () => {
+		const r = await run('hr', 'utilisation', october);
+		expect(table(r, 'employees').map((c) => [c.name, c.capacity, c.logged, c.billable, c.utilisation])).toEqual([
+			['Ab', 16, 8, 0, 0],
+			['Ana', 24, 12, 10, 41.7],
+			['Bo', 16, 0, 0, 0]
+		]);
+		expect(table(r, 'departments').map((c) => [c.department, c.capacity, c.logged, c.billable, c.utilisation])).toEqual(
+			[
+				['Engineering', 40, 12, 10, 25],
+				['Operations', 16, 8, 0, 0],
+				['All departments', 56, 20, 10, 17.9]
+			]
+		);
+		expect(table(r, 'projects')).toEqual([
+			{ code: 'APP', project: 'APP project', client: 'Client Co', billable: 'Yes', people: 1, hours: 10 },
+			{ code: 'INT', project: 'INT project', client: '', billable: 'No', people: 2, hours: 10 }
+		]);
+		expect(names(await run('hr', 'utilisation', { ...october, department: dept.Operations }), 'employees')).toEqual([
+			'Ab'
+		]);
+		const dh = await run('dh', 'utilisation', october);
+		expect(names(dh, 'employees')).toEqual(['Ana', 'Bo']);
+		expect(table(dh, 'projects').map((c) => [c.code, c.people, c.hours])).toEqual([
+			['APP', 1, 10],
+			['INT', 1, 2]
+		]);
+		const empty = await run('hr', 'utilisation', { from: '2026-12-01', to: '2026-12-31' });
+		expect(table(empty, 'departments')).toEqual([
+			{ department: 'All departments', capacity: 0, logged: 0, billable: 0, utilisation: null }
 		]);
 	});
 });

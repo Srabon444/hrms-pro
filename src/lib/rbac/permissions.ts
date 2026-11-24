@@ -55,6 +55,8 @@ export const PERMISSIONS = [
 	'report.payroll',
 	'report.meal',
 	'report.recruitment',
+	'report.expense',
+	'report.utilisation',
 	'report.weekly',
 	'user.manage',
 	'role.manage',
@@ -130,6 +132,8 @@ export const SYSTEM_ROLES: SystemRole[] = [
 			'report.attendance',
 			'report.leave',
 			'report.recruitment',
+			'report.expense',
+			'report.utilisation',
 			'report.weekly',
 			'user.manage',
 			'audit.read'
@@ -193,7 +197,8 @@ export const SYSTEM_ROLES: SystemRole[] = [
 			'expense.approve',
 			'expense.pay',
 			'report.payroll',
-			'report.meal'
+			'report.meal',
+			'report.expense'
 		)
 	},
 	{
@@ -215,6 +220,8 @@ export const SYSTEM_ROLES: SystemRole[] = [
 				'expense.approve',
 				'report.attendance',
 				'report.leave',
+				'report.expense',
+				'report.utilisation',
 				'report.weekly'
 			),
 			...at('all', 'project.read')

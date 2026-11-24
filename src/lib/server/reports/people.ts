@@ -1,5 +1,16 @@
-import { and, asc, eq, gte, isNull, lte, or } from 'drizzle-orm';
-import { departments, designations, employees } from '../db/schema';
+import { and, asc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+	candidateStageHistory,
+	candidates,
+	departments,
+	designations,
+	employees,
+	interviews,
+	jobOpenings,
+	offers,
+	pipelineStages,
+	tenantSettings
+} from '../db/schema';
 import { scopeWhere } from '../rbac/scope';
 import type { ReportDef } from './types';
 
@@ -102,6 +113,80 @@ export const headcountReport: ReportDef = {
 					employeeId: p.id,
 					cells: { name: p.name, code: p.code, department: p.department, lastDay: p.exitDate }
 				}))
+			}
+		];
+	}
+};
+
+const FUNNEL = [
+	['applied', 'Applied'],
+	['interviewed', 'Interviewed'],
+	['offered', 'Offered'],
+	['accepted', 'Accepted'],
+	['hired', 'Hired'],
+	['rejected', 'Rejected']
+] as const;
+
+export const recruitmentReport: ReportDef = {
+	id: 'recruitment',
+	title: 'Recruitment funnel',
+	permission: 'report.recruitment',
+	async build(tx, { scope, params: { from, to, departmentId } }) {
+		const [settings] = await tx.select({ tz: tenantSettings.timezone }).from(tenantSettings);
+		const within = (col: string) =>
+			sql`(${sql.raw(col)} at time zone ${settings?.tz ?? 'UTC'})::date between ${from}::date and ${to}::date`;
+		const moved = (kind: 'hired' | 'rejected') =>
+			sql<number>`(select count(distinct h.candidate_id)::int from ${candidateStageHistory} h join ${pipelineStages} s on s.id = h.to_stage_id and s.tenant_id = h.tenant_id where h.candidate_id in (select c.id from ${candidates} c where c.opening_id = ${jobOpenings.id}) and s.kind = ${kind} and ${within('h.created_at')})`;
+		const openings = await tx
+			.select({
+				id: jobOpenings.id,
+				title: jobOpenings.title,
+				department: departments.name,
+				status: jobOpenings.status,
+				applied: sql<number>`(select count(*)::int from ${candidates} c where c.opening_id = ${jobOpenings.id} and ${within('c.created_at')})`,
+				interviewed: sql<number>`(select count(distinct i.candidate_id)::int from ${interviews} i join ${candidates} c on c.id = i.candidate_id where c.opening_id = ${jobOpenings.id} and i.status = 'scheduled' and ${within('i.scheduled_at')})`,
+				offered: sql<number>`(select count(*)::int from ${offers} o join ${candidates} c on c.id = o.candidate_id where c.opening_id = ${jobOpenings.id} and ${within('o.created_at')})`,
+				accepted: sql<number>`(select count(*)::int from ${offers} o join ${candidates} c on c.id = o.candidate_id where c.opening_id = ${jobOpenings.id} and o.status = 'accepted' and ${within('o.decided_at')})`,
+				hired: moved('hired'),
+				rejected: moved('rejected')
+			})
+			.from(jobOpenings)
+			.leftJoin(departments, eq(departments.id, jobOpenings.departmentId))
+			.where(
+				and(
+					departmentId ? eq(jobOpenings.departmentId, departmentId) : undefined,
+					scope.kind === 'all'
+						? undefined
+						: inArray(
+								jobOpenings.departmentId,
+								tx.select({ id: employees.departmentId }).from(employees).where(scopeWhere(scope, employees.id))
+							)
+				)
+			)
+			.orderBy(asc(jobOpenings.title));
+		const active = openings.filter((o) => o.status !== 'closed' || FUNNEL.some(([k]) => o[k] > 0));
+		const total = Object.fromEntries(FUNNEL.map(([k]) => [k, active.reduce((n, o) => n + o[k], 0)]));
+		return [
+			{
+				key: 'openings',
+				title: 'By opening',
+				columns: [
+					{ key: 'opening', label: 'Opening' },
+					{ key: 'department', label: 'Department' },
+					{ key: 'status', label: 'Status' },
+					...FUNNEL.map(([key, label]) => ({ key, label, numeric: true as const }))
+				],
+				rows: [
+					...active.map((o) => ({
+						cells: {
+							opening: o.title,
+							department: o.department,
+							status: o.status,
+							...Object.fromEntries(FUNNEL.map(([k]) => [k, o[k]]))
+						}
+					})),
+					{ cells: { opening: 'All openings', department: null, status: null, ...total } }
+				]
 			}
 		];
 	}

@@ -6,12 +6,21 @@ import { tenantToday } from '../lifecycle';
 import { can, userCtx, type Access, type requireMember } from '../rbac/access';
 import { resolveScope } from '../rbac/scope';
 import type { Tx } from '../tenancy';
-import { payrollCostReport } from './money';
-import { headcountReport } from './people';
-import { attendanceReport, leaveReport } from './time';
+import { expenseReport, mealReport, payrollCostReport } from './money';
+import { headcountReport, recruitmentReport } from './people';
+import { attendanceReport, leaveReport, utilisationReport } from './time';
 import type { Report, ReportDef, ReportParams } from './types';
 
-export const REPORTS: ReportDef[] = [headcountReport, attendanceReport, leaveReport, payrollCostReport];
+export const REPORTS: ReportDef[] = [
+	headcountReport,
+	attendanceReport,
+	leaveReport,
+	payrollCostReport,
+	mealReport,
+	expenseReport,
+	recruitmentReport,
+	utilisationReport
+];
 
 export const MAX_REPORT_DAYS = 366;
 
