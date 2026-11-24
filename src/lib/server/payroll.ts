@@ -57,6 +57,7 @@ import { periodRange } from './meal-bills';
 import { renderPayslipPdf } from './payslip-pdf';
 import { scopesOf, userCtx, type Access, type requireMember } from './rbac/access';
 import { withTenant, type Tx } from './tenancy';
+import { tenantCurrency } from './settings';
 
 type Member = ReturnType<typeof requireMember>;
 type Run = {
@@ -95,7 +96,7 @@ const finalSchema = z
 		assetDeduction: z
 			.string()
 			.trim()
-			.regex(/^(\d{1,7}(\.\d{1,2})?)?$/, 'Enter the asset deduction in taka, up to 2 decimals.')
+			.regex(/^(\d{1,7}(\.\d{1,2})?)?$/, 'Enter the asset deduction, up to 2 decimals.')
 			.default('')
 			.transform((v) => (v ? poishaOf(v) : 0))
 	})
@@ -784,6 +785,7 @@ async function computeInto(tx: Tx, m: Member, run: Run) {
 		.update(payrollRuns)
 		.set({
 			settings: snapshot,
+			currency: await tenantCurrency(tx),
 			inputsHash: sha(inputs),
 			outputHash: sha(asStored(slips)),
 			computedByUserId: m.user.userId,
@@ -1157,6 +1159,7 @@ export async function payrollBoard(m: Member, runId?: string) {
 			run: run && {
 				...run,
 				leaver: leaverOf(run),
+				currency: run.currency ?? 'BDT',
 				totals: {
 					gross: slips.reduce((sum, s) => sum + s.gross, 0),
 					deductions: slips.reduce((sum, s) => sum + s.deductions, 0),
@@ -1194,6 +1197,8 @@ export async function payrollApprovals(tx: Tx, access: Access): Promise<Approval
 	}));
 }
 
+const runCurrency = sql<string>`coalesce(${payrollRuns.currency}, 'BDT')`;
+
 const paidSlip = (m: Member) =>
 	and(eq(payslips.employeeId, m.access.employeeId ?? sql`null`), eq(payrollRuns.status, 'paid'));
 
@@ -1205,7 +1210,8 @@ export async function myPayslips(m: Member) {
 				period: payrollRuns.period,
 				runType: payrollRuns.runType,
 				title: payrollRuns.title,
-				net: payslips.net
+				net: payslips.net,
+				currency: runCurrency
 			})
 			.from(payslips)
 			.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
@@ -1232,7 +1238,8 @@ export async function openPayslipPdf(m: Member, payslipId: string) {
 						deductions: payslips.deductions,
 						rounding: payslips.rounding,
 						net: payslips.net,
-						notes: payslips.notes
+						notes: payslips.notes,
+						currency: runCurrency
 					})
 					.from(payslips)
 					.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))

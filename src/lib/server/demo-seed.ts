@@ -582,6 +582,7 @@ export async function seedDemo(
 		legalName: tenant.name,
 		address: 'House 42, Road 11, Banani, Dhaka 1213',
 		timezone: 'Asia/Dhaka',
+		currency: 'BDT',
 		fiscalYearStartMonth: '7',
 		weekendDays: ['5', '6'],
 		employeeCodePrefix: 'NL-'

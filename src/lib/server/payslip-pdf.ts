@@ -1,4 +1,4 @@
-import { taka } from '../money';
+import { money } from '../money';
 import type { LineKind } from '../payroll';
 import { pdfDoc, write } from './pdf';
 
@@ -14,6 +14,7 @@ export type PayslipPdf = {
 	deductions: number;
 	rounding: number;
 	net: number;
+	currency: string;
 	notes: string[];
 	lines: { name: string; kind: LineKind; amount: number }[];
 };
@@ -45,14 +46,14 @@ export function renderPayslipPdf(slip: PayslipPdf): Promise<Uint8Array> {
 		doc.fontSize(12);
 		row(title, '');
 		doc.fontSize(10);
-		for (const l of lines) row(l.name, `৳${taka(l.amount)}`);
+		for (const l of lines) row(l.name, money(l.amount, slip.currency));
 		y += 8;
 	}
 	doc.fontSize(12);
-	row('Gross pay', `৳${taka(slip.gross)}`);
-	row('Total deductions', `৳${taka(slip.deductions)}`);
-	if (slip.rounding) row('Rounding', `৳${taka(slip.rounding)}`);
-	row('Net pay', `৳${taka(slip.net)}`);
+	row('Gross pay', money(slip.gross, slip.currency));
+	row('Total deductions', money(slip.deductions, slip.currency));
+	if (slip.rounding) row('Rounding', money(slip.rounding, slip.currency));
+	row('Net pay', money(slip.net, slip.currency));
 	doc.fontSize(10);
 	for (const n of slip.notes) row(n, '');
 	doc.end();

@@ -94,7 +94,7 @@ describe('asset register', () => {
 		expect(await save('it', { tag: 'LAP-001' })).toBe('tag_exists');
 		expect(await save('it', { tag: 'X' })).toBe('invalid: Use 2 to 20 letters, digits or dashes for the tag.');
 		expect(await save('it', { tag: 'LAP-002', purchaseCost: '1.234' })).toBe(
-			'invalid: Enter the cost in taka, up to 2 decimals.'
+			'invalid: Enter the cost, up to 2 decimals.'
 		);
 		expect(await save('it', { tag: 'LAP-003', purchaseDate: '2026-12-01' })).toBe('future');
 		expect(await save('ana', { tag: 'ANA-1' })).toBe('forbidden');

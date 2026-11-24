@@ -413,9 +413,9 @@ const offerSchema = z.object({
 	monthlyGross: z
 		.string()
 		.trim()
-		.regex(/^\d{1,8}(\.\d{1,2})?$/, 'Enter the monthly gross in taka, up to 2 decimals.')
+		.regex(/^\d{1,8}(\.\d{1,2})?$/, 'Enter the monthly gross, up to 2 decimals.')
 		.transform(poishaOf)
-		.refine((v) => v > 0, 'Enter the monthly gross in taka, up to 2 decimals.'),
+		.refine((v) => v > 0, 'Enter the monthly gross, up to 2 decimals.'),
 	joinDate: z.iso.date('Enter a valid join date.'),
 	expiresOn: z
 		.union([z.literal(''), z.iso.date('Enter a valid expiry date.')])

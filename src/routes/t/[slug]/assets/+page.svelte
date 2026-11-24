@@ -4,6 +4,7 @@
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
 	import { ASSET_STATUS_LABELS } from '#lib/asset-labels.ts';
+	import { unit } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -37,7 +38,7 @@
 			<Field label="Serial number" name="serial" maxlength={120} value={values.serial ?? ''} />
 			<Field label="Purchase date" name="purchaseDate" type="date" value={values.purchaseDate ?? ''} />
 			<Field
-				label="Purchase cost (৳)"
+				label="Purchase cost ({unit(data.currency)})"
 				name="purchaseCost"
 				inputmode="decimal"
 				pattern={'\\d{1,9}(\\.\\d{1,2})?'}

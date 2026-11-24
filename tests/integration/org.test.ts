@@ -86,6 +86,7 @@ describe('organisation settings', () => {
 		legalName: 'Acme Ltd',
 		address: '',
 		timezone: 'Asia/Dhaka',
+		currency: 'USD',
 		fiscalYearStartMonth: '7',
 		weekendDays: ['5', '6', '5'],
 		employeeCodePrefix: 'ACM-'
@@ -102,10 +103,13 @@ describe('organisation settings', () => {
 		const s = await withTenant(a, readSettings);
 		expect(s.weekendDays).toEqual([5, 6]);
 		expect(s.employeeCodePrefix).toBe('ACM-');
+		expect(s.currency).toBe('USD');
 	});
 
 	it('validates every general field on the server', async () => {
 		expect(await code(saveSettings(a, { ...base, timezone: 'Mars/Base' }))).toBe('invalid');
+		expect(await code(saveSettings(a, { ...base, currency: 'usd' }))).toBe('invalid');
+		expect(await code(saveSettings(a, { ...base, currency: 'XYZ' }))).toBe('invalid');
 		expect(await code(saveSettings(a, { ...base, weekendDays: ['0', '1', '2', '3', '4', '5', '6'] }))).toBe('invalid');
 		expect(await code(saveSettings(a, { ...base, employeeCodePrefix: '<b>' }))).toBe('invalid');
 	});

@@ -1,4 +1,4 @@
-import { taka } from '../money';
+import { money } from '../money';
 import { pdfDoc, write } from './pdf';
 
 export type BillPdf = {
@@ -9,6 +9,7 @@ export type BillPdf = {
 	billingMode: string;
 	total: number;
 	paid: number;
+	currency: string;
 	lines: { date: string; meal: string; kind: string; plates: number; guests: number; amount: number }[];
 };
 
@@ -41,14 +42,14 @@ export function renderBillPdf(bill: BillPdf): Promise<Uint8Array> {
 			l.date,
 			l.kind === 'adjustment' ? `${l.meal} (correction)` : l.meal,
 			`${l.plates ? 'ate' : 'skipped'}${l.guests ? ` + ${l.guests} guests` : ''}`,
-			`৳${taka(l.amount)}`
+			money(l.amount, bill.currency)
 		]);
 	y += 6;
 	doc.fontSize(12);
-	row(['', '', 'Total', `৳${taka(bill.total)}`]);
+	row(['', '', 'Total', money(bill.total, bill.currency)]);
 	if (bill.paid) {
-		row(['', '', 'Paid', `৳${taka(bill.paid)}`]);
-		row(['', '', 'Due', `৳${taka(bill.total - bill.paid)}`]);
+		row(['', '', 'Paid', money(bill.paid, bill.currency)]);
+		row(['', '', 'Due', money(bill.total - bill.paid, bill.currency)]);
 	}
 	doc.end();
 	return done;

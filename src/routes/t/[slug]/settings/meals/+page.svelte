@@ -3,7 +3,7 @@
 	import { LIMITS } from '#lib/settings-sections.ts';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
-	import { taka } from '#lib/money.ts';
+	import { money, unit } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -120,7 +120,7 @@
 			{t.name}
 			<span class="ml-2 text-xs font-normal text-slate-500" data-testid="meal-price">
 				{t.vendor} · {t.current
-					? `৳${taka(t.current.unitCost)} per plate, company pays ${t.current.subsidyPct}%`
+					? `${money(t.current.unitCost, data.currency)} per plate, company pays ${t.current.subsidyPct}%`
 					: 'no price yet'}{t.active ? '' : ' · inactive'}
 			</span>
 		</h2>
@@ -132,14 +132,14 @@
 		{#if t.prices.length}
 			<ul class="mt-4 space-y-1 text-sm text-slate-600">
 				{#each t.prices as p (p.id)}
-					<li>From {p.effectiveFrom}: ৳{taka(p.unitCost)}, company pays {p.subsidyPct}%</li>
+					<li>From {p.effectiveFrom}: {money(p.unitCost, data.currency)}, company pays {p.subsidyPct}%</li>
 				{/each}
 			</ul>
 		{/if}
 		<form method="POST" action="?/price" class="mt-4 grid gap-3 sm:grid-cols-3">
 			<input type="hidden" name="mealTypeId" value={t.id} />
 			<label class="text-sm text-slate-700">
-				Price per plate (৳)
+				Price per plate ({unit(data.currency)})
 				<input name="unitCost" required inputmode="decimal" pattern={'\\d{1,5}(\\.\\d{1,2})?'} class={input} />
 			</label>
 			<label class="text-sm text-slate-700">

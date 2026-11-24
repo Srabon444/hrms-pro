@@ -3,7 +3,7 @@
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { BILL_STATUS } from '#lib/meal-bill-status.ts';
-	import { taka } from '#lib/money.ts';
+	import { money } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -56,8 +56,8 @@
 						<td class="py-1">{bill.name} <span class="text-slate-400">{bill.code}</span></td>
 						<td><Badge status={bill.status} label={BILL_STATUS[bill.status]} /></td>
 						<td>{bill.billingMode === 'payroll' ? 'Salary' : 'Cash'}</td>
-						<td>৳{taka(bill.total)}</td>
-						<td>৳{taka(bill.paid)}</td>
+						<td>{money(bill.total, data.currency)}</td>
+						<td>{money(bill.paid, data.currency)}</td>
 						<td>
 							{#if bill.billingMode === 'direct' && (bill.status === 'issued' || bill.status === 'partially_paid')}
 								<form method="POST" action="?/pay" class="flex flex-wrap items-center gap-1">
@@ -130,19 +130,19 @@
 					<tr class="border-t border-slate-100" data-testid="statement-row">
 						<td class="py-1">{r.vendor}</td>
 						<td>{r.meal}</td>
-						<td>৳{taka(r.unitCost)}</td>
+						<td>{money(r.unitCost, data.currency)}</td>
 						<td>{r.plates}</td>
 						<td>{r.guests}</td>
-						<td>৳{taka(r.cost)}</td>
-						<td>৳{taka(r.staff)}</td>
-						<td>৳{taka(r.company)}</td>
+						<td>{money(r.cost, data.currency)}</td>
+						<td>{money(r.staff, data.currency)}</td>
+						<td>{money(r.company, data.currency)}</td>
 					</tr>
 				{/each}
 				<tr class="border-t border-slate-300 font-medium" data-testid="statement-total">
 					<td class="py-1" colspan="5">Total</td>
-					<td>৳{taka(data.statement.cost)}</td>
-					<td>৳{taka(data.statement.staff)}</td>
-					<td>৳{taka(data.statement.company)}</td>
+					<td>{money(data.statement.cost, data.currency)}</td>
+					<td>{money(data.statement.staff, data.currency)}</td>
+					<td>{money(data.statement.company, data.currency)}</td>
 				</tr>
 			</tbody>
 		</table>

@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import { z } from 'zod';
+import { CURRENCIES } from '#lib/money.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { requirePerm, userCtx } from '#lib/server/rbac/access.ts';
 import { readSettings, saveSettings } from '#lib/server/settings.ts';
@@ -14,11 +15,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 			legalName: s.legalName ?? '',
 			address: s.address ?? '',
 			timezone: s.timezone,
+			currency: s.currency,
 			fiscalYearStartMonth: s.fiscalYearStartMonth,
 			weekendDays: s.weekendDays,
 			employeeCodePrefix: s.employeeCodePrefix
 		},
-		timezones: Intl.supportedValuesOf('timeZone')
+		timezones: Intl.supportedValuesOf('timeZone'),
+		currencies: Object.keys(CURRENCIES)
 	};
 };
 
@@ -31,6 +34,7 @@ export const actions: Actions = {
 				legalName: field(form, 'legalName'),
 				address: field(form, 'address'),
 				timezone: field(form, 'timezone'),
+				currency: field(form, 'currency'),
 				fiscalYearStartMonth: field(form, 'fiscalYearStartMonth'),
 				weekendDays: form.getAll('weekendDays').map(String),
 				employeeCodePrefix: field(form, 'employeeCodePrefix')

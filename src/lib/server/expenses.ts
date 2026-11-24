@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { poishaOf, taka } from '../money';
+import { money, poishaOf } from '../money';
 import { activeMemberships, singleAdmin } from './approval-chain';
 import type { ApprovalItem } from './approvals';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
@@ -23,22 +23,23 @@ import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { sniffType } from './sniff';
 import { deleteObject, getObject, putObject } from './storage';
 import { withTenant, type Tx } from './tenancy';
+import { tenantCurrency } from './settings';
 
 type Member = ReturnType<typeof requireMember>;
 type Claim = typeof expenseClaims.$inferSelect;
 
 const RECEIPT_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
 
-const money = (max: number) =>
+const amountField = (max: number) =>
 	z
 		.string()
 		.trim()
-		.regex(new RegExp(`^\\d{1,${max}}(\\.\\d{1,2})?$`), 'Enter amounts in taka, up to 2 decimals.')
+		.regex(new RegExp(`^\\d{1,${max}}(\\.\\d{1,2})?$`), 'Enter amounts, up to 2 decimals.')
 		.transform(poishaOf);
 
 const categorySchema = z.object({
 	name: z.string().trim().min(1, 'Enter the category name.').max(60, 'Keep the name under 60 characters.'),
-	claimLimit: z.union([z.literal(''), money(7).refine((p) => p > 0, 'The limit must be more than zero.')]),
+	claimLimit: z.union([z.literal(''), amountField(7).refine((p) => p > 0, 'The limit must be more than zero.')]),
 	active: z.preprocess((v) => v === 'on', z.boolean())
 });
 
@@ -46,7 +47,7 @@ const itemSchema = z.object({
 	categoryId: z.uuid({ error: 'Choose a category for every item.' }),
 	spentOn: z.iso.date('Enter the date of every item.'),
 	description: z.string().trim().min(1, 'Describe every item.').max(200, 'Keep descriptions under 200 characters.'),
-	amount: money(7).refine((p) => p > 0, 'Every item must cost more than zero.')
+	amount: amountField(7).refine((p) => p > 0, 'Every item must cost more than zero.')
 });
 
 const claimSchema = z.object({
@@ -184,10 +185,11 @@ async function validateClaim(
 	for (const i of items)
 		if (!categories.some((c) => c.id === i.categoryId))
 			throw new AppError('bad_category', 'Choose an active category for every item.', 400);
+	const currency = await tenantCurrency(tx);
 	for (const c of categories) {
 		const spent = items.filter((i) => i.categoryId === c.id).reduce((sum, i) => sum + i.amount, 0);
 		if (c.claimLimit !== null && spent > c.claimLimit)
-			throw new AppError('over_limit', `${c.name} is limited to ৳${taka(c.claimLimit)} per claim.`, 400);
+			throw new AppError('over_limit', `${c.name} is limited to ${money(c.claimLimit, currency)} per claim.`, 400);
 	}
 }
 
@@ -239,7 +241,7 @@ export async function decideClaim(m: Member, form: Record<string, string>) {
 			m,
 			c,
 			`Expense claim ${approved ? 'approved' : 'rejected'}: ${c.title}`,
-			approved ? `৳${taka(c.total)} was approved. ${how}` : input.note || undefined
+			approved ? `${money(c.total, await tenantCurrency(tx))} was approved. ${how}` : input.note || undefined
 		);
 	});
 }
@@ -257,7 +259,13 @@ export async function payClaim(m: Member, form: Record<string, string>) {
 			.update(expenseClaims)
 			.set({ status: 'paid', paidAt: new Date(), paidByUserId: m.user.userId })
 			.where(eq(expenseClaims.id, c.id));
-		return tellClaimant(tx, m, c, `Expense claim paid: ${c.title}`, `৳${taka(c.total)} was paid to you.`);
+		return tellClaimant(
+			tx,
+			m,
+			c,
+			`Expense claim paid: ${c.title}`,
+			`${money(c.total, await tenantCurrency(tx))} was paid to you.`
+		);
 	});
 }
 
@@ -356,10 +364,11 @@ export async function expenseApprovals(tx: Tx, access: Access): Promise<Approval
 		)
 		.orderBy(asc(expenseClaims.createdAt))
 		.limit(200);
+	const currency = await tenantCurrency(tx);
 	return rows.map((r) => ({
 		id: r.id,
 		kind: 'Expense claim',
-		title: `${r.name}: ${r.title} · ৳${taka(r.total)}`,
+		title: `${r.name}: ${r.title} · ${money(r.total, currency)}`,
 		requestedBy: r.name,
 		at: r.createdAt,
 		link: 'expenses'

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { poishaOf } from '../money';
+import { CURRENCIES, poishaOf } from '../money';
 import { tenantSettings } from './db/schema';
 import { rangeMessage, SETTING_SECTIONS, type IntField, type SectionId, type SettingField } from '../settings-sections';
 import { AppError } from './errors';
@@ -14,6 +14,7 @@ export const settingsSchema = z.object({
 	legalName: z.string().trim().max(200),
 	address: z.string().trim().max(500),
 	timezone: z.string().refine((tz) => TIMEZONES.has(tz), 'Pick a valid time zone.'),
+	currency: z.string().refine((c) => Object.hasOwn(CURRENCIES, c), 'Pick a currency from the list.'),
 	fiscalYearStartMonth: z.coerce.number().int().min(1).max(12),
 	weekendDays: z
 		.array(z.coerce.number().int().min(0).max(6))
@@ -32,6 +33,9 @@ export async function readSettings(tx: Tx) {
 	if (!row) throw new AppError('settings_missing', 'Organisation settings are missing.', 500);
 	return row;
 }
+
+export const tenantCurrency = async (tx: Tx) =>
+	(await tx.select({ currency: tenantSettings.currency }).from(tenantSettings))[0]?.currency ?? 'BDT';
 
 export async function saveSettings(ctx: TenantCtx, raw: SettingsInput): Promise<void> {
 	const input = settingsSchema.parse(raw);

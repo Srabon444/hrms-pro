@@ -14,7 +14,8 @@ it('renders a payslip with Bengali and English text into a PDF', async () => {
 		deductions: 41_667,
 		rounding: -33,
 		net: 4_958_300,
-		notes: ["MEAL of ৳100.00 does not fit in this month's pay."],
+		currency: 'BDT',
+		notes: ["MEAL of 100.00 does not fit in this month's pay."],
 		lines: [
 			{ name: 'Basic', kind: 'earning', amount: 3_000_000 },
 			{ name: 'Income tax', kind: 'deduction', amount: 41_667 },

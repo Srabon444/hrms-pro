@@ -1,3 +1,4 @@
+import { taka } from './money';
 import { annualTax, type TaxRule } from './tax';
 
 export type LineKind = 'earning' | 'deduction' | 'employer';
@@ -188,7 +189,7 @@ export function computePay(input: PayInput): PayResult {
 		let sum = 0;
 		for (const item of items) {
 			if (item.amount > left) {
-				skipped.push(`${name(code)} of ${money(item.amount)} does not fit in this month's pay.`);
+				skipped.push(`${name(code)} of ${taka(item.amount)} does not fit in this month's pay.`);
 				continue;
 			}
 			left -= item.amount;
@@ -215,8 +216,6 @@ export function computePay(input: PayInput): PayResult {
 		error: null
 	};
 }
-
-const money = (poisha: number) => `৳${(poisha / 100).toFixed(2)}`;
 
 export function settlementLines(basic: number, pf: number, pfEmployer: number, s: Settle) {
 	const day = basic / 30;
@@ -245,7 +244,7 @@ export function settlementLines(basic: number, pf: number, pfEmployer: number, s
 	add('PF_PAYOUT', 'Provident fund payout (own)', 'earning', false, s.pfOwn + pf);
 	const employer = s.pfEmployer + pfEmployer;
 	if (s.pfVested) add('PF_EMPLOYER_PAYOUT', 'Provident fund payout (employer)', 'earning', false, employer);
-	else if (employer > 0) notes.push(`Employer provident fund of ${money(employer)} is not vested.`);
+	else if (employer > 0) notes.push(`Employer provident fund of ${taka(employer)} is not vested.`);
 	add(
 		'NOTICE',
 		`Notice shortfall of ${s.noticeShortDays} days`,

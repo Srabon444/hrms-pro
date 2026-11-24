@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { mealCharge, poishaOf, taka } from '../money';
+import { mealCharge, money, poishaOf } from '../money';
 import { now } from './clock';
 import { authPool } from './db';
 import { addDays } from './dates';
@@ -28,6 +28,7 @@ import { can, userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { putObject } from './storage';
 import { systemCtx, withTenant, type Tx } from './tenancy';
+import { tenantCurrency } from './settings';
 import { queue } from './queue';
 
 type Member = ReturnType<typeof requireMember>;
@@ -301,7 +302,7 @@ const paymentInput = z.object({
 	amount: z
 		.string()
 		.trim()
-		.regex(/^\d{1,7}(\.\d{1,2})?$/, 'Enter the amount in taka, up to 2 decimals.')
+		.regex(/^\d{1,7}(\.\d{1,2})?$/, 'Enter the amount, up to 2 decimals.')
 		.transform(poishaOf)
 		.refine((p) => p >= 1, 'The amount must be more than zero.'),
 	paidOn: z.iso.date('Enter the payment date.'),
@@ -320,7 +321,11 @@ export async function recordPayment(m: Member, raw: Record<string, string>) {
 		if (bill.billingMode !== 'direct' || !['issued', 'partially_paid'].includes(bill.status))
 			throw new AppError('not_payable', 'Only an issued bill paid in cash can take a payment.', 409);
 		if (input.amount > bill.total - bill.paid)
-			throw new AppError('overpaid', `Only ৳${taka(bill.total - bill.paid)} is due on this bill.`, 409);
+			throw new AppError(
+				'overpaid',
+				`Only ${money(bill.total - bill.paid, await tenantCurrency(tx))} is due on this bill.`,
+				409
+			);
 		if (input.paidOn > (await tenantToday(tx)))
 			throw new AppError('future_payment', 'The payment date cannot be in the future.', 400);
 		await tx.insert(mealPayments).values({ tenantId: m.tenant.id, ...input, recordedByUserId: m.user.userId });
@@ -373,7 +378,8 @@ export async function billDocument(tx: Tx, billId: string) {
 			code: employees.code,
 			workEmail: employees.workEmail,
 			personalEmail: employees.personalEmail,
-			legalName: sql<string | null>`(select ${tenantSettings.legalName} from ${tenantSettings})`
+			legalName: sql<string | null>`(select ${tenantSettings.legalName} from ${tenantSettings})`,
+			currency: sql<string>`(select ${tenantSettings.currency} from ${tenantSettings})`
 		})
 		.from(mealBills)
 		.innerJoin(employees, eq(employees.id, mealBills.employeeId))
@@ -412,7 +418,7 @@ export async function sendMealBill({ tenantId, billId }: BillJob) {
 					`Hello ${doc.employee},`,
 					'',
 					`Your meal bill for ${doc.period} from ${doc.company} is attached.`,
-					`Total: ৳${taka(doc.total)}.`,
+					`Total: ${money(doc.total, doc.currency)}.`,
 					doc.billingMode === 'payroll'
 						? 'It will be deducted from your salary.'
 						: 'Please pay it directly to the meal manager.'

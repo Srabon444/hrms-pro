@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
-	import { taka } from '#lib/money.ts';
+	import { money, taka, unit } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -26,7 +26,7 @@
 	<ul class="mt-1 text-slate-500">
 		{#each claim.items as i (i.id)}
 			<li>
-				{i.spentOn} · {i.category} · {i.description} · ৳{taka(i.amount)}
+				{i.spentOn} · {i.category} · {i.description} · {money(i.amount, data.currency)}
 				{#if i.receiptName}
 					· <a class="text-brand-700 underline" href={`${base}/receipts/${i.id}`}>Receipt for {i.description}</a>
 				{/if}
@@ -48,7 +48,7 @@
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each b.toApprove as c (c.id)}
 				<li class="py-3" data-testid="expense-to-approve">
-					<p class="text-slate-800">{c.name} · {c.title} · ৳{taka(c.total)}</p>
+					<p class="text-slate-800">{c.name} · {c.title} · {money(c.total, data.currency)}</p>
 					{@render items(c)}
 					<form method="POST" action="?/decide" class="mt-2 flex flex-wrap items-center gap-2">
 						<input type="hidden" name="claimId" value={c.id} />
@@ -72,7 +72,7 @@
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each b.toPay as c (c.id)}
 				<li class="py-3" data-testid="expense-to-pay">
-					<p class="text-slate-800">{c.name} · {c.title} · ৳{taka(c.total)}</p>
+					<p class="text-slate-800">{c.name} · {c.title} · {money(c.total, data.currency)}</p>
 					{@render items(c)}
 					<form method="POST" action="?/pay" class="mt-2">
 						<input type="hidden" name="claimId" value={c.id} />
@@ -111,7 +111,9 @@
 							<select name={`items.${i}.categoryId`} required class={`${input} block w-full`}>
 								<option value="">Choose…</option>
 								{#each active as c (c.id)}
-									<option value={c.id}>{c.name}{c.claimLimit ? ` (up to ৳${taka(c.claimLimit)})` : ''}</option>
+									<option value={c.id}>
+										{c.name}{c.claimLimit ? ` (up to ${money(c.claimLimit, data.currency)})` : ''}
+									</option>
 								{/each}
 							</select>
 						</label>
@@ -124,7 +126,7 @@
 							<input name={`items.${i}.description`} required maxlength="200" class={`${input} block w-full`} />
 						</label>
 						<label class="text-slate-700">
-							Amount (৳)
+							Amount ({unit(data.currency)})
 							<input
 								name={`items.${i}.amount`}
 								required
@@ -165,7 +167,8 @@
 			{#each b.mine as c (c.id)}
 				<li class="py-3" data-testid="my-expense">
 					<p class="text-slate-800">
-						{c.title} · ৳{taka(c.total)} · {statusLabel[c.status]}{c.payVia === 'payroll' && c.status === 'approved'
+						{c.title} · {money(c.total, data.currency)} · {statusLabel[c.status]}{c.payVia === 'payroll' &&
+						c.status === 'approved'
 							? ' (with salary)'
 							: ''}
 					</p>

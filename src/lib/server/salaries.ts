@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { poishaOf, taka } from '../money';
+import { money, poishaOf } from '../money';
 import type { ApprovalItem } from './approvals';
 import { singleAdmin } from './approval-chain';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
@@ -12,6 +12,7 @@ import { advisoryLock, LOCK } from './locks';
 import { can, userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { withTenant, type Tx } from './tenancy';
+import { tenantCurrency } from './settings';
 
 type Member = ReturnType<typeof requireMember>;
 
@@ -48,7 +49,7 @@ const salaryComponents = async (tx: Tx) =>
 const fixedValue = z
 	.string()
 	.trim()
-	.regex(/^\d{1,7}(\.\d{1,2})?$/, 'Enter amounts in taka, up to 2 decimals.')
+	.regex(/^\d{1,7}(\.\d{1,2})?$/, 'Enter amounts, up to 2 decimals.')
 	.transform(poishaOf);
 const pctValue = z
 	.string()
@@ -240,7 +241,9 @@ export async function salaryBoard(tx: Tx, m: Member) {
 				.where(and(eq(salaryChanges.status, 'pending'), inArray(salaryChanges.employeeId, ids)))
 				.orderBy(asc(salaryChanges.createdAt))
 		: [];
-	const describe = (l: { componentId: string; amount: number }) => `${name.get(l.componentId)} ৳${taka(l.amount)}`;
+	const currency = await tenantCurrency(tx);
+	const describe = (l: { componentId: string; amount: number }) =>
+		`${name.get(l.componentId)} ${money(l.amount, currency)}`;
 	return {
 		today: await tenantToday(tx),
 		components: components.filter(inSalary),
@@ -296,10 +299,11 @@ export async function salaryApprovals(tx: Tx, access: Access): Promise<ApprovalI
 		)
 		.orderBy(asc(salaryChanges.createdAt))
 		.limit(200);
+	const currency = await tenantCurrency(tx);
 	return rows.map((r) => ({
 		id: r.id,
 		kind: 'Salary change',
-		title: `${r.name}: ৳${taka(r.gross)} from ${r.from}`,
+		title: `${r.name}: ${money(r.gross, currency)} from ${r.from}`,
 		requestedBy: r.name,
 		at: r.at,
 		link: 'payroll/salaries'

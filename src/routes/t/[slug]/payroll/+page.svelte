@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
-	import { taka } from '#lib/money.ts';
+	import { money, unit } from '#lib/money.ts';
 	import { runName } from '#lib/payroll.ts';
 	import type { PageProps } from './$types';
 
@@ -59,7 +59,9 @@
 					<option value="">Choose…</option>
 					{#each b.leavers as l (l.id)}
 						<option value={l.id}>
-							{l.name} ({l.code}), leaves {l.exit}{l.charges ? `, asset charges ৳${taka(l.charges)}` : ''}
+							{l.name} ({l.code}), leaves {l.exit}{l.charges
+								? `, asset charges ${money(l.charges, data.currency)}`
+								: ''}
 						</option>
 					{/each}
 				</select>
@@ -81,7 +83,7 @@
 				/>
 			</label>
 			<label class="text-slate-700">
-				Asset deduction (৳, blank uses recorded charges)
+				Asset deduction ({unit(data.currency)}, blank uses recorded charges)
 				<input
 					name="assetDeduction"
 					inputmode="decimal"
@@ -125,9 +127,10 @@
 			{runName(r)} for {r.period}{r.leaver ? ` · ${r.leaver}` : ''} · {statusLabel[r.status]}
 		</h2>
 		<p class="mt-1 text-sm text-slate-600" data-testid="run-totals">
-			{r.slips.length} payslip(s) · Gross ৳{taka(r.totals.gross)} · Deductions ৳{taka(r.totals.deductions)} · Net ৳{taka(
-				r.totals.net
-			)}
+			{r.slips.length} payslip(s) · Gross {money(r.totals.gross, r.currency)} · Deductions {money(
+				r.totals.deductions,
+				r.currency
+			)} · Net {money(r.totals.net, r.currency)}
 		</p>
 		{#if problems}
 			<p class="mt-1 text-sm text-amber-700">
@@ -178,7 +181,7 @@
 								<ul class="mt-1 text-slate-500">
 									{#each s.lines as l (l.id)}
 										<li>
-											{l.name}: {l.kind === 'deduction' ? '−' : ''}৳{taka(l.amount)}{l.kind === 'employer'
+											{l.name}: {l.kind === 'deduction' ? '−' : ''}{money(l.amount, r.currency)}{l.kind === 'employer'
 												? ' (paid by employer)'
 												: ''}
 										</li>
@@ -190,9 +193,9 @@
 						</td>
 						<td>{s.paidDays}</td>
 						<td>{s.unpaidDays}</td>
-						<td class="text-right">৳{taka(s.gross)}</td>
-						<td class="text-right">৳{taka(s.deductions)}</td>
-						<td class="text-right font-medium">৳{taka(s.net)}</td>
+						<td class="text-right">{money(s.gross, r.currency)}</td>
+						<td class="text-right">{money(s.deductions, r.currency)}</td>
+						<td class="text-right font-medium">{money(s.net, r.currency)}</td>
 					</tr>
 				{/each}
 			</tbody>

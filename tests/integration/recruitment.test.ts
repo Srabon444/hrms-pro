@@ -300,7 +300,7 @@ describe('interviews, offers and hiring', () => {
 		const offer = { candidateId: nadia, monthlyGross: '85000.50', joinDate: '2030-03-01', expiresOn: '2030-02-01' };
 
 		expect(await code(makeOffer(as('rec'), { ...offer, monthlyGross: '0' }))).toBe(
-			'invalid: Enter the monthly gross in taka, up to 2 decimals.'
+			'invalid: Enter the monthly gross, up to 2 decimals.'
 		);
 		expect(await code(makeOffer(as('rec'), { ...offer, joinDate: '2020-03-01', expiresOn: '' }))).toBe('past_join');
 		expect(await code(makeOffer(as('rec'), { ...offer, expiresOn: '2020-02-01' }))).toBe('past_expiry');

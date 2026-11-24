@@ -233,9 +233,10 @@ describe('home dashboard', () => {
 			title: null,
 			runType: 'regular',
 			status: 'approved',
+			currency: null,
 			employees: 2,
-			gross: '120000.00',
-			net: '108000.00'
+			gross: '৳120000.00',
+			net: '৳108000.00'
 		});
 	});
 

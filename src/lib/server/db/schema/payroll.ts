@@ -128,6 +128,7 @@ export const payrollRuns = pgTable(
 		noticeShortDays: smallint().notNull().default(0),
 		assetDeduction: integer().notNull().default(0),
 		settings: jsonb(),
+		currency: text(),
 		status: text().notNull().default('computed'),
 		inputsHash: text().notNull(),
 		outputHash: text().notNull(),

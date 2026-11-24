@@ -12,7 +12,8 @@ import {
 	notifications,
 	rolePermissions,
 	roles,
-	salaryChanges
+	salaryChanges,
+	tenantSettings
 } from '../../src/lib/server/db/schema';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib/server/employees';
 import {
@@ -244,12 +245,19 @@ describe('letters', () => {
 
 		const hidden = await preview('hr', 'bo', 'Salary certificate');
 		expect(hidden.body).toContain(
-			'since 1 January 2026, and currently draws a monthly gross salary of BDT {{salary.gross}}.'
+			'since 1 January 2026, and currently draws a monthly gross salary of {{salary.currency}} {{salary.gross}}.'
 		);
 		expect((await preview('pay', 'bo', 'Salary certificate')).body).toContain('salary of BDT 50000.00.');
 		expect((await preview('lead', 'bo', 'Salary certificate')).body).toContain('salary of BDT 50000.00.');
-		expect((await preview('pay', 'sa', 'Salary certificate')).body).toContain('salary of BDT {{salary.gross}}.');
-		expect((await preview('mix', 'bo', 'Salary certificate')).body).toContain('salary of BDT {{salary.gross}}.');
+		await withTenant(sys(), (tx) => tx.update(tenantSettings).set({ currency: 'USD' }));
+		expect((await preview('pay', 'bo', 'Salary certificate')).body).toContain('salary of USD 50000.00.');
+		await withTenant(sys(), (tx) => tx.update(tenantSettings).set({ currency: 'BDT' }));
+		expect((await preview('pay', 'sa', 'Salary certificate')).body).toContain(
+			'salary of {{salary.currency}} {{salary.gross}}.'
+		);
+		expect((await preview('mix', 'bo', 'Salary certificate')).body).toContain(
+			'salary of {{salary.currency}} {{salary.gross}}.'
+		);
 		expect(await template('hr', { name: 'Reference', subject: 'Reference for {{employee.name}}' })).toBe('ok');
 		tpl.Reference = (await withTenant(sys(), (tx) => templateList(tx))).find((t) => t.name === 'Reference')!.id;
 		expect((await preview('hr', 'bo', 'Reference')).subject).toBe('Reference for Bo');

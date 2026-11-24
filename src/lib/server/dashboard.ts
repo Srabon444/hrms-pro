@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, lte, ne, sql } from 'drizzle-orm';
-import { taka } from '../money';
+import { money } from '../money';
 import { announcementFeed } from './announcements';
 import { pendingApprovals } from './approvals';
 import { todayPunches } from './attendance';
@@ -69,6 +69,7 @@ async function lastRun(tx: Tx) {
 			title: payrollRuns.title,
 			runType: payrollRuns.runType,
 			status: payrollRuns.status,
+			currency: payrollRuns.currency,
 			employees: sql<number>`count(${payslips.id}) filter (where ${payslips.error} is null)::int`,
 			gross: sql<number>`coalesce(sum(${payslips.gross}) filter (where ${payslips.error} is null), 0)::bigint`,
 			net: sql<number>`coalesce(sum(${payslips.net}) filter (where ${payslips.error} is null), 0)::bigint`
@@ -79,7 +80,8 @@ async function lastRun(tx: Tx) {
 		.groupBy(payrollRuns.id)
 		.orderBy(desc(payrollRuns.period), desc(payrollRuns.createdAt))
 		.limit(1);
-	return run ? { ...run, gross: taka(Number(run.gross)), net: taka(Number(run.net)) } : null;
+	const currency = run?.currency ?? 'BDT';
+	return run ? { ...run, gross: money(Number(run.gross), currency), net: money(Number(run.net), currency) } : null;
 }
 
 export async function homeDashboard(m: ReturnType<typeof requireMember>) {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { taka } from '#lib/money.ts';
+	import { money } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -13,7 +13,7 @@
 	<ul class="mt-6 max-w-xl divide-y divide-slate-100 rounded-xl bg-white ring-1 ring-slate-200">
 		{#each data.payslips as p (p.id)}
 			<li class="flex items-center justify-between px-4 py-3 text-sm" data-testid="my-payslip">
-				<span class="text-slate-800">{p.period}{p.name ? ` · ${p.name}` : ''} · Net ৳{taka(p.net)}</span>
+				<span class="text-slate-800">{p.period}{p.name ? ` · ${p.name}` : ''} · Net {money(p.net, p.currency)}</span>
 				<a href="/t/{data.tenant.slug}/payslips/{p.id}/pdf" class="text-brand-700 hover:underline">
 					Download PDF of {p.period}{p.name ? ` ${p.name}` : ''}
 				</a>

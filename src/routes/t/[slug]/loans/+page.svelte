@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
-	import { taka } from '#lib/money.ts';
+	import { money, unit } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -33,7 +33,8 @@
 			{#each b.toDecide as l (l.id)}
 				<li class="py-3" data-testid="loan-to-decide">
 					<p class="text-slate-800">
-						{l.name} · {label(l.kind)} ৳{taka(l.amount)} · {l.instalments} instalment(s) from {l.startPeriod}
+						{l.name} · {label(l.kind)}
+						{money(l.amount, data.currency)} · {l.instalments} instalment(s) from {l.startPeriod}
 					</p>
 					<p class="text-slate-500">{l.reason}</p>
 					<form method="POST" action="?/decide" class="mt-2 flex flex-wrap items-center gap-2">
@@ -60,7 +61,7 @@
 				</select>
 			</label>
 			<label class="text-slate-700">
-				Amount (৳)
+				Amount ({unit(data.currency)})
 				<input
 					name="amount"
 					required
@@ -108,14 +109,15 @@
 			{#each b.mine as l (l.id)}
 				<li class="py-3" data-testid="my-loan">
 					<p class="text-slate-800">
-						{label(l.kind)} ৳{taka(l.amount)} · {statusLabel[l.status]}{l.schedule.length
-							? ` · ৳${taka(l.balance)} left`
+						{label(l.kind)}
+						{money(l.amount, data.currency)} · {statusLabel[l.status]}{l.schedule.length
+							? ` · ${money(l.balance, data.currency)} left`
 							: ''}
 					</p>
 					{#if l.schedule.length}
 						<p class="text-slate-500">
 							{l.schedule
-								.map((s) => `${s.period} ৳${taka(s.amount)}${s.status === 'paid' ? ' (paid)' : ''}`)
+								.map((s) => `${s.period} ${money(s.amount, data.currency)}${s.status === 'paid' ? ' (paid)' : ''}`)
 								.join(', ')}
 						</p>
 					{/if}
@@ -143,9 +145,9 @@
 					<tr data-testid="active-loan">
 						<td class="py-2">{l.name}</td>
 						<td>{label(l.kind)}</td>
-						<td>৳{taka(l.amount)}</td>
-						<td>৳{taka(l.repaid)}</td>
-						<td>৳{taka(l.balance)}</td>
+						<td>{money(l.amount, data.currency)}</td>
+						<td>{money(l.repaid, data.currency)}</td>
+						<td>{money(l.balance, data.currency)}</td>
 					</tr>
 				{/each}
 			</tbody>

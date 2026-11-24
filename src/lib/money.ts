@@ -1,5 +1,28 @@
 export const taka = (poisha: number) => (poisha / 100).toFixed(2);
 
+export const CURRENCIES = {
+	BDT: '৳',
+	USD: '$',
+	EUR: '€',
+	GBP: '£',
+	INR: '',
+	PKR: '',
+	AED: '',
+	SAR: '',
+	SGD: '',
+	MYR: '',
+	CAD: '',
+	AUD: '',
+	LKR: '',
+	NPR: ''
+} as const;
+
+export type Currency = keyof typeof CURRENCIES;
+
+export const unit = (code: string) => CURRENCIES[code as Currency] || code;
+
+export const money = (poisha: number, code: string) => `${CURRENCIES[code as Currency] || `${code} `}${taka(poisha)}`;
+
 export const poishaOf = (amount: string) => {
 	const [whole, fraction = ''] = amount.split('.');
 	return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));

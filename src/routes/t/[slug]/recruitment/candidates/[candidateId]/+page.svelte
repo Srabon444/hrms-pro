@@ -2,7 +2,7 @@
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
-	import { taka } from '#lib/money.ts';
+	import { money, unit } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -173,7 +173,9 @@
 			{#each v.offers as o (o.id)}
 				<li class="rounded-xl bg-white p-4 ring-1 ring-slate-200" data-testid="offer">
 					<p>
-						৳{taka(o.monthlyGross)} a month · joins {o.joinDate}{o.expiresOn ? ` · answer by ${o.expiresOn}` : ''} ·
+						{money(o.monthlyGross, data.currency)} a month · joins {o.joinDate}{o.expiresOn
+							? ` · answer by ${o.expiresOn}`
+							: ''} ·
 						{offerLabel[o.status]}
 					</p>
 					{#if o.note}<p class="text-slate-600">{o.note}</p>{/if}
@@ -197,7 +199,13 @@
 	<section class="mt-6 max-w-3xl panel" aria-label="Make offer">
 		<h2 class="section-title">Make offer</h2>
 		<form method="POST" action="?/offer" class="mt-3 grid gap-3 sm:grid-cols-2">
-			<Field label="Monthly gross (৳)" name="monthlyGross" inputmode="decimal" pattern={moneyPattern} required />
+			<Field
+				label="Monthly gross ({unit(data.currency)})"
+				name="monthlyGross"
+				inputmode="decimal"
+				pattern={moneyPattern}
+				required
+			/>
 			<Field label="Join date" name="joinDate" type="date" required />
 			<Field label="Answer by" name="expiresOn" type="date" />
 			<Field label="Note" name="note" maxlength={500} />

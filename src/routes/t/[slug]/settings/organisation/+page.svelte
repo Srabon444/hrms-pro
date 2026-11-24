@@ -28,6 +28,15 @@
 			</select>
 		</label>
 		<label class="block text-sm font-medium text-slate-700">
+			Currency
+			<select name="currency" class="mt-1 block w-full input" aria-describedby="currency-help">
+				{#each data.currencies as c (c)}<option value={c} selected={c === s.currency}>{c}</option>{/each}
+			</select>
+			<span id="currency-help" class="mt-1 block text-xs font-normal text-slate-500">
+				Changes how amounts are labelled. Amounts are not converted, and income-tax rules stay Bangladesh.
+			</span>
+		</label>
+		<label class="block text-sm font-medium text-slate-700">
 			Fiscal year starts in
 			<select name="fiscalYearStartMonth" class="mt-1 block w-full input">
 				{#each MONTHS as month, i (month)}

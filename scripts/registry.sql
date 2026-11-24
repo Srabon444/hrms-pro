@@ -70,7 +70,7 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('tax_years', 'plain', '{id,tenant_id,fy,minimum_tax,exemption_cap,exemption_divisor,confirmed_by_user_id,confirmed_at}'),
 	('tax_slabs', 'plain', '{id,tenant_id,tax_year_id,category,seq,width,rate_bp}'),
 	('employee_tax_profiles', 'row_only', '{}'),
-	('payroll_runs', 'plain', '{id,tenant_id,run_type,title,period,settings,employee_id,notice_pay_days,notice_short_days,asset_deduction,status,inputs_hash,output_hash,computed_by_user_id,computed_at,approved_by_user_id,approved_at,paid_by_user_id,paid_at}'),
+	('payroll_runs', 'plain', '{id,tenant_id,run_type,title,period,settings,employee_id,notice_pay_days,notice_short_days,asset_deduction,currency,status,inputs_hash,output_hash,computed_by_user_id,computed_at,approved_by_user_id,approved_at,paid_by_user_id,paid_at}'),
 	('payslips', 'row_only', '{}'),
 	('payslip_lines', 'row_only', '{}'),
 	('job_openings', 'plain', '{id,tenant_id,title,department_id,designation_id,headcount,status,created_by_user_id}'),

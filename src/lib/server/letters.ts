@@ -27,6 +27,7 @@ import { inScope, resolveScope, scopeWhere, type ScopeSet } from './rbac/scope';
 import { salaryCtx } from './salaries';
 import { deleteObject, getObject, putObject } from './storage';
 import { withTenant, type Tx } from './tenancy';
+import { tenantCurrency } from './settings';
 
 type Member = ReturnType<typeof requireMember>;
 export type LetterKind = (typeof LETTER_KINDS)[number];
@@ -43,6 +44,7 @@ export const LETTER_PLACEHOLDERS = [
 	'employee.probation_end',
 	'employee.confirmation_date',
 	'employee.exit_date',
+	'salary.currency',
 	'salary.gross'
 ] as const;
 
@@ -52,7 +54,7 @@ export const DEFAULT_LETTER_TEMPLATES: { kind: LetterKind; name: string; subject
 		kind: 'offer',
 		name: 'Offer letter',
 		subject: 'Offer of employment',
-		body: `Dear {{employee.name}},\n\nWe are pleased to offer you the position of {{employee.designation}} in the {{employee.department}} department at {{company.name}}, starting on {{employee.join_date}}, with a monthly gross salary of BDT {{salary.gross}}.\n\nPlease confirm your acceptance by signing a copy of this letter.${SIGN_OFF}`
+		body: `Dear {{employee.name}},\n\nWe are pleased to offer you the position of {{employee.designation}} in the {{employee.department}} department at {{company.name}}, starting on {{employee.join_date}}, with a monthly gross salary of {{salary.currency}} {{salary.gross}}.\n\nPlease confirm your acceptance by signing a copy of this letter.${SIGN_OFF}`
 	},
 	{
 		kind: 'appointment',
@@ -70,7 +72,7 @@ export const DEFAULT_LETTER_TEMPLATES: { kind: LetterKind; name: string; subject
 		kind: 'increment',
 		name: 'Increment letter',
 		subject: 'Salary increment',
-		body: `Dear {{employee.name}},\n\nIn recognition of your performance, your monthly gross salary has been revised to BDT {{salary.gross}}.${SIGN_OFF}`
+		body: `Dear {{employee.name}},\n\nIn recognition of your performance, your monthly gross salary has been revised to {{salary.currency}} {{salary.gross}}.${SIGN_OFF}`
 	},
 	{
 		kind: 'experience',
@@ -82,7 +84,7 @@ export const DEFAULT_LETTER_TEMPLATES: { kind: LetterKind; name: string; subject
 		kind: 'salary_certificate',
 		name: 'Salary certificate',
 		subject: 'Salary certificate',
-		body: `To whom it may concern,\n\nThis is to certify that {{employee.name}} (ID {{employee.code}}) has been working at {{company.name}} as {{employee.designation}} since {{employee.join_date}}, and currently draws a monthly gross salary of BDT {{salary.gross}}.${SIGN_OFF}`
+		body: `To whom it may concern,\n\nThis is to certify that {{employee.name}} (ID {{employee.code}}) has been working at {{company.name}} as {{employee.designation}} since {{employee.join_date}}, and currently draws a monthly gross salary of {{salary.currency}} {{salary.gross}}.${SIGN_OFF}`
 	}
 ];
 
@@ -198,6 +200,7 @@ async function placeholderValues(tx: Tx, m: Member, employeeId: string) {
 		'employee.probation_end': longDate(e.probationEnd),
 		'employee.confirmation_date': longDate(e.confirmationDate),
 		'employee.exit_date': longDate(e.exitDate),
+		'salary.currency': salary[0] ? await tenantCurrency(tx) : null,
 		'salary.gross': salary[0] ? taka(salary[0].gross) : null
 	};
 	return values;

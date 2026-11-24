@@ -39,7 +39,7 @@ const assetSchema = z.object({
 	category: z.string().trim().min(1, 'Choose a category.').max(60, 'Keep the category under 60 characters.'),
 	serial: z.string().trim().max(120, 'Keep the serial under 120 characters.').prefault(''),
 	purchaseDate: optionalDate('Enter a real purchase date.'),
-	purchaseCost: money('Enter the cost in taka, up to 2 decimals.'),
+	purchaseCost: money('Enter the cost, up to 2 decimals.'),
 	status: z
 		.union([z.literal(''), z.enum(['available', 'repair', 'retired'], 'Choose a status.')])
 		.transform((v) => v || null)
@@ -58,7 +58,7 @@ const returnSchema = z
 		outcome: z.enum(ASSET_OUTCOMES, 'Choose returned or written off.'),
 		returnedOn: z.iso.date('Enter the return date.'),
 		condition: condition.optional().or(z.literal('').transform(() => undefined)),
-		charge: money('Enter the charge in taka, up to 2 decimals.').transform((v) => v ?? 0),
+		charge: money('Enter the charge, up to 2 decimals.').transform((v) => v ?? 0),
 		note: z.string().trim().max(300, 'Keep the note under 300 characters.').prefault('')
 	})
 	.refine((v) => v.outcome !== 'returned' || v.condition, { message: 'Choose the condition it came back in.' })

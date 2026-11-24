@@ -30,7 +30,7 @@ const priceSchema = z.object({
 	unitCost: z
 		.string()
 		.trim()
-		.regex(/^\d{1,5}(\.\d{1,2})?$/, 'Enter the price in taka, up to 2 decimals.')
+		.regex(/^\d{1,5}(\.\d{1,2})?$/, 'Enter the price, up to 2 decimals.')
 		.transform(poishaOf)
 		.refine((p) => p >= 1, 'The price must be more than zero.'),
 	subsidyPct: z.coerce

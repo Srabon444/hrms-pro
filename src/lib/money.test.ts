@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { employeeShare, instalmentPlan, mealCharge, poishaOf, taka } from './money';
+import { CURRENCIES, employeeShare, instalmentPlan, mealCharge, money, poishaOf, taka, unit } from './money';
 
 it('converts taka text to whole poisha and back', () => {
 	expect(['0.29', '12', '12.5', '12.05', '99999.99'].map(poishaOf)).toEqual([29, 1200, 1250, 1205, 9999999]);
@@ -27,4 +27,12 @@ it('splits a loan into whole-taka instalments with the remainder last', () => {
 	expect(instalmentPlan(50000, 1)).toEqual([50000]);
 	expect(instalmentPlan(500, 6)).toEqual([0, 0, 0, 0, 0, 500]);
 	expect(instalmentPlan(1234567, 12).reduce((a, b) => a + b)).toBe(1234567);
+});
+
+it('formats money with the tenant currency, falling back to the code for currencies without a glyph', () => {
+	expect(money(1234550, 'BDT')).toBe('৳12345.50');
+	expect(money(5, 'USD')).toBe('$0.05');
+	expect(money(100, 'INR')).toBe('INR 1.00');
+	expect([unit('EUR'), unit('GBP'), unit('AED')]).toEqual(['€', '£', 'AED']);
+	expect(Object.keys(CURRENCIES)).toContain('NPR');
 });

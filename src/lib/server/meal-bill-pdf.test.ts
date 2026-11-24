@@ -18,6 +18,7 @@ it('renders a bill with Bengali and English text into a PDF', async () => {
 		billingMode: 'direct',
 		total: 161040,
 		paid: 10050,
+		currency: 'BDT',
 		lines
 	});
 	const text = Buffer.from(pdf).toString('latin1');

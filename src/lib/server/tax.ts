@@ -25,7 +25,7 @@ const amount = (label: string) =>
 	z
 		.string()
 		.trim()
-		.regex(/^\d{1,9}(\.\d{1,2})?$/, `Enter ${label} in taka, up to 2 decimals.`)
+		.regex(/^\d{1,9}(\.\d{1,2})?$/, `Enter ${label}, up to 2 decimals.`)
 		.transform(poishaOf);
 
 const yearSchema = z.object({

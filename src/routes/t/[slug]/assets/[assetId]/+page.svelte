@@ -4,14 +4,14 @@
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
 	import { ASSET_STATUS_LABELS, CONDITION_LABELS } from '#lib/asset-labels.ts';
-	import { taka } from '#lib/money.ts';
+	import { money, taka, unit } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 	const v = $derived(data.view);
 	const a = $derived(v.asset);
 	const input = 'mt-1 block w-full input';
-	const money = '\\d{1,9}(\\.\\d{1,2})?';
+	const moneyPattern = '\\d{1,9}(\\.\\d{1,2})?';
 	let outcome = $state('returned');
 </script>
 
@@ -22,7 +22,7 @@
 <p class="text-sm text-slate-600">
 	{a.category} · {ASSET_STATUS_LABELS[a.status]}{a.serial ? ` · S/N ${a.serial}` : ''}{a.purchaseDate
 		? ` · bought ${a.purchaseDate}`
-		: ''}{a.purchaseCost !== null ? ` · ৳${taka(a.purchaseCost)}` : ''}
+		: ''}{a.purchaseCost !== null ? ` · ${money(a.purchaseCost, data.currency)}` : ''}
 </p>
 
 <div class="mt-4 max-w-4xl space-y-2">
@@ -76,7 +76,12 @@
 					</select>
 				</label>
 			{/if}
-			<Field label="Charge to employee (৳)" name="charge" inputmode="decimal" pattern={money} />
+			<Field
+				label="Charge to employee ({unit(data.currency)})"
+				name="charge"
+				inputmode="decimal"
+				pattern={moneyPattern}
+			/>
 			<Field label="Note" name="note" maxlength={300} required={outcome === 'written_off'} />
 			<div><Button type="submit">Close out</Button></div>
 		</form>
@@ -97,7 +102,7 @@
 					{#if h.returnedOn}
 						· {h.outcome === 'returned'
 							? `returned ${h.returnedOn} (${CONDITION_LABELS[h.conditionIn ?? '']})`
-							: `written off ${h.returnedOn}`}{h.charge ? ` · charged ৳${taka(h.charge)}` : ''}{h.note
+							: `written off ${h.returnedOn}`}{h.charge ? ` · charged ${money(h.charge, data.currency)}` : ''}{h.note
 							? ` · ${h.note}`
 							: ''}
 					{:else}
@@ -121,10 +126,10 @@
 			<Field label="Serial number" name="serial" maxlength={120} value={a.serial} />
 			<Field label="Purchase date" name="purchaseDate" type="date" max={v.today} value={a.purchaseDate ?? ''} />
 			<Field
-				label="Purchase cost (৳)"
+				label="Purchase cost ({unit(data.currency)})"
 				name="purchaseCost"
 				inputmode="decimal"
-				pattern={money}
+				pattern={moneyPattern}
 				value={a.purchaseCost !== null ? taka(a.purchaseCost) : ''}
 			/>
 			{#if a.status !== 'assigned'}

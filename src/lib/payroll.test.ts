@@ -95,7 +95,7 @@ describe('computePay', () => {
 		expect([r.paidDays, r.unpaidDays, r.taxable, r.tax]).toEqual([15, 3.5, 1_974_359, 0]);
 		expect([r.gross, r.deductions, r.net, r.rounding]).toEqual([2_807_692, 933_333, 1_874_400, 41]);
 		expect(r.claimed).toEqual({ expenses: ['e1'], instalments: ['i1'], meals: [] });
-		expect(r.skipped).toEqual(["MEAL of ৳100000.00 does not fit in this month's pay."]);
+		expect(r.skipped).toEqual(["MEAL of 100000.00 does not fit in this month's pay."]);
 	});
 
 	it('splits a month across two salaries', () => {
@@ -135,8 +135,8 @@ describe('computePay', () => {
 		expect(r.claimed).toEqual({ expenses: [], instalments: ['i1', 'i2'], meals: [] });
 		expect([amounts(r).LOAN, r.net]).toEqual([4_958_333, 0]);
 		expect(r.skipped).toEqual([
-			"LOAN of ৳0.01 does not fit in this month's pay.",
-			"MEAL of ৳0.01 does not fit in this month's pay."
+			"LOAN of 0.01 does not fit in this month's pay.",
+			"MEAL of 0.01 does not fit in this month's pay."
 		]);
 	});
 
@@ -332,7 +332,7 @@ describe('final settlement', () => {
 			['NOTICE_PAY', 'earning', true, 1_000_000],
 			['PF_PAYOUT', 'earning', false, 600_000]
 		]);
-		expect(paid.notes).toEqual(['Employer provident fund of ৳6000.00 is not vested.']);
+		expect(paid.notes).toEqual(['Employer provident fund of 6000.00 is not vested.']);
 		const short = settlementLines(3_000_000, 0, 0, {
 			...settle,
 			leave: [],

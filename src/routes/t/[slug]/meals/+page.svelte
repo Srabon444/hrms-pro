@@ -3,7 +3,7 @@
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { BILL_STATUS } from '#lib/meal-bill-status.ts';
-	import { employeeShare, taka } from '#lib/money.ts';
+	import { employeeShare, money } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -44,7 +44,7 @@
 								<input type="hidden" name="date" value={d.date} />
 								<input type="hidden" name="mealTypeId" value={meal.mealTypeId} />
 								<span class="w-32 text-slate-700">
-									{meal.name} · ৳{taka(employeeShare(meal.unitCost, meal.subsidyPct))}
+									{meal.name} · {money(employeeShare(meal.unitCost, meal.subsidyPct), data.currency)}
 								</span>
 								<select name="status" class={input} aria-label={`${meal.name} on ${d.date}`}>
 									<option value="ordered" selected={meal.status === 'ordered'}>Eating</option>
@@ -83,15 +83,17 @@
 	<section class={card} aria-label="My bills">
 		<h2 class="section-title">My bills</h2>
 		{#if data.due}
-			<p class="mt-1 text-sm text-amber-700" data-testid="meal-due">You owe ৳{taka(data.due)} for meals.</p>
+			<p class="mt-1 text-sm text-amber-700" data-testid="meal-due">
+				You owe {money(data.due, data.currency)} for meals.
+			</p>
 		{/if}
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each data.bills as bill (bill.id)}
 				<li class="py-2">
 					<details>
 						<summary class="cursor-pointer text-slate-800" data-testid="my-meal-bill">
-							{bill.period} · {BILL_STATUS[bill.status]} · ৳{taka(bill.total)}{bill.paid
-								? ` · paid ৳${taka(bill.paid)}`
+							{bill.period} · {BILL_STATUS[bill.status]} · {money(bill.total, data.currency)}{bill.paid
+								? ` · paid ${money(bill.paid, data.currency)}`
 								: ''}
 						</summary>
 						<table class="data-table mt-2">
@@ -101,7 +103,7 @@
 										<td class="py-0.5">{l.date}</td>
 										<td>{l.meal}{l.kind === 'adjustment' ? ' (correction)' : ''}</td>
 										<td>{l.plates ? 'ate' : 'skipped'}{l.guests ? ` + ${l.guests} guests` : ''}</td>
-										<td class="text-right">৳{taka(l.amount)}</td>
+										<td class="text-right">{money(l.amount, data.currency)}</td>
 									</tr>
 								{/each}
 							</tbody>

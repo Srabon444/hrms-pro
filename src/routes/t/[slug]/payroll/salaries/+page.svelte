@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
-	import { taka } from '#lib/money.ts';
+	import { money, unit } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -24,7 +24,7 @@
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each b.pending as c (c.id)}
 				<li class="py-3" data-testid="salary-change">
-					<p class="text-slate-800">{c.name} · ৳{taka(c.gross)} gross from {c.effectiveFrom}</p>
+					<p class="text-slate-800">{c.name} · {money(c.gross, data.currency)} gross from {c.effectiveFrom}</p>
 					<p class="text-slate-500">{c.lines.join(', ')} · {c.reason}</p>
 					{#if c.canDecide}
 						<form method="POST" action="?/decide" class="mt-2 flex flex-wrap items-center gap-2">
@@ -58,7 +58,7 @@
 			{#each b.components as c (c.id)}
 				<label class="text-slate-700">
 					{c.name}
-					{c.calc === 'pct_basic' ? '(% of basic)' : '(৳)'}
+					{c.calc === 'pct_basic' ? '(% of basic)' : `(${unit(data.currency)})`}
 					<input
 						name={`c_${c.id}`}
 						inputmode="decimal"
@@ -88,7 +88,7 @@
 				<tr class="border-t border-slate-100" data-testid="salary-row">
 					<td class="py-1">{p.name} <span class="text-slate-400">{p.code}</span></td>
 					{#if p.salary}
-						<td>৳{taka(p.salary.gross)}</td>
+						<td>{money(p.salary.gross, data.currency)}</td>
 						<td>{p.salary.effectiveFrom}</td>
 						<td class="text-slate-500">{p.salary.lines.join(', ')}</td>
 					{:else}

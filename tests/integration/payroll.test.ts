@@ -234,6 +234,7 @@ describe('payroll runs', () => {
 		).toEqual([`Payroll for ${P}`]);
 		expect(await withTenant(systemCtx(tenant.id), (tx) => payrollApprovals(tx, who.po.access))).toEqual([]);
 		expect(await code(payRun(who.fin, { runId }))).toBe('locked');
+		await db((tx) => tx.update(tenantSettings).set({ currency: 'USD' }));
 		await approveRun(who.fin, { runId });
 		expect(await code(approveRun(who.fin, { runId }))).toBe('locked');
 		expect(await code(recomputeRun(who.po, { runId }))).toBe('locked');
@@ -279,7 +280,8 @@ describe('payroll runs', () => {
 		expect([mail.to, mail.subject]).toEqual([emails.ana, `Your payslip for ${P}`]);
 		expect(mail.text).toContain(`/t/${tenant.slug}/payslips`);
 		expect(mail.text).not.toContain('৳');
-		expect(await myPayslips(who.ana)).toEqual([{ id: ana.id, period: P, name: null, net: 4_500_000 }]);
+		expect(await myPayslips(who.ana)).toEqual([{ id: ana.id, period: P, name: null, net: 4_500_000, currency: 'BDT' }]);
+		await db((tx) => tx.update(tenantSettings).set({ currency: 'BDT' }));
 		expect(await myPayslips(who.fin)).toEqual([]);
 		const pdf = await openPayslipPdf(who.ana, ana.id);
 		expect([pdf.fileName, Buffer.from(pdf.body).toString('latin1').slice(0, 5)]).toEqual([`payslip-${P}.pdf`, '%PDF-']);
@@ -813,7 +815,7 @@ describe('bonus runs', () => {
 		const mail = (await queue('mail').getJob(`payslip-mail-${ivy.id}`))!.data;
 		expect([mail.to, mail.subject]).toEqual([emails.ivy, 'Your Eid-ul-Adha bonus payslip for 2024-08']);
 		expect(await myPayslips(who.ivy)).toEqual([
-			{ id: ivy.id, period: '2024-08', name: 'Eid-ul-Adha bonus', net: 15_000_000 }
+			{ id: ivy.id, period: '2024-08', name: 'Eid-ul-Adha bonus', net: 15_000_000, currency: 'BDT' }
 		]);
 		const pdf = await openPayslipPdf(who.ivy, ivy.id);
 		expect(pdf.fileName).toBe('bonus-2024-08.pdf');
@@ -904,10 +906,12 @@ describe('arrears runs', () => {
 		await pay(ids.quinn, '2024-07-01', '40000');
 		await finalFor(ids.quinn, '2024-08');
 
+		await db((tx) => tx.update(tenantSettings).set({ currency: 'EUR' }));
 		const first = await startRun(who.po, { period: '2024-08', runType: 'arrears' });
+		await db((tx) => tx.update(tenantSettings).set({ currency: 'BDT' }));
 		const second = await startRun(who.po, { period: '2024-08', runType: 'arrears' });
 		const [run] = await db((tx) => tx.select().from(payrollRuns).where(eq(payrollRuns.id, first)));
-		expect([run.runType, run.title, run.settings]).toEqual(['arrears', null, null]);
+		expect([run.runType, run.title, run.settings, run.currency]).toEqual(['arrears', null, null, 'EUR']);
 		expect((await slipsIn(first)).map((s) => s.employeeId)).toEqual([ids.opa]);
 		const opa = await slipOf(first, ids.opa);
 		const lines = await linesOf(opa.id);
@@ -934,7 +938,7 @@ describe('arrears runs', () => {
 		const mail = (await queue('mail').getJob(`payslip-mail-${opa.id}`))!.data;
 		expect([mail.to, mail.subject]).toEqual([emails.opa, 'Your Salary arrears payslip for 2024-08']);
 		expect(await myPayslips(who.opa)).toEqual([
-			{ id: opa.id, period: '2024-08', name: 'Salary arrears', net: 1_800_000 }
+			{ id: opa.id, period: '2024-08', name: 'Salary arrears', net: 1_800_000, currency: 'EUR' }
 		]);
 		expect((await openPayslipPdf(who.opa, opa.id)).fileName).toBe('arrears-2024-08.pdf');
 
@@ -1060,7 +1064,7 @@ describe('final settlement', () => {
 			'invalid: Enter notice paid in lieu or a notice shortfall, not both.'
 		);
 		expect(await code(settle(ids.sam, { assetDeduction: '1.234' }))).toBe(
-			'invalid: Enter the asset deduction in taka, up to 2 decimals.'
+			'invalid: Enter the asset deduction, up to 2 decimals.'
 		);
 		expect(await code(settle(ids.vic))).toBe('no_exit');
 		await leaves(ids.vic, '2099-01-31');
@@ -1124,7 +1128,7 @@ describe('final settlement', () => {
 		expect([una.paidDays, una.amounts, una.notes]).toEqual([
 			10,
 			{ BASIC: 333_333, PF: 33_333, PF_EMPLOYER: 33_333, PF_PAYOUT: 233_333 },
-			['Employer provident fund of ৳2333.33 is not vested.']
+			['Employer provident fund of 2333.33 is not vested.']
 		]);
 		await leaves(ids.una, '2024-10-05');
 		await recomputeRun(who.po, { runId: unaRun });
@@ -1162,7 +1166,7 @@ describe('final settlement', () => {
 		const mail = (await queue('mail').getJob(`payslip-mail-${sam.id}`))!.data;
 		expect([mail.to, mail.subject]).toEqual([emails.sam, 'Your Final settlement payslip for 2024-08']);
 		expect(await myPayslips(who.sam)).toEqual([
-			{ id: sam.id, period: '2024-08', name: 'Final settlement', net: sam.net }
+			{ id: sam.id, period: '2024-08', name: 'Final settlement', net: sam.net, currency: 'BDT' }
 		]);
 		expect((await openPayslipPdf(who.sam, sam.id)).fileName).toBe('final-2024-08.pdf');
 

@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { instalmentPlan, poishaOf, taka } from '../money';
+import { instalmentPlan, money, poishaOf } from '../money';
 import { activeMemberships, singleAdmin } from './approval-chain';
 import type { ApprovalItem } from './approvals';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
@@ -12,7 +12,7 @@ import { advisoryLock, LOCK } from './locks';
 import { notify } from './notifications';
 import { can, userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
-import { readSettings } from './settings';
+import { readSettings, tenantCurrency } from './settings';
 import { withTenant, type Tx } from './tenancy';
 
 type Member = ReturnType<typeof requireMember>;
@@ -22,7 +22,7 @@ const requestSchema = z.object({
 	amount: z
 		.string()
 		.trim()
-		.regex(/^\d{1,7}(\.\d{1,2})?$/, 'Enter the amount in taka, up to 2 decimals.')
+		.regex(/^\d{1,7}(\.\d{1,2})?$/, 'Enter the amount, up to 2 decimals.')
 		.transform(poishaOf)
 		.refine((p) => p > 0, 'The amount must be more than zero.'),
 	instalments: z.coerce
@@ -49,7 +49,7 @@ export async function requestLoan(m: Member, form: Record<string, string>) {
 	const employeeId = m.access.employeeId;
 	if (!employeeId) throw new AppError('no_employee', 'Only employees can ask for a loan.', 409);
 	if (instalmentPlan(input.amount, input.instalments)[0] === 0)
-		throw new AppError('tiny_instalment', 'Each instalment must be at least ৳1.', 400);
+		throw new AppError('tiny_instalment', 'Each instalment must be at least 1.00.', 400);
 	return withTenant(userCtx(m), async (tx) => {
 		const [e] = await tx.select({ status: employees.status }).from(employees).where(eq(employees.id, employeeId));
 		if (!e || e.status === 'exited') throw new AppError('exited', 'People who have left cannot ask for a loan.', 409);
@@ -125,7 +125,7 @@ export async function decideLoan(m: Member, form: Record<string, string>) {
 				category: 'approvals',
 				title: `${what} ${approved ? 'approved' : 'rejected'}`,
 				body: approved
-					? `৳${taka(l.amount)} was approved. Repayment of ${l.instalments} instalment(s) starts with the ${start} salary.`
+					? `${money(l.amount, await tenantCurrency(tx))} was approved. Repayment of ${l.instalments} instalment(s) starts with the ${start} salary.`
 					: input.note || undefined,
 				link: 'loans'
 			},
@@ -217,10 +217,11 @@ export async function loanApprovals(tx: Tx, access: Access): Promise<ApprovalIte
 		)
 		.orderBy(asc(loans.createdAt))
 		.limit(200);
+	const currency = await tenantCurrency(tx);
 	return rows.map((r) => ({
 		id: r.id,
 		kind: r.kind === 'advance' ? 'Salary advance' : 'Loan',
-		title: `${r.name}: ৳${taka(r.amount)} over ${r.instalments} month(s)`,
+		title: `${r.name}: ${money(r.amount, currency)} over ${r.instalments} month(s)`,
 		requestedBy: r.name,
 		at: r.createdAt,
 		link: 'loans'
