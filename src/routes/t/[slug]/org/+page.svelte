@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
+	import CsvImport from '#lib/components/ui/CsvImport.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -25,7 +26,10 @@
 <svelte:head><title>Organisation · {data.tenant.name}</title></svelte:head>
 
 <h1 class="page-title">Organisation structure</h1>
-<div class="mt-4 max-w-xl"><Alert message={form?.message} /></div>
+<div class="mt-4 max-w-xl space-y-2">
+	<Alert message={form?.message} />
+	{#if form && 'imported' in form}<Alert tone="info" message="{form.imported} holidays imported." />{/if}
+</div>
 
 {#snippet parentSelect(current: string | null | undefined, self: string | null, label: string)}
 	<select name="parentId" aria-label={label} class={input}>
@@ -154,5 +158,14 @@
 			<input name="name" required maxlength={120} placeholder="Holiday name" aria-label="Holiday name" class={input} />
 			<Button type="submit">Add holiday</Button>
 		</form>
+		<CsvImport
+			action="?/importHolidays"
+			label="Holidays file, up to 100 rows"
+			button="Import holidays"
+			columns={data.holidayColumns}
+			example={[`${data.year}-12-16`, 'Victory Day']}
+			file="holidays.csv"
+			rows={form && 'rows' in form ? form.rows : null}
+		/>
 	</section>
 </div>

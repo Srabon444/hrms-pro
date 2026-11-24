@@ -1,11 +1,14 @@
 import { fail } from '@sveltejs/kit';
 import { z } from 'zod';
 import { now } from '#lib/server/clock.ts';
+import { readCsvUpload } from '#lib/server/csv.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import {
 	addHoliday,
 	addOrgItem,
+	HOLIDAY_COLUMNS,
 	holidaysOf,
+	importHolidays,
 	isOrgKind,
 	orgStructure,
 	removeHoliday,
@@ -29,6 +32,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		...(await orgStructure(tx)),
 		year,
 		timezones: TIMEZONES,
+		holidayColumns: HOLIDAY_COLUMNS,
 		holidays: await holidaysOf(tx, year)
 	}));
 };
@@ -78,6 +82,15 @@ export const actions: Actions = {
 		requirePerm(locals, 'org.manage');
 		const form = await request.formData();
 		return run(locals, (ctx) => addHoliday(ctx, { date: field(form, 'date'), name: field(form, 'name') }));
+	},
+	importHolidays: async ({ request, locals }) => {
+		const m = requirePerm(locals, 'org.manage');
+		try {
+			const table = await readCsvUpload((await request.formData()).get('file'));
+			return { imported: await importHolidays(userCtx(m), table) };
+		} catch (err) {
+			return actionError(err, locals.requestId);
+		}
 	},
 	removeHoliday: async ({ request, locals }) => {
 		requirePerm(locals, 'org.manage');

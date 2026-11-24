@@ -1,11 +1,12 @@
-import { and, asc, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { branches, departments, designations, grades, holidays } from './db/schema';
 import { FK_VIOLATION, pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { AppError } from './errors';
 import { recomputeAttendance } from './attendance';
 import { timeZoneSchema } from './settings';
-import { dropHolidayFromLeave } from './leave-requests';
+import { csvRecords, ImportFailed, type ImportRowError } from './csv';
+import { dropHolidaysFromLeave } from './leave-requests';
 import { advisoryLock, LOCK } from './locks';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
 
@@ -153,13 +154,57 @@ export async function addHoliday(ctx: TenantCtx, raw: { date: string; name: stri
 	try {
 		await withTenant(ctx, async (tx) => {
 			await tx.insert(holidays).values({ tenantId: ctx.tenantId, ...input });
-			await dropHolidayFromLeave(tx, input.date);
+			await dropHolidaysFromLeave(tx, [input.date]);
 			await recomputeAttendance(tx, ctx.tenantId, input.date, input.date);
 		});
 	} catch (err) {
 		if (pgCode(err) === UNIQUE_VIOLATION) throw new AppError('duplicate', 'That date is already a holiday.', 409);
 		throw err;
 	}
+}
+
+export const MAX_HOLIDAY_ROWS = 100;
+export const HOLIDAY_COLUMNS = ['date', 'name'] as const;
+
+export async function importHolidays(ctx: TenantCtx, table: string[][]): Promise<number> {
+	const rows = csvRecords(table, HOLIDAY_COLUMNS, MAX_HOLIDAY_ROWS);
+	return withTenant(ctx, async (tx) => {
+		const taken = new Set(
+			(
+				await tx
+					.select({ date: holidays.date })
+					.from(holidays)
+					.where(
+						inArray(
+							holidays.date,
+							rows.map((r) => r.v.date).filter((d) => z.iso.date().safeParse(d).success)
+						)
+					)
+			).map((h) => h.date)
+		);
+		const seen = new Set<string>();
+		const errors: ImportRowError[] = [];
+		const list: z.output<typeof holidaySchema>[] = [];
+		for (const { line, v } of rows) {
+			const parsed = holidaySchema.safeParse(v);
+			const problem = !parsed.success
+				? parsed.error.issues[0].message
+				: taken.has(v.date)
+					? 'That date is already a holiday.'
+					: seen.has(v.date)
+						? 'This date appears twice in the file.'
+						: null;
+			seen.add(v.date);
+			if (problem) errors.push({ line, message: problem });
+			else list.push(parsed.data!);
+		}
+		if (errors.length) throw new ImportFailed(errors.slice(0, 50));
+		await tx.insert(holidays).values(list.map((h) => ({ tenantId: ctx.tenantId, ...h })));
+		const dates = list.map((h) => h.date).sort();
+		await dropHolidaysFromLeave(tx, dates);
+		await recomputeAttendance(tx, ctx.tenantId, dates[0], dates[dates.length - 1]);
+		return list.length;
+	});
 }
 
 export async function removeHoliday(ctx: TenantCtx, id: string): Promise<void> {

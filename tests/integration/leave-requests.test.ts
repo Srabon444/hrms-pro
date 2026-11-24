@@ -6,6 +6,7 @@ import { closePools } from '../../src/lib/server/db';
 import {
 	departments,
 	employees,
+	holidays,
 	leaveLedger,
 	leaveRequestDays,
 	leaveRequests,
@@ -26,7 +27,7 @@ import {
 	requestLeave,
 	whoIsOut
 } from '../../src/lib/server/leave-requests';
-import { addHoliday } from '../../src/lib/server/org';
+import { addHoliday, importHolidays } from '../../src/lib/server/org';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
@@ -461,6 +462,40 @@ describe('leave requests', () => {
 		expect(await balance('boss', 'Casual leave')).toEqual([7, 0, 7]);
 		const seen = await withTenant(sys(), (tx) => getLeaveRequest(tx, who.hr.access, r.id));
 		expect(seen?.dates).toEqual([start, workAfter(start, 2)]);
+	});
+
+	it('imports holidays all or nothing and drops them from upcoming leave', async () => {
+		const start = work(addDays(D, 150));
+		const next = workAfter(start, 1);
+		await ask('boss', { startDate: start, endDate: next });
+		const r = await latest('boss');
+		const taken = work(addDays(start, 14));
+		await addHoliday(sys(), { date: taken, name: 'Already there' });
+		const failed = await importHolidays(sys(), [
+			['name', 'date'],
+			['Flood day', start],
+			['Flood again', start],
+			['Bad', '2026-02-30'],
+			['', next],
+			['Twice', taken]
+		]).catch((e: { rows?: unknown }) => e.rows);
+		expect(failed).toEqual([
+			{ line: 3, message: 'This date appears twice in the file.' },
+			{ line: 4, message: 'Pick a valid date.' },
+			{ line: 5, message: 'Enter a name.' },
+			{ line: 6, message: 'That date is already a holiday.' }
+		]);
+		const holidaysOn = (d: string) => withTenant(sys(), (tx) => tx.select().from(holidays).where(eq(holidays.date, d)));
+		expect(await holidaysOn(start)).toEqual([]);
+		expect(
+			await importHolidays(sys(), [
+				['date', 'name'],
+				[start, 'Flood day'],
+				[next, 'Flood day two']
+			])
+		).toBe(2);
+		const [after] = await withTenant(sys(), (tx) => tx.select().from(leaveRequests).where(eq(leaveRequests.id, r.id)));
+		expect([after.days, after.status]).toEqual([0, 'cancelled']);
 	});
 
 	it('lets only one of two racing requests for the same days through', async () => {

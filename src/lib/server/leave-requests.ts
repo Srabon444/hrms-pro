@@ -343,12 +343,14 @@ export async function cancelLeave(m: Member, requestId: string) {
 	await sendAll(mails);
 }
 
-export async function dropHolidayFromLeave(tx: Tx, date: string) {
-	if (date < (await tenantToday(tx))) return;
+export async function dropHolidaysFromLeave(tx: Tx, dates: string[]) {
+	const today = await tenantToday(tx);
+	const ahead = dates.filter((d) => d >= today).sort();
+	if (!ahead.length) return;
 	const hit = await tx
 		.selectDistinct({ id: leaveRequestDays.requestId })
 		.from(leaveRequestDays)
-		.where(and(eq(leaveRequestDays.date, date), inArray(leaveRequestDays.status, ACTIVE)));
+		.where(and(inArray(leaveRequestDays.date, ahead), inArray(leaveRequestDays.status, ACTIVE)));
 	const ids = hit.map((h) => h.id);
 	const requests = await tx
 		.select({ r: leaveRequests, sandwich: leaveTypes.sandwich })
@@ -362,8 +364,8 @@ export async function dropHolidayFromLeave(tx: Tx, date: string) {
 		.where(and(inArray(leaveRequestDays.requestId, ids), inArray(leaveRequestDays.status, ACTIVE)));
 	const cal = await calendar(
 		tx,
-		requests.reduce((a, x) => (x.r.startDate < a ? x.r.startDate : a), date),
-		requests.reduce((a, x) => (x.r.endDate > a ? x.r.endDate : a), date)
+		requests.reduce((a, x) => (x.r.startDate < a ? x.r.startDate : a), ahead[0]),
+		requests.reduce((a, x) => (x.r.endDate > a ? x.r.endDate : a), ahead[ahead.length - 1])
 	);
 	const dropped: typeof days = [];
 	for (const { r, sandwich } of requests) {
