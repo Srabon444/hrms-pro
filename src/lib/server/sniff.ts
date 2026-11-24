@@ -14,3 +14,13 @@ export function sniffType(bytes: Uint8Array, fileName: string): string | null {
 	if (starts(bytes, [0x50, 0x4b, 0x03, 0x04])) return ZIP_TYPES[fileName.split('.').pop()!.toLowerCase()] ?? null;
 	return null;
 }
+
+export function safeFileName(name: string): string {
+	const base = name.split(/[\\/]/).pop() ?? '';
+	return (
+		base
+			.replace(/[\p{Cc}\u202a-\u202e\u2066-\u2069]/gu, '')
+			.trim()
+			.slice(0, 200) || 'file'
+	);
+}

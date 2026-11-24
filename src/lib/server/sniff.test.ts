@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sniffType } from './sniff';
+import { safeFileName, sniffType } from './sniff';
 
 const bytes = (...parts: (number[] | string)[]) =>
 	new Uint8Array(parts.flatMap((p) => (typeof p === 'string' ? [...p].map((c) => c.charCodeAt(0)) : p)));
@@ -20,5 +20,16 @@ describe('sniffType', () => {
 		expect(sniffType(bytes('MZ'), 'a.pdf')).toBeNull();
 		expect(sniffType(new Uint8Array(), 'a.pdf')).toBeNull();
 		expect(sniffType(bytes('RIFF', [0, 0, 0, 0], 'WAVE'), 'a.webp')).toBeNull();
+	});
+});
+
+describe('safeFileName', () => {
+	it('keeps only a clean base name', () => {
+		expect(safeFileName('C:\\Users\\me\\scan.pdf')).toBe('scan.pdf');
+		expect(safeFileName('../../etc/passwd')).toBe('passwd');
+		expect(safeFileName('bad\r\nname.pdf')).toBe('badname.pdf');
+		expect(safeFileName('invoice\u202Efdp.exe')).toBe('invoicefdp.exe');
+		expect(safeFileName('  /  ')).toBe('file');
+		expect(safeFileName('a'.repeat(300))).toHaveLength(200);
 	});
 });

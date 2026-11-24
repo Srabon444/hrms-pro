@@ -137,7 +137,8 @@ describe('audit trail', () => {
 					mime: 'application/pdf',
 					size: 10,
 					sha256: 'abc',
-					ownerType: 'probe'
+					ownerType: 'asset',
+					ownerId: crypto.randomUUID()
 				})
 				.returning()
 		);

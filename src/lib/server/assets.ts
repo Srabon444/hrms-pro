@@ -77,6 +77,21 @@ const holderName = sql<
 	string | null
 >`(select e.full_name from asset_assignments aa join employees e on e.id = aa.employee_id where aa.asset_id = assets.id and aa.returned_on is null)`;
 
+export const assetAttachments = {
+	async canRead(tx: Tx, access: Access, id: string) {
+		const found = await tx
+			.select({ id: assets.id })
+			.from(assets)
+			.where(and(eq(assets.id, id), await visibleAssets(tx, access)));
+		return found.length > 0;
+	},
+	async canEdit(tx: Tx, access: Access, id: string, lock: boolean) {
+		if (!canRunAssets(access)) return false;
+		const q = tx.select({ id: assets.id }).from(assets).where(eq(assets.id, id));
+		return (lock ? await q.for('update') : await q).length > 0;
+	}
+};
+
 async function visibleAssets(tx: Tx, access: Access): Promise<SQL> {
 	const scope = await resolveScope(tx, access, 'asset.read');
 	if (scope.kind === 'all') return sql`true`;
