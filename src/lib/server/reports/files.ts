@@ -48,7 +48,7 @@ export function reportPdf(company: string, r: Report): Promise<Uint8Array> {
 		doc.fontSize(8);
 		const w = width / s.columns.length;
 		const line = (cells: string[]) => {
-			const h = Math.max(...cells.map((c, i) => doc.heightOfString(c, { width: w - 4 })), 10);
+			const h = Math.max(...cells.map((c) => doc.heightOfString(c, { width: w - 4 })), 10);
 			room(h + 4);
 			cells.forEach((c, i) => write(doc, c, left + i * w, y, w - 4, s.columns[i].numeric ? 'right' : 'left'));
 			y += h + 4;

@@ -1,10 +1,19 @@
 <script lang="ts">
 	import Alert from '#lib/components/ui/Alert.svelte';
+	import ReportTables from '#lib/components/ReportTables.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 	const r = $derived(data.report);
+	const people = $derived.by(() => {
+		const seen: Record<string, string> = {};
+		for (const s of r?.sections ?? [])
+			for (const row of s.rows) if (row.employeeId) seen[row.employeeId] = String(row.cells.name ?? row.employeeId);
+		return Object.entries(seen)
+			.map(([id, name]) => ({ id, name }))
+			.sort((a, b) => a.name.localeCompare(b.name));
+	});
 	const query = $derived(
 		r
 			? new URLSearchParams({
@@ -43,7 +52,7 @@
 	<div><Button type="submit" variant="secondary">Show</Button></div>
 </form>
 
-<div class="mt-4 max-w-3xl"><Alert message={data.message} /></div>
+<div class="mt-4 max-w-3xl"><Alert message={form?.message ?? data.message} /></div>
 
 {#if r}
 	<div class="mt-4 flex gap-3 text-sm">
@@ -54,27 +63,55 @@
 			Download PDF
 		</a>
 	</div>
-	{#each r.sections as s (s.key)}
-		<section class="mt-6 max-w-5xl" aria-label={s.title}>
-			<h2 class="font-semibold text-slate-900">{s.title}</h2>
-			<table class="mt-2 w-full text-left text-sm">
-				<thead class="text-slate-500">
-					<tr>
-						{#each s.columns as c (c.key)}<th class={['py-2', c.numeric && 'text-right']}>{c.label}</th>{/each}
-					</tr>
-				</thead>
-				<tbody>
-					{#each s.rows as row, i (i)}
-						<tr class="border-t border-slate-200" data-testid={`row-${s.key}`}>
-							{#each s.columns as c (c.key)}
-								<td class={['py-2', c.numeric && 'text-right tabular-nums']}>{row.cells[c.key] ?? '—'}</td>
-							{/each}
-						</tr>
-					{:else}
-						<tr><td colspan={s.columns.length} class="py-2 text-slate-500">Nothing in this period.</td></tr>
+	<ReportTables sections={r.sections} />
+
+	<details class="mt-8 max-w-3xl rounded-xl bg-white p-6 ring-1 ring-slate-200">
+		<summary class="cursor-pointer font-semibold text-slate-900">Share this report</summary>
+		{#if data.recipients.length}
+			<form method="POST" action={`?${query}&/share`} class="mt-4 grid gap-4" aria-label="Share this report">
+				<input type="hidden" name="from" value={r.params.from} />
+				<input type="hidden" name="to" value={r.params.to} />
+				<input type="hidden" name="department" value={r.params.departmentId ?? ''} />
+				<fieldset>
+					<legend class="text-sm font-medium text-slate-700">What to include</legend>
+					{#each r.sections as s (s.key)}
+						<div class="mt-2">
+							<label class="text-sm font-medium">
+								<input type="checkbox" name="sections" value={s.key} checked />
+								{s.title}
+							</label>
+							<div class="mt-1 ml-6 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700">
+								{#each s.columns as c (c.key)}
+									<label><input type="checkbox" name="columns" value={`${s.key}:${c.key}`} checked /> {c.label}</label>
+								{/each}
+							</div>
+						</div>
 					{/each}
-				</tbody>
-			</table>
-		</section>
-	{/each}
+				</fieldset>
+				{#if people.length}
+					<fieldset>
+						<legend class="text-sm font-medium text-slate-700">
+							Only these employees (leave all unticked for everyone)
+						</legend>
+						<div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700">
+							{#each people as p (p.id)}
+								<label><input type="checkbox" name="employees" value={p.id} /> {p.name}</label>
+							{/each}
+						</div>
+					</fieldset>
+				{/if}
+				<fieldset>
+					<legend class="text-sm font-medium text-slate-700">Share with</legend>
+					<div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700">
+						{#each data.recipients as p (p.membershipId)}
+							<label><input type="checkbox" name="recipients" value={p.membershipId} /> {p.name}</label>
+						{/each}
+					</div>
+				</fieldset>
+				<div><Button type="submit">Share</Button></div>
+			</form>
+		{:else}
+			<p class="mt-3 text-sm text-slate-600">Nobody else can see this report with at least your reach.</p>
+		{/if}
+	</details>
 {/if}

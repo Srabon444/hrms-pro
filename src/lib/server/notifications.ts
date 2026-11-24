@@ -13,7 +13,8 @@ export const NOTIFICATION_CATEGORIES = {
 	performance: 'Performance reviews',
 	helpdesk: 'Helpdesk tickets',
 	policies: 'Policies to read',
-	letters: 'Letters issued to you'
+	letters: 'Letters issued to you',
+	reports: 'Reports shared with you'
 } as const;
 
 export type NotificationCategory = keyof typeof NOTIFICATION_CATEGORIES;

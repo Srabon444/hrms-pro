@@ -1,13 +1,30 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withTestNow } from '../../src/lib/server/clock';
 import { closePools } from '../../src/lib/server/db';
-import { departments, employees, memberships, rolePermissions, roles } from '../../src/lib/server/db/schema';
+import {
+	departments,
+	employees,
+	memberships,
+	reportShares,
+	rolePermissions,
+	roles
+} from '../../src/lib/server/db/schema';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib/server/employees';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
-import { loadAccess, type Access } from '../../src/lib/server/rbac/access';
+import { loadAccess, type Access, type requireMember } from '../../src/lib/server/rbac/access';
 import { reportCsv, reportPdf } from '../../src/lib/server/reports/files';
 import { reportsFor, runReport } from '../../src/lib/server/reports/index';
+import { headcountReport } from '../../src/lib/server/reports/people';
+import {
+	applySpec,
+	openShare,
+	shareList,
+	shareRecipients,
+	shareReport,
+	type ShareInput
+} from '../../src/lib/server/reports/shares';
+import { getObject } from '../../src/lib/server/storage';
 import type { Report } from '../../src/lib/server/reports/types';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
 import { createTenant, createUser } from './helpers';
@@ -16,6 +33,9 @@ let tenant: { id: string; slug: string };
 const ids: Record<string, string> = {};
 const dept: Record<string, string> = {};
 const who: Record<string, Access> = {};
+const mem: Record<string, Member> = {};
+const emails: Record<string, string> = {};
+type Member = ReturnType<typeof requireMember>;
 const sys = () => systemCtx(tenant.id);
 const blanks = Object.fromEntries(Object.keys({ ...PROFILE_FIELDS, ...EMPLOYMENT_FIELDS }).map((k) => [k, '']));
 const creator = {
@@ -44,13 +64,19 @@ async function hire(fullName: string, joinDate: string, departmentId = '', manag
 }
 
 async function member(key: string, roleKeys: string[], employeeId: string | null) {
-	const u = await createUser();
+	const u = await createUser(`${key}-${crypto.randomUUID().slice(0, 8)}@test.local`);
+	emails[key] = u.email;
 	const id = await withTenant(sys(), async (tx) => {
 		const membershipId = await addMember(tx, tenant.id, u.id, roleKeys);
 		await tx.update(memberships).set({ employeeId }).where(eq(memberships.id, membershipId));
 		return membershipId;
 	});
 	who[key] = await loadAccess(tenant.id, { id, status: 'active', employeeId });
+	mem[key] = {
+		user: { userId: u.id },
+		tenant: { id: tenant.id, slug: tenant.slug, name: 'Acme Ltd' },
+		access: who[key]
+	} as unknown as Member;
 }
 
 const run = (key: string, id: string, raw: Record<string, string>) =>
@@ -94,6 +120,21 @@ beforeAll(async () => {
 	await member('hr', ['hr_admin'], null);
 	await member('lead', ['team_reports'], ids.ana);
 	await member('emp', ['employee'], ids.gi);
+	await member('boss', ['hr_admin'], null);
+	await withTenant(sys(), async (tx) => {
+		const [r] = await tx
+			.insert(roles)
+			.values({ tenantId: tenant.id, key: 'dept_reports', name: 'Department reports' })
+			.returning({ id: roles.id });
+		await tx
+			.insert(rolePermissions)
+			.values({ tenantId: tenant.id, roleId: r.id, permission: 'report.headcount', scope: 'department' });
+	});
+	await member('dh', ['dept_reports'], ids.ed);
+	await member('gone', ['hr_admin'], null);
+	await withTenant(sys(), (tx) =>
+		tx.update(memberships).set({ status: 'disabled' }).where(eq(memberships.id, who.gone.membershipId))
+	);
 });
 
 afterAll(closePools);
@@ -162,7 +203,9 @@ describe('headcount report', () => {
 
 	it('exports the same projection as CSV and PDF', async () => {
 		const r = await run('hr', 'headcount', { ...october, department: dept.Engineering });
-		const lines = reportCsv(r).replace(/^﻿/, '').split('\r\n');
+		const lines = reportCsv(r)
+			.replace(/^\uFEFF/, '')
+			.split('\r\n');
 		expect(lines.slice(0, 6)).toEqual([
 			'Headcount and attrition',
 			'2026-10-01 to 2026-10-31 · Engineering',
@@ -174,5 +217,106 @@ describe('headcount report', () => {
 		expect(lines).toContain('Leavers');
 		const pdf = await reportPdf('Acme', r);
 		expect(Buffer.from(pdf).subarray(0, 5).toString()).toBe('%PDF-');
+	});
+});
+
+describe('sharing reports', () => {
+	const at = <T>(iso: string, fn: () => Promise<T>) => withTestNow(iso, fn);
+	const now = '2026-11-24T06:00:00Z';
+	const full = () => run('hr', 'headcount', october);
+	const spec = (f: Partial<Parameters<typeof applySpec>[1]> = {}) => ({
+		sections: ['departments', 'leavers'],
+		columns: ['departments:department', 'departments:end', 'leavers:name', 'leavers:lastDay'],
+		employees: [],
+		...f
+	});
+	const share = (key: string, f: Partial<ShareInput> = {}) =>
+		at(now, () =>
+			shareReport(mem[key], 'headcount', { filters: october, ...spec(), recipients: [who.boss.membershipId], ...f })
+		);
+	const outcome = (p: Promise<unknown>) =>
+		p.then(
+			() => 'ok',
+			(e: { code?: string; message: string; issues?: { message: string }[] }) =>
+				e.issues ? `invalid: ${e.issues[0].message}` : `${e.code}: ${e.message}`
+		);
+
+	it('keeps only the chosen sections, columns and employees', async () => {
+		const r = applySpec(await full(), spec({ employees: [ids.fa] }));
+		expect(r.sections.map((s) => [s.key, s.columns.map((c) => c.key)])).toEqual([
+			['departments', ['department', 'end']],
+			['leavers', ['name', 'lastDay']]
+		]);
+		expect(r.sections[0].rows.at(-1)!.cells).toEqual({ department: 'All departments', end: 4 });
+		expect(r.sections[1].rows).toEqual([{ employeeId: ids.fa, cells: { name: 'Fa', lastDay: '2026-10-31' } }]);
+		expect(applySpec(await full(), spec()).sections[1].rows.map((x) => x.cells.name)).toEqual(['Cy', 'Fa']);
+		const bad = async (f: Partial<Parameters<typeof applySpec>[1]>) =>
+			outcome(full().then((x) => applySpec(x, spec(f))));
+		expect(await bad({ sections: ['salaries'] })).toBe('invalid: Choose sections from the list.');
+		expect(await bad({ columns: ['departments:salary'] })).toBe('invalid: Choose columns from the list.');
+		expect(await bad({ columns: ['departments:end'] })).toBe('invalid: Choose at least one column in Leavers.');
+		expect(await bad({ employees: [ids.di] })).toBe('invalid: Choose employees from the list.');
+	});
+
+	it('offers only people who already see at least what the sharer sees', async () => {
+		const names = async (key: string) =>
+			(await withTenant(sys(), (tx) => shareRecipients(tx, who[key], headcountReport))).map(
+				(r) => r.name.split('-')[0]
+			);
+		expect(await names('hr')).toEqual(['boss']);
+		expect(await names('lead')).toEqual(['boss', 'dh', 'hr']);
+		expect(await names('dh')).toEqual(['boss', 'hr']);
+	});
+
+	it('shares a snapshot, emails it with attachments and lets recipients open it', async () => {
+		expect(await outcome(share('hr', { sections: [] }))).toBe('invalid: Choose at least one section to share.');
+		expect(await outcome(share('hr', { recipients: [] }))).toBe('invalid: Choose at least one person to share with.');
+		expect(await outcome(share('hr', { recipients: [who.lead.membershipId] }))).toBe(
+			'invalid: Choose recipients from the list.'
+		);
+		expect(await outcome(share('emp'))).toBe('not_found: That report does not exist.');
+		const { id, mails } = await share('hr', { recipients: [who.boss.membershipId, who.boss.membershipId] });
+		const [row] = await withTenant(sys(), (tx) => tx.select().from(reportShares).where(eq(reportShares.id, id)));
+		expect([row.recipientMembershipIds, row.expiresOn, row.period, row.spec.filters]).toEqual([
+			[who.boss.membershipId],
+			'2026-12-24',
+			'2026-10-01 to 2026-10-31',
+			{ ...october, department: '' }
+		]);
+		expect(mails.map((m) => [m.to, m.subject, m.attachments!.map((a) => a.filename)])).toEqual([
+			[
+				emails.boss,
+				`${emails.hr} shared Headcount and attrition (2026-10-01 to 2026-10-31)`,
+				['headcount-2026-10-01-2026-10-31.csv', 'headcount-2026-10-01-2026-10-31.pdf']
+			]
+		]);
+		expect(new TextDecoder().decode(await getObject(mails[0].attachments![0].key))).toContain(
+			'Department,After 2026-10-31'
+		);
+
+		const opened = await at(now, () => openShare(mem.boss, id));
+		expect(opened.report).toEqual(applySpec(await full(), spec()));
+		expect((await at(now, () => openShare(mem.hr, id))).share.expiresOn).toBe('2026-12-24');
+		expect(await outcome(at(now, () => openShare(mem.lead, id)))).toBe(
+			'not_found: That shared report does not exist or has expired.'
+		);
+		expect(await outcome(at('2026-12-24T06:00:00Z', () => openShare(mem.boss, id)))).toBe('ok');
+		expect(await outcome(at('2026-12-25T06:00:00Z', () => openShare(mem.boss, id)))).toContain('not_found');
+		expect(await outcome(at(now, () => openShare(mem.boss, 'nope')))).toContain('not_found');
+		const audits = await withTenant(sys(), (tx) =>
+			tx.execute<{ n: number }>(
+				sql`select count(*)::int as n from audit_log where row_id = ${id} and event = 'report_share.open'`
+			)
+		);
+		expect(audits[0].n).toBe(3);
+
+		const list = (key: string) => at(now, () => withTenant(sys(), (tx) => shareList(tx, who[key])));
+		expect((await list('boss')).map((s) => [s.id, s.mine, s.sharer])).toEqual([[id, false, emails.hr]]);
+		expect((await list('hr')).map((s) => [s.id, s.mine])).toEqual([[id, true]]);
+		expect(await list('lead')).toEqual([]);
+		expect(await at('2026-12-25T06:00:00Z', () => withTenant(sys(), (tx) => shareList(tx, who.boss)))).toEqual([]);
+		const revoked = { ...who.boss, grants: {} };
+		expect(await at(now, () => withTenant(sys(), (tx) => shareList(tx, revoked)))).toEqual([]);
+		expect(await outcome(at(now, () => openShare({ ...mem.boss, access: revoked }, id)))).toContain('not_found');
 	});
 });

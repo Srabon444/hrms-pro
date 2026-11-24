@@ -19,3 +19,19 @@
 		</li>
 	{/each}
 </ul>
+
+<section class="mt-8 max-w-3xl" aria-label="Shared reports">
+	<h2 class="font-semibold text-slate-900">Shared reports</h2>
+	<ul class="mt-2 divide-y divide-slate-200 text-sm">
+		{#each data.shares as s (s.id)}
+			<li class="flex justify-between gap-3 py-2" data-testid="shared-report">
+				<a class="text-indigo-700 underline" href={`/t/${data.tenant.slug}/reports/shared/${s.id}`}>
+					{s.title} · {s.period}
+				</a>
+				<span class="text-slate-500">{s.mine ? 'Shared by you' : `From ${s.sharer}`} · until {s.expiresOn}</span>
+			</li>
+		{:else}
+			<li class="py-2 text-slate-500">Nothing shared yet.</li>
+		{/each}
+	</ul>
+</section>
