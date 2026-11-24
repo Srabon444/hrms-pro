@@ -1,9 +1,10 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gt, lt } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pendingApprovals } from '../../src/lib/server/approvals';
 import { addFiles, listFiles, openFile, removeFile } from '../../src/lib/server/attachments';
 import { closePools } from '../../src/lib/server/db';
 import {
+	attendanceDays,
 	departments,
 	employees,
 	holidays,
@@ -496,6 +497,21 @@ describe('leave requests', () => {
 		).toBe(2);
 		const [after] = await withTenant(sys(), (tx) => tx.select().from(leaveRequests).where(eq(leaveRequests.id, r.id)));
 		expect([after.days, after.status]).toEqual([0, 'cancelled']);
+	});
+
+	it('recomputes attendance only on the imported holiday dates, not every day between them', async () => {
+		const first = work(addDays(today, -60));
+		const last = work(addDays(today, -20));
+		const inBetween = and(gt(attendanceDays.date, first), lt(attendanceDays.date, last));
+		await withTenant(sys(), (tx) => tx.delete(attendanceDays).where(inBetween));
+		expect(
+			await importHolidays(sys(), [
+				['date', 'name'],
+				[first, 'Spring day'],
+				[last, 'Autumn day']
+			])
+		).toBe(2);
+		expect(await withTenant(sys(), (tx) => tx.select().from(attendanceDays).where(inBetween))).toEqual([]);
 	});
 
 	it('lets only one of two racing requests for the same days through', async () => {

@@ -200,9 +200,9 @@ export async function importHolidays(ctx: TenantCtx, table: string[][]): Promise
 		}
 		if (errors.length) throw new ImportFailed(errors.slice(0, 50));
 		await tx.insert(holidays).values(list.map((h) => ({ tenantId: ctx.tenantId, ...h })));
-		const dates = list.map((h) => h.date).sort();
+		const dates = list.map((h) => h.date);
 		await dropHolidaysFromLeave(tx, dates);
-		await recomputeAttendance(tx, ctx.tenantId, dates[0], dates[dates.length - 1]);
+		for (const date of dates) await recomputeAttendance(tx, ctx.tenantId, date, date);
 		return list.length;
 	});
 }
