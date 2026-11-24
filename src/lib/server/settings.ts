@@ -7,7 +7,7 @@ import { AppError } from './errors';
 import { advisoryLock, LOCK } from './locks';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
 
-export const TIMEZONES = Intl.supportedValuesOf('timeZone');
+export const TIMEZONES = ['UTC', ...Intl.supportedValuesOf('timeZone')];
 const ZONES = new Set(TIMEZONES);
 export const timeZoneSchema = z.string().refine((tz) => ZONES.has(tz), 'Pick a valid time zone.');
 const checkbox = z.preprocess((v) => v === 'on' || v === true, z.boolean());

@@ -16,6 +16,7 @@ export type DayInput = {
 	shift: ShiftRule;
 	timeZone: string;
 	punches: Date[];
+	until?: Date;
 	weekend: boolean;
 	holiday: boolean;
 	leave: 'full' | 'am' | 'pm' | null;
@@ -62,7 +63,7 @@ export function computeDay(input: DayInput): DayResult | null {
 	const { start, end, from, to } = shiftWindow(input.shift);
 	const marks = input.punches
 		.map((at) => ({ at, m: localMinutes(at, input.date, input.timeZone) }))
-		.filter((p) => p.m >= from && p.m < to)
+		.filter((p) => p.m >= from && (input.until ? p.at < input.until : p.m < to))
 		.sort((a, b) => a.m - b.m);
 	const first = marks[0];
 	const last = marks.length > 1 ? marks[marks.length - 1] : undefined;

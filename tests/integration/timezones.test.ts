@@ -73,6 +73,7 @@ beforeAll(async () => {
 	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
 	ids.home = await addOrgItem(ctx(), 'branch', { name: 'Dhaka HQ' });
 	ids.gulf = await addOrgItem(ctx(), 'branch', { name: 'Dubai', timezone: 'Asia/Dubai' });
+	ids.york = await addOrgItem(ctx(), 'branch', { name: 'New York', timezone: 'America/New_York' });
 	ids.dhaka = await hire('Dhaka Person', ids.home);
 	ids.dubai = await hire('Dubai Person', ids.gulf);
 	ids.hr = await hire('HR', ids.home);
@@ -87,6 +88,7 @@ describe('branch time zones', () => {
 	it('accepts only real IANA zone names for a branch', async () => {
 		expect(await code(addOrgItem(ctx(), 'branch', { name: 'Bad', timezone: '+06:00' }))).toBe('invalid');
 		expect(await code(addOrgItem(ctx(), 'branch', { name: 'Bad', timezone: 'asia/dubai' }))).toBe('invalid');
+		expect(await code(addOrgItem(ctx(), 'branch', { name: 'Ship', timezone: 'UTC' }))).toBe('ok');
 		const id = await addOrgItem(ctx(), 'branch', { name: 'London', timezone: 'Europe/London' });
 		await updateOrgItem(ctx(), 'branch', id, { name: 'London', timezone: '' });
 		const [b] = await withTenant(sys(), (tx) => tx.select().from(branches).where(eq(branches.id, id)));
@@ -131,14 +133,43 @@ describe('branch time zones', () => {
 			withTenant(sys(), (tx) => recomputeAttendance(tx, tenant.id, '2026-11-22', '2026-11-24', [ids.dubai]))
 		);
 		const after = await rows(ids.dubai);
-		expect(after['2026-11-22']).toEqual({
-			zone: 'Asia/Dubai',
-			firstIn: '2026-11-22T05:00:00.000Z',
-			status: 'present'
-		});
-		expect(after['2026-11-23']).toEqual({ zone: 'Asia/Dhaka', firstIn: null, status: 'absent' });
+		expect(after['2026-11-22']).toMatchObject({ zone: 'Asia/Dubai', firstIn: '2026-11-22T05:00:00.000Z' });
+		expect(after['2026-11-23']).toMatchObject({ zone: 'Asia/Dhaka', firstIn: '2026-11-23T00:30:00.000Z' });
 		expect(after['2026-11-24']).toMatchObject({ zone: 'Asia/Dhaka' });
 		await updateOrgItem(ctx(), 'branch', ids.gulf, { name: 'Dubai', timezone: 'Asia/Dubai' });
+	});
+
+	it('moves a person west without losing the punch that falls between the two zones', async () => {
+		const id = await hire('Westward', ids.home);
+		await withTestNow('2026-11-23T12:00:00Z', () =>
+			withTenant(sys(), (tx) => recomputeAttendance(tx, tenant.id, '2026-11-22', '2026-11-23', [id]))
+		);
+		await withTenant(sys(), (tx) => tx.update(employees).set({ branchId: ids.york }).where(eq(employees.id, id)));
+		await withTestNow('2026-11-24T20:00:00Z', async () =>
+			importPunches(who.hr, [
+				['employee_code', 'timestamp'],
+				[await codeOf(id), '2026-11-24T02:00:00+00:00']
+			])
+		);
+		const seen = Object.values(await rows(id)).filter((d) => d.firstIn === '2026-11-24T02:00:00.000Z');
+		expect(seen).toHaveLength(1);
+	});
+
+	it('gives an on-time punch after a move east to the new day, not the old one', async () => {
+		const id = await hire('Eastward', ids.york);
+		await withTestNow('2026-11-24T01:00:00Z', () =>
+			withTenant(sys(), (tx) => recomputeAttendance(tx, tenant.id, '2026-11-22', '2026-11-23', [id]))
+		);
+		await withTenant(sys(), (tx) => tx.update(employees).set({ branchId: ids.home }).where(eq(employees.id, id)));
+		await withTestNow('2026-11-24T15:00:00Z', async () =>
+			importPunches(who.hr, [
+				['employee_code', 'timestamp'],
+				[await codeOf(id), '2026-11-24T02:00:00+00:00']
+			])
+		);
+		const after = await rows(id);
+		expect(after['2026-11-23']).toMatchObject({ zone: 'America/New_York', firstIn: null });
+		expect(after['2026-11-24']).toMatchObject({ zone: 'Asia/Dhaka', firstIn: '2026-11-24T02:00:00.000Z' });
 	});
 
 	it('puts the same instant on different days for people in different zones', async () => {

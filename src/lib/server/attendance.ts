@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { computeDay, localMinutes, shiftDayOf, shiftWindow, zonedInstant, type DayResult } from './attendance-day';
+import { computeDay, shiftDayOf, shiftWindow, zonedInstant, type DayResult } from './attendance-day';
 import { now } from './clock';
 import { addDays, dateIn } from './dates';
 import { authPool } from './db';
@@ -91,8 +91,8 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 				.where(
 					and(
 						inArray(attendanceDays.employeeId, ids),
-						gte(attendanceDays.date, addDays(from, -1)),
-						lte(attendanceDays.date, last)
+						gte(attendanceDays.date, from),
+						lte(attendanceDays.date, addDays(last, 1))
 					)
 				)
 		).map((d) => [`${d.employeeId}:${d.date}`, d.zone])
@@ -171,12 +171,12 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 		for (const date of dates(from, p.last)) {
 			const shift = shiftFor(date);
 			const timeZone = zoneFor(date);
-			const before = addDays(date, -1);
-			const prior = shiftFor(before);
-			const taken =
-				prior && zoneFor(before) !== timeZone
-					? own.filter((x) => localMinutes(x, before, zoneFor(before)) >= shiftWindow(prior).to)
-					: own;
+			const next = addDays(date, 1);
+			const nextShift = shiftFor(next);
+			const until =
+				nextShift && zoneFor(next) !== timeZone
+					? new Date(zonedInstant(`${next}T00:00`, zoneFor(next)).getTime() + shiftWindow(nextShift).from * 60_000)
+					: undefined;
 			const employed = date >= p.joinDate && (!p.exitDate || date <= p.exitDate);
 			const day: DayResult | null =
 				employed && shift
@@ -184,7 +184,8 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 							date,
 							shift,
 							timeZone,
-							punches: taken,
+							punches: own,
+							until,
 							weekend: weekendDays.includes(new Date(`${date}T00:00:00Z`).getUTCDay()),
 							holiday: off.has(date),
 							leave: leave.get(`${p.id}:${date}`) ?? null,
