@@ -259,6 +259,17 @@ describe('deciding and paying', () => {
 		expect(await code(payClaim(who.fin, { claimId: id }))).toBe('not_payable');
 	});
 
+	it('never lets the payer mark their own claim paid', async () => {
+		const own = await claim('fin', item(0, cat.Meals, '90'));
+		await withTenant(sys(), (tx) =>
+			tx.update(expenseClaims).set({ status: 'approved', payVia: 'direct' }).where(eq(expenseClaims.id, own))
+		);
+		expect(await code(payClaim(who.fin, { claimId: own }))).toBe('own_claim');
+		const board = await withTenant(sys(), (tx) => expenseBoard(tx, who.fin));
+		expect(board.toPay.map((c) => c.id)).not.toContain(own);
+		expect(await claimOf(own)).toMatchObject({ status: 'approved', paidByUserId: null });
+	});
+
 	it('lets only the claimant cancel, and only while waiting', async () => {
 		const id = await claim('ana', item(0, cat.Meals, '90'));
 		expect(await code(cancelClaim(who.ben, { claimId: id }))).toBe('not_found');

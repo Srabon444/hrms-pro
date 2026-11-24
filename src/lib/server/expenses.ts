@@ -251,6 +251,8 @@ export async function payClaim(m: Member, form: Record<string, string>) {
 		if (!c || !inScope(await resolveScope(tx, m.access, 'expense.pay'), c.employeeId)) throw notFound();
 		if (c.status !== 'approved' || c.payVia !== 'direct')
 			throw new AppError('not_payable', 'Only approved claims paid directly can be marked paid here.', 409);
+		if (c.employeeId === m.access.employeeId && !(await singleAdmin(tx)))
+			throw new AppError('own_claim', 'Someone else must pay your own claim.', 403);
 		await tx
 			.update(expenseClaims)
 			.set({ status: 'paid', paidAt: new Date(), paidByUserId: m.user.userId })
@@ -322,7 +324,8 @@ export async function expenseBoard(tx: Tx, m: Member) {
 			and(
 				eq(expenseClaims.status, 'approved'),
 				eq(expenseClaims.payVia, 'direct'),
-				scopeWhere(payScope, expenseClaims.employeeId)
+				scopeWhere(payScope, expenseClaims.employeeId),
+				me && !lone ? ne(expenseClaims.employeeId, me) : sql`true`
 			)
 		)
 		.orderBy(asc(expenseClaims.createdAt))
