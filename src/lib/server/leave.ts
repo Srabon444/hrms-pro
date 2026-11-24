@@ -284,6 +284,7 @@ export async function importLeaveBalances(m: Member, table: string[][]): Promise
 		const seen = new Set<string>();
 		const errors: ImportRowError[] = [];
 		const list: LedgerRow[] = [];
+		let changed = 0;
 		for (const { line, v } of rows) {
 			const parsed = openingSchema.safeParse(v);
 			const e = people.get(v.employee_code);
@@ -302,20 +303,26 @@ export async function importLeaveBalances(m: Member, table: string[][]): Promise
 								: null));
 			seen.add(key);
 			if (message) errors.push({ line, message });
-			else if (parsed.data!.balance !== was)
-				list.push({
-					tenantId: m.tenant.id,
-					employeeId: e!.id,
-					leaveTypeId: t!.id,
-					fiscalYear: fy,
-					kind: 'adjustment',
-					days: Math.round((parsed.data!.balance - was) * 100) / 100,
-					note: parsed.data!.note,
-					createdByUserId: m.user.userId
-				});
+			else if (parsed.data!.balance !== was) {
+				changed += 1;
+				for (let left = Math.round((parsed.data!.balance - was) * 100) / 100; left;) {
+					const days = Math.sign(left) * Math.min(Math.abs(left), 366);
+					left = Math.round((left - days) * 100) / 100;
+					list.push({
+						tenantId: m.tenant.id,
+						employeeId: e!.id,
+						leaveTypeId: t!.id,
+						fiscalYear: fy,
+						kind: 'adjustment',
+						days,
+						note: parsed.data!.note,
+						createdByUserId: m.user.userId
+					});
+				}
+			}
 		}
 		if (errors.length) throw new ImportFailed(errors.slice(0, 50));
-		if (list.length) await tx.insert(leaveLedger).values(list);
-		return list.length;
+		await insertLedger(tx, list);
+		return changed;
 	});
 }

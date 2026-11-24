@@ -250,6 +250,20 @@ describe('leave ledger', () => {
 		expect((await balances(ids.stranger))['Sick leave']).not.toBe(3);
 	});
 
+	it('sets a balance that moves more than a year of days at once', async () => {
+		const [vet] = await withTenant(sys(), (tx) => tx.select().from(employees).where(eq(employees.id, ids.vet)));
+		const sick = (await typeId('sick')).id;
+		const file = (balance: string) => [
+			['employee_code', 'leave_type_code', 'balance', 'note'],
+			[vet.code, 'sick', balance, 'Opening balance']
+		];
+		await importLeaveBalances(who.hr, file('366'));
+		await adjustLeave(who.hr, ids.vet, { leaveTypeId: sick, days: '366', note: 'Carried from the old system' });
+		expect((await balances(ids.vet))['Sick leave']).toBe(732);
+		expect(await importLeaveBalances(who.hr, file('0'))).toBe(1);
+		expect((await balances(ids.vet))['Sick leave']).toBe(0);
+	});
+
 	it('runs the accrual job for every tenant', async () => {
 		const outsider = await hire('Ou Outsider', {}, other);
 		const credited = () =>
