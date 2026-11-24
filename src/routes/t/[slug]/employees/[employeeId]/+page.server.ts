@@ -222,6 +222,7 @@ export const actions: Actions = {
 		const m = requirePerm(locals, 'document.manage');
 		const form = await request.formData();
 		const file = form.get('file');
+		const docFrom = field(form, 'from');
 		try {
 			await uploadDocument(
 				userCtx(m),
@@ -231,11 +232,11 @@ export const actions: Actions = {
 				file instanceof File ? file : null
 			);
 		} catch (err) {
-			if (err instanceof z.ZodError) return fail(400, { docMessage: err.issues[0].message });
+			if (err instanceof z.ZodError) return fail(400, { docMessage: err.issues[0].message, docFrom });
 			const failed = actionError(err, locals.requestId);
-			return fail(failed.status, { docMessage: failed.data.message });
+			return fail(failed.status, { docMessage: failed.data.message, docFrom });
 		}
-		return { uploaded: true };
+		return { uploaded: true, docFrom };
 	},
 	removeDocument: async ({ request, locals, params }) => {
 		const m = requirePerm(locals, 'document.manage');

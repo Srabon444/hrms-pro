@@ -27,6 +27,17 @@ test('HR records an exit, the leaver keeps only their own records, and HR rehire
 	await exit.getByRole('button', { name: 'Record exit' }).click();
 	await expect(page.getByRole('status')).toHaveText('Exit recorded.');
 	await expect(exit.getByTestId('exit-pending')).toContainText(inDays(10));
+	await page.waitForSelector('html[data-hydrated]');
+	await exit.getByLabel('Letter title').fill('Show-cause notice');
+	await exit
+		.getByLabel('Letter file')
+		.setInputFiles({ name: 'notice.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 notice') });
+	await exit.getByRole('button', { name: 'Upload letter' }).click();
+	await expect(exit.getByRole('status')).toHaveText('Letter uploaded.');
+	await expect(exit.getByTestId('exit-letter')).toHaveText('Show-cause notice');
+	await expect(page.getByRole('region', { name: 'Documents' }).getByTestId('document')).toContainText(
+		'Show-cause notice'
+	);
 	await page.getByRole('link', { name: 'Lifecycle' }).click();
 	await expect(page.getByRole('region', { name: 'Upcoming exits' }).getByTestId('exit-row')).toHaveCount(1);
 	await page.goto(profile);

@@ -12,6 +12,7 @@
 	const values = $derived(form && 'values' in form ? form.values : { ...e, ...(data.sensitive ?? {}) });
 	const lists = $derived(data.lists);
 	const profileMessage = $derived(form && 'profileMessage' in form ? (form.profileMessage as string) : null);
+	const docFrom = $derived(form && 'docFrom' in form ? form.docFrom : '');
 	const listSections = $derived([
 		{
 			kind: 'contact',
@@ -286,6 +287,57 @@
 				<div class="sm:col-span-2"><Button type="submit" variant="danger">Record exit</Button></div>
 			</form>
 		{/if}
+		{#if data.documents?.canManage}
+			<h3 class="mt-6 text-sm font-semibold text-slate-900">Exit letters</h3>
+			<p class="mt-1 text-xs text-slate-500">
+				Termination letters, show-cause notices and clearance papers. They are kept with the documents.
+			</p>
+			{#if docFrom === 'exit'}
+				<div class="mt-2 space-y-2">
+					<Alert message={form && 'docMessage' in form ? form.docMessage : null} />
+					{#if form && 'uploaded' in form}<Alert tone="info" message="Letter uploaded." />{/if}
+				</div>
+			{/if}
+			<ul class="mt-2 divide-y divide-slate-100 text-sm">
+				{#each data.documents.rows.filter((d) => d.category === 'letter') as d (d.id)}
+					<li class="py-2" data-testid="exit-letter">
+						<a href="/t/{data.tenant.slug}/employees/{e.id}/documents/{d.id}" class="text-brand-700 hover:underline">
+							{d.title}
+						</a>
+					</li>
+				{:else}
+					<li class="py-2 text-slate-500">No letters yet.</li>
+				{/each}
+			</ul>
+			<form
+				method="POST"
+				action="?/upload"
+				enctype="multipart/form-data"
+				class="mt-3 grid gap-3 sm:grid-cols-2"
+				aria-label="Upload exit letter"
+			>
+				<input type="hidden" name="from" value="exit" />
+				<input type="hidden" name="category" value="letter" />
+				<input type="hidden" name="expiresOn" value="" />
+				<input
+					name="title"
+					aria-label="Letter title"
+					placeholder="e.g. Termination letter"
+					required
+					maxlength={160}
+					class={field}
+				/>
+				<input
+					name="file"
+					type="file"
+					aria-label="Letter file"
+					required
+					accept=".pdf,.png,.jpg,.jpeg,.webp,.docx"
+					class="text-sm"
+				/>
+				<div class="sm:col-span-2"><Button type="submit" variant="secondary">Upload letter</Button></div>
+			</form>
+		{/if}
 	</section>
 {/if}
 
@@ -500,8 +552,10 @@
 	<section class="mt-6 max-w-3xl panel" aria-label="Documents">
 		<h2 class="section-title">Documents</h2>
 		<div class="mt-3 space-y-2">
-			<Alert message={form && 'docMessage' in form ? form.docMessage : null} />
-			{#if form && 'uploaded' in form}<Alert tone="info" message="Document uploaded." />{/if}
+			{#if docFrom !== 'exit'}
+				<Alert message={form && 'docMessage' in form ? form.docMessage : null} />
+				{#if form && 'uploaded' in form}<Alert tone="info" message="Document uploaded." />{/if}
+			{/if}
 		</div>
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each data.documents.rows as d (d.id)}
