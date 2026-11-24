@@ -3,7 +3,6 @@ import { E2E_URL, e2eEnv } from './tests/e2e/env';
 
 export default defineConfig({
 	testDir: 'tests/e2e',
-	globalSetup: './tests/e2e/global-setup.ts',
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 1 : 0,
@@ -19,7 +18,7 @@ export default defineConfig({
 			env: { ...(process.env as Record<string, string>), ...e2eEnv }
 		},
 		{
-			command: 'node --import tsx src/worker.ts',
+			command: 'node --import tsx tests/e2e/prepare-db.ts && node --import tsx src/worker.ts',
 			wait: { stdout: /worker ready/ },
 			reuseExistingServer: !process.env.CI,
 			timeout: 60_000,
