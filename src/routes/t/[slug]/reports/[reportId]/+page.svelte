@@ -24,6 +24,27 @@
 			: ''
 	);
 	const field = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm';
+	let copied = $state('');
+
+	async function copy() {
+		if (!r) return;
+		const line = (cells: unknown[]) => cells.map((c) => String(c ?? '')).join('\t');
+		const text = [
+			`${r.title} (${r.params.from} to ${r.params.to})`,
+			...r.sections.flatMap((s) => [
+				'',
+				s.title,
+				line(s.columns.map((c) => c.label)),
+				...s.rows.map((row) => line(s.columns.map((c) => row.cells[c.key])))
+			])
+		].join('\n');
+		try {
+			await navigator.clipboard.writeText(text);
+			copied = 'Copied to the clipboard.';
+		} catch {
+			copied = 'Copying is blocked in this browser. Download the CSV instead.';
+		}
+	}
 </script>
 
 <svelte:head><title>{r?.title ?? 'Report'} · {data.tenant.name}</title></svelte:head>
@@ -62,6 +83,8 @@
 		<a class="text-indigo-700 underline" href={`/t/${data.tenant.slug}/reports/${r.id}/export?format=pdf&${query}`}>
 			Download PDF
 		</a>
+		<button type="button" class="text-indigo-700 underline" onclick={copy}>Copy as text</button>
+		<span role="status" class="text-slate-500">{copied}</span>
 	</div>
 	<ReportTables sections={r.sections} />
 

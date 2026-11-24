@@ -2,13 +2,14 @@ import { asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { departments } from '../db/schema';
 import { AppError } from '../errors';
-import { tenantToday } from '../lifecycle';
+import { tenantToday, tenantWeeks } from '../lifecycle';
 import { can, userCtx, type Access, type requireMember } from '../rbac/access';
 import { resolveScope } from '../rbac/scope';
 import type { Tx } from '../tenancy';
 import { expenseReport, mealReport, payrollCostReport } from './money';
 import { headcountReport, recruitmentReport } from './people';
 import { attendanceReport, leaveReport, utilisationReport } from './time';
+import { weeklyReport } from './weekly';
 import type { Report, ReportDef, ReportParams } from './types';
 
 export const REPORTS: ReportDef[] = [
@@ -19,7 +20,8 @@ export const REPORTS: ReportDef[] = [
 	mealReport,
 	expenseReport,
 	recruitmentReport,
-	utilisationReport
+	utilisationReport,
+	weeklyReport
 ];
 
 export const MAX_REPORT_DAYS = 366;
@@ -47,10 +49,10 @@ const paramsSchema = z.object({
 
 const spanDays = (from: string, to: string) => (Date.parse(to) - Date.parse(from)) / 86_400_000 + 1;
 
-export async function reportParams(tx: Tx, raw: Record<string, string>): Promise<ReportParams> {
+export async function reportParams(tx: Tx, raw: Record<string, string>, period?: 'week'): Promise<ReportParams> {
 	const p = paramsSchema.parse(raw);
 	const to = p.to ?? (await tenantToday(tx));
-	const from = p.from ?? `${to.slice(0, 8)}01`;
+	const from = p.from ?? (period === 'week' ? (await tenantWeeks(tx)).of(to) : `${to.slice(0, 8)}01`);
 	if (from > to) throw new AppError('bad_range', 'The start date must be on or before the end date.', 400);
 	if (spanDays(from, to) > MAX_REPORT_DAYS)
 		throw new AppError('bad_range', `Choose a period of at most ${MAX_REPORT_DAYS} days.`, 400);
@@ -62,7 +64,7 @@ export async function reportParams(tx: Tx, raw: Record<string, string>): Promise
 
 export async function runReport(tx: Tx, access: Access, id: string, raw: Record<string, string>): Promise<Report> {
 	const def = reportDef(access, id);
-	const params = await reportParams(tx, raw);
+	const params = await reportParams(tx, raw, def.defaultPeriod);
 	const scope = await resolveScope(tx, access, def.permission);
 	return { id: def.id, title: def.title, params, sections: await def.build(tx, { scope, params, access }) };
 }

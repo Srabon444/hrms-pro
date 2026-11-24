@@ -14,5 +14,6 @@ export type ReportDef = {
 	title: string;
 	permission: Permission;
 	sensitive?: true;
+	defaultPeriod?: 'week';
 	build: (tx: Tx, input: { scope: ScopeSet; params: ReportParams; access: Access }) => Promise<Section[]>;
 };

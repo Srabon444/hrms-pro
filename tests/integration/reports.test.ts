@@ -20,8 +20,11 @@ import {
 	pipelineStages,
 	projects,
 	shifts,
+	ticketCategories,
+	tickets,
 	timesheetEntries,
 	timesheets,
+	workPlanItems,
 	leaveRequestDays,
 	leaveRequests,
 	leaveTypes,
@@ -229,7 +232,8 @@ describe('headcount report', () => {
 			{ id: 'leave', title: 'Leave taken' },
 			{ id: 'expense', title: 'Expenses' },
 			{ id: 'recruitment', title: 'Recruitment funnel' },
-			{ id: 'utilisation', title: 'Utilisation' }
+			{ id: 'utilisation', title: 'Utilisation' },
+			{ id: 'weekly', title: 'Weekly management report' }
 		]);
 	});
 
@@ -1028,5 +1032,164 @@ describe('meal, expense, recruitment and utilisation reports', () => {
 		expect(table(empty, 'departments')).toEqual([
 			{ department: 'All departments', capacity: 0, logged: 0, billable: 0, utilisation: null }
 		]);
+	});
+});
+
+describe('weekly management report', () => {
+	beforeAll(async () => {
+		await withTenant(sys(), async (tx) => {
+			const [general] = await tx.select().from(shifts).where(eq(shifts.isDefault, true));
+			const day = { tenantId: tenant.id, employeeId: ids.ana, status: 'present', shiftId: general.id };
+			await tx.insert(attendanceDays).values([
+				{ ...day, date: '2026-11-24', workedMinutes: 100 },
+				{ ...day, date: '2026-11-03', workedMinutes: 300 }
+			]);
+			const category = async (name: string, confidential: boolean) =>
+				(
+					await tx
+						.insert(ticketCategories)
+						.values({ tenantId: tenant.id, name, confidential, slaHours: 24 })
+						.returning({ id: ticketCategories.id })
+				)[0].id;
+			const open = await category('Report facilities', false);
+			const secret = await category('Report grievance', true);
+			const ticket = (
+				number: number,
+				requesterEmployeeId: string,
+				categoryId: string,
+				status: string,
+				createdAt: string,
+				assigneeMembershipId: string | null = null
+			) => ({
+				tenantId: tenant.id,
+				number,
+				categoryId,
+				requesterEmployeeId,
+				subject: `Issue ${number}`,
+				description: 'Details',
+				status,
+				resolvedAt: ['resolved', 'closed'].includes(status) ? new Date(createdAt) : null,
+				assigneeMembershipId,
+				slaDueAt: new Date(createdAt),
+				createdAt: new Date(createdAt)
+			});
+			await tx
+				.insert(tickets)
+				.values([
+					ticket(1, ids.ana, open, 'open', '2026-09-20T04:00:00Z'),
+					ticket(2, ids.bo, open, 'resolved', '2026-10-05T04:00:00Z', who.hr.membershipId),
+					ticket(3, ids.ab, open, 'closed', '2026-09-10T04:00:00Z'),
+					ticket(4, ids.ana, open, 'open', '2026-11-02T04:00:00Z'),
+					ticket(5, ids.gi, secret, 'open', '2026-10-03T04:00:00Z'),
+					ticket(6, ids.ab, open, 'open', '2026-10-31T19:00:00Z'),
+					ticket(7, ids.ana, open, 'open', '2026-10-31T10:00:00Z'),
+					ticket(8, ids.bo, open, 'closed', '2026-09-30T20:00:00Z')
+				]);
+			const item = (employeeId: string, weekStart: string, description: string, status: string) => ({
+				tenantId: tenant.id,
+				employeeId,
+				weekStart,
+				description,
+				target: '1',
+				status
+			});
+			await tx
+				.insert(workPlanItems)
+				.values([
+					item(ids.ana, '2026-09-20', 'Old item', 'done'),
+					item(ids.ana, '2026-09-27', 'Ship login', 'done'),
+					item(ids.bo, '2026-11-01', 'Plan sprint', 'pending'),
+					item(ids.ab, '2026-11-08', 'Later item', 'pending')
+				]);
+		});
+	});
+
+	it('brings attendance, short days, recruitment, hires, issues and the work plan into one report', async () => {
+		const r = await run('hr', 'weekly', october);
+		expect(r.sections.map((s) => s.key)).toEqual([
+			'attendance',
+			'short_hours',
+			'recruitment',
+			'new_hires',
+			'issues',
+			'plan'
+		]);
+		expect(table(r, 'attendance').at(-1)).toMatchObject({ department: 'All departments', present: 1, late: 3 });
+		expect(table(r, 'short_hours').map((c) => [c.name, c.date, c.worked, c.required])).toEqual([
+			['Ana', '2026-10-02', 7.8, 8],
+			['Ab', '2026-10-15', 7.5, 8],
+			['Ab', '2026-10-16', 7, 8]
+		]);
+		expect(table(r, 'recruitment').at(-1)).toMatchObject({ opening: 'All openings', applied: 4, hired: 1 });
+		expect(table(r, 'new_hires').map((c) => [c.name, c.joins])).toEqual([
+			['Gi', '2026-10-01'],
+			['Bo', '2026-10-10'],
+			['Ab', '2026-10-15'],
+			['Ed', '2026-11-05']
+		]);
+		expect(table(r, 'issues')).toEqual([
+			{
+				number: '#1',
+				subject: 'Issue 1',
+				category: 'Report facilities',
+				requester: 'Ana',
+				priority: 'normal',
+				status: 'open',
+				assignee: null
+			},
+			{
+				number: '#2',
+				subject: 'Issue 2',
+				category: 'Report facilities',
+				requester: 'Bo',
+				priority: 'normal',
+				status: 'resolved',
+				assignee: emails.hr
+			},
+			{
+				number: '#7',
+				subject: 'Issue 7',
+				category: 'Report facilities',
+				requester: 'Ana',
+				priority: 'normal',
+				status: 'open',
+				assignee: null
+			},
+			{
+				number: '#8',
+				subject: 'Issue 8',
+				category: 'Report facilities',
+				requester: 'Bo',
+				priority: 'normal',
+				status: 'closed',
+				assignee: null
+			}
+		]);
+		expect(table(r, 'plan').map((c) => [c.week, c.name, c.item, c.status])).toEqual([
+			['2026-09-27', 'Ana', 'Ship login', 'done'],
+			['2026-11-01', 'Bo', 'Plan sprint', 'pending']
+		]);
+		expect(await fails('lead', 'weekly', october)).toBe('not_found');
+		await grant('team_reports', 'report.weekly', 'team');
+		const team = await run('lead', 'weekly', october);
+		expect(table(team, 'issues').map((c) => c.number)).toEqual(['#1', '#2', '#7', '#8']);
+		expect(table(team, 'new_hires').map((c) => c.name)).toEqual(['Bo']);
+		expect(team.sections.map((s) => s.key)).not.toContain('recruitment');
+		expect(await fails('emp', 'weekly', october)).toBe('not_found');
+		await grant('team_reports', 'report.recruitment', 'all');
+		expect(table(await run('lead', 'weekly', october), 'recruitment')).toEqual(table(r, 'recruitment'));
+		const ops = await run('hr', 'weekly', { ...october, department: dept.Operations });
+		expect(table(ops, 'short_hours').map((c) => c.name)).toEqual(['Ab', 'Ab']);
+		expect(table(ops, 'new_hires').map((c) => c.name)).toEqual(['Ab']);
+		expect(table(await run('hr', 'weekly', { from: '2026-11-01', to: '2026-11-02' }), 'short_hours')).toEqual([]);
+	});
+
+	it('defaults to the current week and leaves today out of short days', async () => {
+		const r = await run('hr', 'weekly', {});
+		expect([r.params.from, r.params.to]).toEqual(['2026-11-22', '2026-11-24']);
+		expect(table(r, 'short_hours')).toEqual([]);
+		expect(table(r, 'attendance').at(-1)).toMatchObject({ present: 1 });
+		const month = await run('hr', 'attendance', {});
+		expect(month.params.from).toBe('2026-11-01');
 	});
 });

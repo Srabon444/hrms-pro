@@ -19,7 +19,8 @@ export const NAV: NavItem[] = [
 			'report.meal',
 			'report.expense',
 			'report.recruitment',
-			'report.utilisation'
+			'report.utilisation',
+			'report.weekly'
 		]
 	},
 	{ href: 'approvals', label: 'Approvals' },

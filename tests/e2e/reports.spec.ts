@@ -85,3 +85,31 @@ test('HR filters, downloads and shares part of the headcount report; employees c
 	expect((await ela.request.get(shared)).status()).toBe(404);
 	await ctx.close();
 });
+
+test('HR opens the weekly management report for the current week and copies it as text', async ({ page, context }) => {
+	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	const f = await fixture(page.request, { tenant: {}, users: [{ key: 'hr', roles: ['hr_admin'] }] });
+	await signIn(page, f.users.hr.email);
+	await expect(page).toHaveURL(/\/t\//);
+	await page.goto(`/t/${f.tenant!.slug}/reports`);
+	await page.getByRole('link', { name: 'Weekly management report' }).click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Weekly management report');
+	for (const name of [
+		'Attendance',
+		'Days short of full hours',
+		'Recruitment',
+		'New and upcoming hires',
+		'Helpdesk issues',
+		'Work plan'
+	])
+		await expect(page.getByRole('region', { name })).toBeVisible();
+	const filters = page.getByRole('form', { name: 'Filters' });
+	const from = await filters.getByLabel('From').inputValue();
+	const to = await filters.getByLabel('To').inputValue();
+	expect(new Date(to).getTime() - new Date(from).getTime()).toBeLessThan(7 * 86_400_000);
+	await page.getByRole('button', { name: 'Copy as text' }).click();
+	await expect(page.getByRole('status')).toHaveText('Copied to the clipboard.');
+	const text = await page.evaluate(() => navigator.clipboard.readText());
+	expect(text.split('\n')[0]).toBe(`Weekly management report (${from} to ${to})`);
+	expect(text).toContain('Helpdesk issues\nTicket\tSubject\tCategory\tRequester\tPriority\tStatus\tAssignee');
+});
