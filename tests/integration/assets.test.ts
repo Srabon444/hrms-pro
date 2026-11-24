@@ -1,6 +1,14 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { assetCharges, assetList, assetView, assignAsset, returnAsset, saveAsset } from '../../src/lib/server/assets';
+import {
+	assetCharges,
+	assetList,
+	assetView,
+	assignAsset,
+	importAssets,
+	returnAsset,
+	saveAsset
+} from '../../src/lib/server/assets';
 import { withTestNow } from '../../src/lib/server/clock';
 import { closePools } from '../../src/lib/server/db';
 import { employees, memberships } from '../../src/lib/server/db/schema';
@@ -190,5 +198,50 @@ describe('offboarding', () => {
 		expect(await status()).toBe('exited');
 		expect(await withTenant(sys(), (tx) => assetCharges(tx, ids.ben))).toBe(150_050);
 		expect(await withTenant(sys(), (tx) => assetCharges(tx, ids.ana))).toBe(50_000);
+	});
+});
+
+describe('asset import', () => {
+	it('imports a register from a CSV and rejects bad or repeated tags', async () => {
+		const header = ['tag', 'name', 'category', 'serial', 'purchase_date', 'purchase_cost'];
+		const run = (key: string, body: string[][]) =>
+			withTestNow(NOW, () => importAssets(who[key], [header, ...body])).catch(
+				(e: { rows?: unknown; code?: string }) => e.rows ?? e.code
+			);
+		expect(
+			await run('it', [
+				['lap-001', 'Laptop', 'Laptop', '', '', ''],
+				['X', 'Laptop', 'Laptop', '', '', ''],
+				['IMP-1', '', 'Laptop', '', '', ''],
+				['IMP-2', 'Desk', 'Furniture', '', '2026-12-01', ''],
+				['IMP-3', 'Desk', 'Furniture', '', '2026-13-01', ''],
+				['IMP-4', 'Desk', 'Furniture', '', '', '1.234'],
+				['IMP-5', 'Desk', 'Furniture', '', '', ''],
+				['imp-5', 'Desk', 'Furniture', '', '', '']
+			])
+		).toEqual([
+			{ line: 2, message: 'Another asset already uses that tag.' },
+			{ line: 3, message: 'Use 2 to 20 letters, digits or dashes for the tag.' },
+			{ line: 4, message: 'Name the asset.' },
+			{ line: 5, message: 'The purchase date cannot be in the future.' },
+			{ line: 6, message: 'Enter a real purchase date.' },
+			{ line: 7, message: 'Enter the cost, up to 2 decimals.' },
+			{ line: 9, message: 'This tag appears twice in the file.' }
+		]);
+		expect(await run('hr', [['IMP-9', 'Desk', 'Furniture', '', '', '']])).toBe('forbidden');
+		expect(
+			await run('it', [
+				['imp-1', 'Desk', 'Furniture', 'SN9', '2026-02-01', '15000.5'],
+				['IMP-2', 'Chair', 'Furniture', '', '', '']
+			])
+		).toBe(2);
+		expect(await listed('it', { q: 'IMP-' })).toEqual(['IMP-1 available -', 'IMP-2 available -']);
+		const imported = (await read('it', (tx, a) => assetList(tx, a, { q: 'IMP-1' })))[0];
+		expect((await read('it', (tx, a) => assetView(tx, a, imported.id)))?.asset).toMatchObject({
+			name: 'Desk',
+			serial: 'SN9',
+			purchaseDate: '2026-02-01',
+			purchaseCost: 1_500_050
+		});
 	});
 });

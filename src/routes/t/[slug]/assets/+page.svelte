@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Badge from '#lib/components/ui/Badge.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
+	import CsvImport from '#lib/components/ui/CsvImport.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
 	import { ASSET_STATUS_LABELS } from '#lib/asset-labels.ts';
@@ -17,8 +18,9 @@
 
 <h1 class="page-title">Assets</h1>
 
-<div class="mt-4 max-w-5xl">
+<div class="mt-4 max-w-5xl space-y-2">
 	<Alert message={form?.message} />
+	{#if form && 'imported' in form}<Alert tone="info" message="{form.imported} assets imported." />{/if}
 </div>
 
 {#if data.canManage}
@@ -46,6 +48,18 @@
 			/>
 			<div><Button type="submit">Add asset</Button></div>
 		</form>
+	</section>
+	<section class="mt-4 max-w-5xl panel" aria-label="Import assets">
+		<h2 class="section-title">Import assets</h2>
+		<CsvImport
+			action="?/importAssets"
+			label="Assets file, up to 1000 rows"
+			button="Import assets"
+			columns={data.assetColumns}
+			example={['LAP-0001', 'ThinkPad T14', 'Laptop', 'SN12345', '2026-01-15', '120000']}
+			file="assets.csv"
+			rows={form && 'rows' in form ? form.rows : null}
+		/>
 	</section>
 {/if}
 

@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, gte, ilike, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { poishaOf } from '../money';
+import { csvRecords, ImportFailed, type ImportRowError } from './csv';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { ASSET_CONDITIONS, ASSET_OUTCOMES, assetAssignments, assets, employees } from './db/schema';
 import { AppError } from './errors';
@@ -138,6 +139,58 @@ export async function saveAsset(m: Member, raw: Record<string, string>) {
 			.where(eq(assets.id, assetId))
 			.catch(clash);
 		return assetId;
+	});
+}
+
+export const MAX_ASSET_ROWS = 1000;
+export const ASSET_COLUMNS = ['tag', 'name', 'category', 'serial', 'purchase_date', 'purchase_cost'] as const;
+const importSchema = assetSchema.omit({ assetId: true, status: true, notes: true });
+
+export async function importAssets(m: Member, table: string[][]): Promise<number> {
+	const rows = csvRecords(table, ASSET_COLUMNS, MAX_ASSET_ROWS);
+	onlyManagers(m.access);
+	return withTenant(userCtx(m), async (tx) => {
+		const today = await tenantToday(tx);
+		const tags = rows.map((r) => r.v.tag.toUpperCase());
+		const taken = new Set(
+			(await tx.select({ tag: assets.tag }).from(assets).where(inArray(assets.tag, tags))).map((a) => a.tag)
+		);
+		const seen = new Set<string>();
+		const errors: ImportRowError[] = [];
+		const list: (typeof assets.$inferInsert)[] = [];
+		for (const { line, v } of rows) {
+			const parsed = importSchema.safeParse({
+				tag: v.tag,
+				name: v.name,
+				category: v.category,
+				serial: v.serial,
+				purchaseDate: v.purchase_date,
+				purchaseCost: v.purchase_cost
+			});
+			const tag = v.tag.toUpperCase();
+			const message = !parsed.success
+				? parsed.error.issues[0].message
+				: parsed.data.purchaseDate && parsed.data.purchaseDate > today
+					? 'The purchase date cannot be in the future.'
+					: taken.has(tag)
+						? 'Another asset already uses that tag.'
+						: seen.has(tag)
+							? 'This tag appears twice in the file.'
+							: null;
+			seen.add(tag);
+			if (message) errors.push({ line, message });
+			else list.push({ tenantId: m.tenant.id, ...parsed.data!, createdByUserId: m.user.userId });
+		}
+		if (errors.length) throw new ImportFailed(errors.slice(0, 50));
+		await tx
+			.insert(assets)
+			.values(list)
+			.catch((err) => {
+				if (pgCode(err) === UNIQUE_VIOLATION)
+					throw new AppError('tag_exists', 'Another asset took one of these tags. Upload the file again.', 409);
+				throw err;
+			});
+		return list.length;
 	});
 }
 

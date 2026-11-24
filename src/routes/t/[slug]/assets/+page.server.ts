@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
-import { assetList, canRunAssets, saveAsset } from '#lib/server/assets.ts';
+import { ASSET_COLUMNS, assetList, canRunAssets, importAssets, saveAsset } from '#lib/server/assets.ts';
+import { readCsvUpload } from '#lib/server/csv.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError } from '#lib/server/http/forms.ts';
 import { requirePerm, userCtx } from '#lib/server/rbac/access.ts';
@@ -13,7 +14,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	return {
 		assets: await withTenant(userCtx(m), (tx) => assetList(tx, m.access, filter)),
 		filter,
-		canManage: canRunAssets(m.access)
+		canManage: canRunAssets(m.access),
+		assetColumns: ASSET_COLUMNS
 	};
 };
 
@@ -30,5 +32,14 @@ export const actions: Actions = {
 			return fail(failed.status, { ...failed.data, values: form });
 		}
 		redirect(303, `/t/${m.tenant.slug}/assets/${id}`);
+	},
+	importAssets: async ({ request, locals }) => {
+		const m = requirePerm(locals, 'asset.manage');
+		try {
+			const table = await readCsvUpload((await request.formData()).get('file'));
+			return { imported: await importAssets(m, table) };
+		} catch (err) {
+			return actionError(err, locals.requestId);
+		}
 	}
 };
