@@ -60,9 +60,33 @@
 		}
 	}
 	@media (width < 48rem) {
-		.data-table {
+		.data-table,
+		.data-table tbody,
+		.data-table tfoot,
+		.data-table tr {
 			display: block;
-			overflow-x: auto;
+		}
+		.data-table thead {
+			@apply sr-only;
+		}
+		.data-table tr {
+			@apply border-b border-slate-200 py-2;
+		}
+		.data-table tbody tr:last-child {
+			@apply border-b-0;
+		}
+		.data-table :is(tbody, tfoot) :is(td, th) {
+			@apply flow-root border-0 py-1! pr-0 pl-28! text-left!;
+		}
+		.data-table :is(tbody, tfoot) :is(td, th)::before {
+			@apply float-left -ml-28 w-26 pt-px text-xs font-medium text-slate-500;
+			content: attr(data-label);
+		}
+		.data-table :is(tbody, tfoot) :is(td, th):is([data-label=''], :not([data-label])) {
+			@apply pl-0!;
+		}
+		.data-table :is(tbody, tfoot) :is(td, th):is([data-label=''], :not([data-label]))::before {
+			content: none;
 		}
 	}
 }
