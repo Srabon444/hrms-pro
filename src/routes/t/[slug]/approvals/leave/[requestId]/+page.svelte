@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import type { PageProps } from './$types';
@@ -50,6 +51,10 @@
 		</div>
 	{/if}
 </dl>
+
+{#if data.attachments}
+	<Attachments slug={data.tenant.slug} attachments={data.attachments} {form} />
+{/if}
 
 {#if l.canDecide}
 	<form method="POST" action="?/decide" class="mt-6 max-w-3xl space-y-3">

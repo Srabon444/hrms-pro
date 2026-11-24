@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pendingApprovals } from '../../src/lib/server/approvals';
+import { addFiles, listFiles, openFile, removeFile } from '../../src/lib/server/attachments';
 import { closePools } from '../../src/lib/server/db';
 import {
 	departments,
@@ -511,5 +512,52 @@ describe('leave requests', () => {
 		await withTenant(sys(), (tx) => tx.update(tenantSettings).set({ allowSingleAdminApproval: true }));
 		expect(await inbox('hr')).toContain('Ha HR: Casual leave, 1 day');
 		expect(await code(decide('hr', r.id))).toBe('ok');
+	});
+
+	it('keeps a prescription with the request, readable by deciders and editable while pending', async () => {
+		const scan = () => new File(['%PDF-1.7 rx'], 'prescription.pdf');
+		const day = workAfter(D, 25);
+		const id = await requestLeave(
+			who.kid,
+			{ leaveTypeId: type.sick, startDate: day, endDate: '', session: 'full', reason: 'Fever' },
+			[scan()]
+		);
+		const files = (key: string) => withTenant(sys(), (tx) => listFiles(tx, who[key].access, 'leave_request', id));
+		const own = await files('kid');
+		expect(own?.files.map((f) => f.filename)).toEqual(['prescription.pdf']);
+		expect(own?.canEdit).toBe(true);
+		expect((await files('peer'))?.canEdit).toBe(false);
+		expect(await files('hr')).not.toBeNull();
+		expect(await files('payroll')).toBeNull();
+		expect(await files('staff')).toBeNull();
+		expect(await code(openFile(who.payroll, own!.files[0].id))).toBe('not_found');
+		expect(await code(addFiles(who.peer, 'leave_request', id, [scan()]))).toBe('forbidden');
+		const [second] = await addFiles(who.kid, 'leave_request', id, [scan()]);
+		await removeFile(who.kid, { type: 'leave_request', id }, second);
+		expect(await code(decide('peer', id))).toBe('ok');
+		expect((await files('kid'))?.canEdit).toBe(false);
+		expect(await code(addFiles(who.kid, 'leave_request', id, [scan()]))).toBe('forbidden');
+		expect((await openFile(who.peer, own!.files[0].id)).fileName).toBe('prescription.pdf');
+	});
+
+	it('stores nothing when a request with files is refused', async () => {
+		const before = (await withTenant(sys(), (tx) => tx.select().from(leaveRequests))).length;
+		expect(
+			await code(
+				requestLeave(
+					who.kid,
+					{ leaveTypeId: type.casual, startDate: addDays(year.end, 1), endDate: '', session: 'full', reason: '' },
+					[new File(['%PDF-1.7 x'], 'x.pdf')]
+				)
+			)
+		).toBe('outside_year');
+		expect(
+			await code(
+				requestLeave(who.kid, { leaveTypeId: type.casual, startDate: D, endDate: '', session: 'full', reason: '' }, [
+					new File(['MZ'], 'x.exe')
+				])
+			)
+		).toBe('unsupported_file');
+		expect((await withTenant(sys(), (tx) => tx.select().from(leaveRequests))).length).toBe(before);
 	});
 });

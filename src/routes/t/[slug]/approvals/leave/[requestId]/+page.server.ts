@@ -1,5 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { z } from 'zod';
+import { listFiles } from '#lib/server/attachments.ts';
+import { attachmentAction } from '#lib/server/http/attachments.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError } from '#lib/server/http/forms.ts';
 import { cancelLeave, decideLeave, getLeaveRequest } from '#lib/server/leave-requests.ts';
@@ -9,9 +11,12 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const m = requireMember(locals);
-	const leave = await withTenant(userCtx(m), (tx) => getLeaveRequest(tx, m.access, params.requestId));
+	const { leave, attachments } = await withTenant(userCtx(m), async (tx) => ({
+		leave: await getLeaveRequest(tx, m.access, params.requestId),
+		attachments: await listFiles(tx, m.access, 'leave_request', params.requestId)
+	}));
 	if (!leave) error(404, 'Not found');
-	return { leave };
+	return { leave, attachments };
 };
 
 export const actions: Actions = {
@@ -24,6 +29,10 @@ export const actions: Actions = {
 			return actionError(err, locals.requestId);
 		}
 		return { decided: true };
+	},
+	files: async ({ request, locals, params }) => {
+		const m = requireMember(locals);
+		return attachmentAction(m, await request.formData(), 'leave_request', params.requestId, locals.requestId);
 	},
 	cancel: async ({ locals, params }) => {
 		const m = requireMember(locals);

@@ -97,3 +97,54 @@ test('an employee asks for leave, the manager approves it and the employee cance
 	await expect(casual).toContainText('10 days left');
 	await expect(mine).toHaveText([/2 days · cancelled/]);
 });
+
+test('an employee attaches a prescription, replaces it and the manager downloads it', async ({
+	page,
+	browser,
+	request
+}) => {
+	const f = await fixture(request, {
+		tenant: {},
+		users: [
+			{ key: 'boss', roles: ['line_manager'], employee: true },
+			{ key: 'ela', roles: ['employee'], employee: true, manager: 'boss' }
+		]
+	});
+	const slug = f.tenant!.slug;
+	const day = workday(20);
+	const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+	await signIn(page, f.users.ela.email);
+	await page.goto(`/t/${slug}/leave`);
+	const form = page.getByRole('region', { name: 'Request leave' });
+	await form.getByLabel('Leave type').selectOption({ label: 'Sick leave' });
+	await form.getByLabel('From', { exact: true }).fill(day);
+	await form.getByLabel(/Attachments/).setInputFiles({ name: 'rx.png', mimeType: 'image/png', buffer: png });
+	await form.getByRole('button', { name: 'Request leave' }).click();
+	await expect(page.getByRole('status')).toHaveText('Leave requested.');
+	await page
+		.getByRole('region', { name: 'My requests' })
+		.getByRole('link', { name: /Sick leave/ })
+		.click();
+	const files = page.getByRole('region', { name: 'Attachments' });
+	await expect(files.getByTestId('attachment')).toHaveText([/rx\.png/]);
+	await files.getByLabel('Replacement for rx.png').setInputFiles({
+		name: 'rx-final.pdf',
+		mimeType: 'application/pdf',
+		buffer: Buffer.from('%PDF-1.7 final')
+	});
+	await files.getByRole('button', { name: 'Replace', exact: true }).click();
+	await expect(files.getByRole('status')).toHaveText('Attachments updated.');
+	await expect(files.getByTestId('attachment')).toHaveText([/rx-final\.pdf/]);
+
+	const ctx = await browser.newContext();
+	const boss = await ctx.newPage();
+	await signIn(boss, f.users.boss.email);
+	await boss.goto(`/t/${slug}/approvals`);
+	await boss.getByRole('link', { name: /Sick leave/ }).click();
+	const shown = boss.getByRole('region', { name: 'Attachments' });
+	await expect(shown.getByRole('button', { name: 'Replace', exact: true })).toHaveCount(0);
+	const download = boss.waitForEvent('download');
+	await shown.getByRole('link', { name: 'rx-final.pdf' }).click();
+	expect((await download).suggestedFilename()).toBe('rx-final.pdf');
+	await ctx.close();
+});

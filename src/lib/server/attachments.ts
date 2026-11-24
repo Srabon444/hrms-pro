@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { assetAttachments } from './assets';
 import { auditEvent } from './audit';
+import { leaveAttachments } from './leave-requests';
 import { files, MAX_ATTACHMENTS, MAX_DOCUMENT_BYTES, type AttachmentOwner } from './db/schema';
 import { AppError } from './errors';
 import { log } from './log';
@@ -18,13 +19,14 @@ export type AttachmentRules = {
 };
 type Stored = { key: string; filename: string; mime: string; size: number; sha256: string };
 
-const OWNERS: Partial<Record<AttachmentOwner, AttachmentRules>> = {
-	asset: assetAttachments
-};
+const owners = (): Partial<Record<AttachmentOwner, AttachmentRules>> => ({
+	asset: assetAttachments,
+	leave_request: leaveAttachments
+});
 const ALLOWED = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
 
 const notFound = () => new AppError('not_found', 'That file does not exist.', 404);
-const rules = (type: AttachmentOwner) => OWNERS[type]!;
+const rules = (type: AttachmentOwner) => owners()[type]!;
 const isId = (id: string) => z.uuid().safeParse(id).success;
 
 async function assertEditable(tx: Tx, access: Access, type: AttachmentOwner, ownerId: string, lock: boolean) {
@@ -112,18 +114,20 @@ export async function addFiles(m: Member, type: AttachmentOwner, ownerId: string
 	}
 }
 
-async function fileRow(tx: Tx, fileId: string, lock = false) {
+type Owner = { type: AttachmentOwner; id: string };
+
+async function fileRow(tx: Tx, fileId: string, owner?: Owner, lock = false) {
 	if (!isId(fileId)) throw notFound();
 	const q = tx.select().from(files).where(eq(files.id, fileId));
 	const [f] = lock ? await q.for('update') : await q;
-	if (!f) throw notFound();
+	if (!f || (owner && (f.ownerType !== owner.type || f.ownerId !== owner.id))) throw notFound();
 	return { ...f, ownerType: f.ownerType as AttachmentOwner };
 }
 
-export async function replaceFile(m: Member, fileId: string, file: File) {
+export async function replaceFile(m: Member, owner: Owner, fileId: string, file: File) {
 	const ctx = userCtx(m);
 	const type = await withTenant(ctx, async (tx) => {
-		const f = await fileRow(tx, fileId);
+		const f = await fileRow(tx, fileId, owner);
 		await assertEditable(tx, m.access, f.ownerType, f.ownerId, false);
 		return f.ownerType;
 	});
@@ -132,9 +136,9 @@ export async function replaceFile(m: Member, fileId: string, file: File) {
 	let id: string;
 	try {
 		[oldKey, id] = await withTenant(ctx, async (tx) => {
-			const f = await fileRow(tx, fileId);
+			const f = await fileRow(tx, fileId, owner);
 			await assertEditable(tx, m.access, f.ownerType, f.ownerId, true);
-			const locked = await fileRow(tx, fileId, true);
+			const locked = await fileRow(tx, fileId, owner, true);
 			await tx.delete(files).where(eq(files.id, locked.id));
 			const [next] = await insertFiles(tx, ctx, locked.ownerType, locked.ownerId, stored);
 			return [locked.key, next];
@@ -147,11 +151,11 @@ export async function replaceFile(m: Member, fileId: string, file: File) {
 	return id;
 }
 
-export async function removeFile(m: Member, fileId: string) {
+export async function removeFile(m: Member, owner: Owner, fileId: string) {
 	const key = await withTenant(userCtx(m), async (tx) => {
-		const f = await fileRow(tx, fileId);
+		const f = await fileRow(tx, fileId, owner);
 		await assertEditable(tx, m.access, f.ownerType, f.ownerId, true);
-		const locked = await fileRow(tx, fileId, true);
+		const locked = await fileRow(tx, fileId, owner, true);
 		await tx.delete(files).where(eq(files.id, locked.id));
 		return locked.key;
 	});

@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { discardFiles, insertFiles, prepareFiles, type AttachmentRules } from './attachments';
 import { recomputeAttendance } from './attendance';
 import { addDays } from './dates';
 import {
@@ -63,9 +64,10 @@ const requestSchema = z
 	.refine((v) => v.endDate >= v.startDate, { message: 'The last day cannot be before the first day.' })
 	.refine((v) => v.session === 'full' || v.startDate === v.endDate, { message: 'A half day covers one date only.' });
 
-export async function requestLeave(m: Member, raw: Record<string, string>) {
+export async function requestLeave(m: Member, raw: Record<string, string>, attached: File[] = []) {
 	const input = requestSchema.parse({ ...raw, endDate: raw.endDate || raw.startDate, session: raw.session || 'full' });
-	const mails = await withTenant(userCtx(m), async (tx) => {
+	const stored = attached.length ? await prepareFiles(m.tenant.id, 'leave_request', attached) : [];
+	const { id, mails } = await withTenant(userCtx(m), async (tx) => {
 		if (!m.access.employeeId)
 			throw new AppError('no_employee', 'Your account is not linked to an employee record.', 403);
 		const e = await lockEmployee(tx, m.access, m.access.employeeId);
@@ -151,7 +153,8 @@ export async function requestLeave(m: Member, raw: Record<string, string>) {
 				status: 'pending'
 			}))
 		);
-		return notify(
+		if (stored.length) await insertFiles(tx, userCtx(m), 'leave_request', req.id, stored);
+		const mails = await notify(
 			tx,
 			m.tenant.id,
 			await approvers(tx, e, 'leave'),
@@ -163,9 +166,35 @@ export async function requestLeave(m: Member, raw: Record<string, string>) {
 			},
 			m.tenant.slug
 		);
+		return { id: req.id, mails };
+	}).catch(async (err) => {
+		await discardFiles(stored);
+		throw err;
 	});
 	await sendAll(mails);
+	return id;
 }
+
+export const leaveAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		const [r] = await tx
+			.select({ employeeId: leaveRequests.employeeId })
+			.from(leaveRequests)
+			.where(eq(leaveRequests.id, id));
+		if (!r) return false;
+		const [e] = await tx.select().from(employees).where(eq(employees.id, r.employeeId));
+		const rights = await rightsOver(tx, access, e, 'leave');
+		return rights.own || rights.canDecide || inScope(await resolveScope(tx, access, 'leave.manage'), e.id);
+	},
+	async canEdit(tx, access, id, lock) {
+		const q = tx
+			.select({ employeeId: leaveRequests.employeeId, status: leaveRequests.status })
+			.from(leaveRequests)
+			.where(eq(leaveRequests.id, id));
+		const [r] = lock ? await q.for('update') : await q;
+		return !!r && r.status === 'pending' && r.employeeId === access.employeeId;
+	}
+};
 
 async function load(tx: Tx, access: Access, requestId: string, lock: boolean) {
 	const id = z.uuid().safeParse(requestId);

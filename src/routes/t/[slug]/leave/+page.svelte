@@ -43,7 +43,7 @@
 {#if data.balances.length}
 	<section class="mt-6 max-w-3xl panel" aria-label="Request leave">
 		<h2 class="section-title">Request leave</h2>
-		<form method="POST" action="?/request" class="mt-3 grid gap-3 sm:grid-cols-2">
+		<form method="POST" action="?/request" enctype="multipart/form-data" class="mt-3 grid gap-3 sm:grid-cols-2">
 			<label class="text-sm text-slate-700">
 				Leave type
 				<select name="leaveTypeId" required class={field}>
@@ -72,6 +72,18 @@
 				Reason
 				<textarea name="reason" maxlength={500} class={field}></textarea>
 			</label>
+			<label class="text-sm text-slate-700 sm:col-span-2">
+				Attachments <span class="text-slate-500">
+					(optional, e.g. a prescription: PDF or image, up to 5 files, 10 MB)
+				</span>
+				<input
+					name="files"
+					type="file"
+					multiple
+					accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+					class="mt-1 block w-full text-sm"
+				/>
+			</label>
 			<div class="sm:col-span-2"><Button type="submit">Request leave</Button></div>
 		</form>
 	</section>
@@ -85,7 +97,9 @@
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each data.requests as r (r.id)}
 				<li class="flex items-center gap-3 py-2" data-testid="leave-request">
-					<span class="flex-1">{r.type} · {when(r)} · {days(r.days)} · {r.status}</span>
+					<a href="/t/{data.tenant.slug}/approvals/leave/{r.id}" class="flex-1 hover:underline">
+						{r.type} · {when(r)} · {days(r.days)} · {r.status}
+					</a>
 					{#if r.cancellable}
 						<form method="POST" action="?/cancel">
 							<input type="hidden" name="id" value={r.id} />

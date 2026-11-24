@@ -95,7 +95,7 @@ describe('attachments', () => {
 		expect(await listed(stranger, phone)).toBeNull();
 		expect(await code(openFile(stranger, id))).toBe('not_found');
 		expect(await code(openFile(outsider, id))).toBe('not_found');
-		expect(await code(removeFile(outsider, id))).toBe('not_found');
+		expect(await code(removeFile(outsider, { type: 'asset', id: phone }, id))).toBe('not_found');
 		expect(await code(addFiles(outsider, 'asset', phone, [pdf()]))).toBe('not_found');
 		expect(await code(openFile(manager, 'nope'))).toBe('not_found');
 	});
@@ -103,8 +103,8 @@ describe('attachments', () => {
 	it('lets only editors change files', async () => {
 		const [id] = await addFiles(manager, 'asset', phone, [pdf()]);
 		expect(await code(addFiles(reader, 'asset', phone, [pdf()]))).toBe('forbidden');
-		expect(await code(removeFile(reader, id))).toBe('forbidden');
-		expect(await code(replaceFile(reader, id, pdf()))).toBe('forbidden');
+		expect(await code(removeFile(reader, { type: 'asset', id: phone }, id))).toBe('forbidden');
+		expect(await code(replaceFile(reader, { type: 'asset', id: phone }, id, pdf()))).toBe('forbidden');
 	});
 
 	it('refuses wrong types, empty and oversized uploads', async () => {
@@ -135,12 +135,13 @@ describe('attachments', () => {
 		const chair = await newAsset(home, 'CH-1');
 		const [id] = await addFiles(manager, 'asset', chair, [pdf('old')]);
 		const [old] = await withTenant(systemCtx(home.id), (tx) => tx.select().from(files).where(eq(files.id, id)));
-		const next = await replaceFile(manager, id, pdf('new', 'new.pdf'));
+		const next = await replaceFile(manager, { type: 'asset', id: chair }, id, pdf('new', 'new.pdf'));
 		expect(next).not.toBe(id);
 		expect((await listed(manager, chair))?.files.map((f) => f.filename)).toEqual(['new.pdf']);
 		await expect(getObject(old.key)).rejects.toThrow();
 		expect(await code(openFile(manager, id))).toBe('not_found');
-		await removeFile(manager, next);
+		expect(await code(removeFile(manager, { type: 'asset', id: laptop }, next))).toBe('not_found');
+		await removeFile(manager, { type: 'asset', id: chair }, next);
 		expect((await listed(manager, chair))?.files).toEqual([]);
 		expect(await storedKeys(home)).toEqual(await rowKeys(home));
 	});

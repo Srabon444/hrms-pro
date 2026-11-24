@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { z } from 'zod';
 import { addDays } from '#lib/server/dates.ts';
+import { pickFiles } from '#lib/server/http/attachments.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { ownBalances } from '#lib/server/leave.ts';
@@ -29,7 +30,8 @@ export const actions: Actions = {
 	request: async ({ request, locals }) => {
 		const m = requirePerm(locals, 'leave.request');
 		try {
-			await requestLeave(m, formFields(await request.formData()));
+			const form = await request.formData();
+			await requestLeave(m, formFields(form), pickFiles(form));
 		} catch (err) {
 			if (err instanceof z.ZodError) return fail(400, { message: err.issues[0].message });
 			return actionError(err, locals.requestId);
