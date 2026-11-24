@@ -1,5 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { z } from 'zod';
+import { listFiles } from '#lib/server/attachments.ts';
+import { attachmentAction } from '#lib/server/http/attachments.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError } from '#lib/server/http/forms.ts';
 import { projectView, removeProjectMember, saveProject, setProjectMember } from '#lib/server/projects.ts';
@@ -9,9 +11,12 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const m = requirePerm(locals, 'project.read');
-	const view = await withTenant(userCtx(m), (tx) => projectView(tx, m.access, params.projectId));
-	if (!view) error(404, 'That project does not exist.');
-	return { view };
+	const page = await withTenant(userCtx(m), async (tx) => {
+		const view = await projectView(tx, m.access, params.projectId);
+		return view && { view, attachments: await listFiles(tx, m.access, 'project', params.projectId) };
+	});
+	if (!page) error(404, 'That project does not exist.');
+	return page;
 };
 
 const act =
@@ -32,6 +37,10 @@ const act =
 	};
 
 export const actions: Actions = {
+	files: async ({ request, locals, params }) => {
+		const m = requirePerm(locals, 'project.read');
+		return attachmentAction(m, await request.formData(), 'project', params.projectId, locals.requestId);
+	},
 	save: act(saveProject, 'Project saved.'),
 	member: act(setProjectMember, 'Team updated.'),
 	remove: act(removeProjectMember, 'Removed from the project.')

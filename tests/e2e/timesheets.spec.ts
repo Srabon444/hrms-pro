@@ -30,6 +30,12 @@ test('a project manager staffs a project, the employee logs and submits a week, 
 	await staff.getByRole('button', { name: 'Save member' }).click();
 	await expect(page.getByRole('status')).toHaveText('Team updated.');
 	await expect(page.getByTestId('project-member')).toHaveText([/ela .* · Member · 80%/]);
+	const docs = page.getByRole('region', { name: 'Documents' });
+	await docs
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'sow.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 sow') });
+	await docs.getByRole('button', { name: 'Attach files' }).click();
+	await expect(docs.getByTestId('attachment')).toContainText('sow.pdf');
 
 	const elaCtx = await browser.newContext();
 	const ela = await elaCtx.newPage();

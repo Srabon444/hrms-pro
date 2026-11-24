@@ -1,5 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { addFiles, openFile } from '../../src/lib/server/attachments';
 import { withTestNow } from '../../src/lib/server/clock';
 import { closePools } from '../../src/lib/server/db';
 import {
@@ -169,6 +170,15 @@ describe('projects', () => {
 		expect(await read('cal', (tx, a) => projectView(tx, a, proj.ALPHA))).toBeNull();
 		expect((await read('ana', (tx, a) => projectView(tx, a, proj.ALPHA)))?.canManage).toBe(false);
 		expect((await read('ana', (tx, a) => projectView(tx, a, proj.ALPHA)))?.people).toEqual([]);
+	});
+
+	it('lets project managers attach documents that the team can read', async () => {
+		const pdf = (name: string) => new File([`%PDF-1.7 ${name}`], name, { type: 'application/pdf' });
+		const [sow] = await addFiles(who.pm, 'project', proj.ALPHA, [pdf('sow.pdf')]);
+		expect((await openFile(who.ana, sow)).fileName).toBe('sow.pdf');
+		expect(await code(() => openFile(who.cal, sow))).toBe('not_found');
+		expect(await code(() => addFiles(who.ana, 'project', proj.ALPHA, [pdf('x.pdf')]))).toBe('forbidden');
+		expect(await code(() => addFiles(who.cal, 'project', proj.ALPHA, [pdf('x.pdf')]))).toBe('not_found');
 	});
 });
 

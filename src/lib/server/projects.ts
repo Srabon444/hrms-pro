@@ -1,5 +1,6 @@
 import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import type { AttachmentRules } from './attachments';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { employees, PROJECT_ROLES, PROJECT_STATUSES, projectMembers, projects } from './db/schema';
 import { AppError } from './errors';
@@ -175,3 +176,15 @@ export async function projectView(tx: Tx, access: Access, id: string) {
 		: [];
 	return { project, members, people, canManage };
 }
+
+export const projectAttachments: AttachmentRules = {
+	async canRead(tx, access, id) {
+		const scope = await resolveScope(tx, access, 'project.read');
+		const [p] = await tx
+			.select({ id: projects.id })
+			.from(projects)
+			.where(and(eq(projects.id, id), visible(scope)));
+		return !!p;
+	},
+	canEdit: async (_tx, access) => canRunProjects(access)
+};

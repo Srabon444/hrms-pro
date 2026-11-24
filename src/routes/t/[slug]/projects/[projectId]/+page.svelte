@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
@@ -98,4 +99,8 @@
 			<div><Button type="submit">Save member</Button></div>
 		</form>
 	</section>
+{/if}
+
+{#if data.attachments && (data.attachments.canEdit || data.attachments.files.length)}
+	<Attachments slug={data.tenant.slug} attachments={data.attachments} {form} title="Documents" />
 {/if}
