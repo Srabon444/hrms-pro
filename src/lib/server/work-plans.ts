@@ -11,7 +11,7 @@ import { withTenant, type Tx } from './tenancy';
 
 type Member = ReturnType<typeof requireMember>;
 
-const scopeOf = (tx: Tx, access: Access) => resolveScope(tx, access, 'report.weekly');
+const scopeOf = (tx: Tx, access: Access) => resolveScope(tx, access, 'workplan.edit');
 const itemId = z.uuid({ error: 'Choose an item.' });
 const weekStart = z.iso.date('Choose a week.');
 const itemSchema = z.object({

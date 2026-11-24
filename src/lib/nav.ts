@@ -42,7 +42,7 @@ export const NAV: NavItem[] = [
 	{ href: 'timesheets', label: 'Timesheets', perm: ['timesheet.submit', 'timesheet.approve'] },
 	{ href: 'assets', label: 'Assets', perm: 'asset.read' },
 	{ href: 'helpdesk', label: 'Helpdesk', perm: ['helpdesk.submit', 'helpdesk.manage', 'helpdesk.confidential'] },
-	{ href: 'work-plan', label: 'Work plan', perm: 'report.weekly' },
+	{ href: 'work-plan', label: 'Work plan', perm: 'workplan.edit' },
 	{ href: 'org', label: 'Organisation', perm: 'org.manage' },
 	{ href: 'settings/users', label: 'Users', perm: 'user.manage' },
 	{ href: 'settings/roles', label: 'Roles', perm: 'role.manage' },

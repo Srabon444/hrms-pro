@@ -38,6 +38,7 @@ export const PERMISSIONS = [
 	'project.manage',
 	'timesheet.submit',
 	'timesheet.approve',
+	'workplan.edit',
 	'expense.submit',
 	'expense.approve',
 	'expense.pay',
@@ -135,6 +136,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
 			'report.expense',
 			'report.utilisation',
 			'report.weekly',
+			'workplan.edit',
 			'user.manage',
 			'audit.read'
 		)
@@ -222,7 +224,8 @@ export const SYSTEM_ROLES: SystemRole[] = [
 				'report.leave',
 				'report.expense',
 				'report.utilisation',
-				'report.weekly'
+				'report.weekly',
+				'workplan.edit'
 			),
 			...at('all', 'project.read')
 		]
@@ -242,7 +245,8 @@ export const SYSTEM_ROLES: SystemRole[] = [
 			'performance.review',
 			'timesheet.approve',
 			'expense.approve',
-			'report.weekly'
+			'report.weekly',
+			'workplan.edit'
 		)
 	},
 	{
@@ -283,7 +287,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
 			'expense.submit',
 			'asset.read',
 			'helpdesk.submit',
-			'report.weekly'
+			'workplan.edit'
 		)
 	}
 ];

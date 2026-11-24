@@ -8,7 +8,7 @@ import { addItem, removeItem, rolloverWeek, setItemStatus, workPlan } from '#lib
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	const m = requirePerm(locals, 'report.weekly');
+	const m = requirePerm(locals, 'workplan.edit');
 	return { plan: await withTenant(userCtx(m), (tx) => workPlan(tx, m.access, url.searchParams.get('week'))) };
 };
 
@@ -23,22 +23,22 @@ async function run(fn: () => Promise<string>, requestId: string) {
 
 export const actions: Actions = {
 	add: async ({ request, locals }) => {
-		const m = requirePerm(locals, 'report.weekly');
+		const m = requirePerm(locals, 'workplan.edit');
 		const form = formFields(await request.formData());
 		return run(() => addItem(m, form).then(() => 'Item added.'), locals.requestId);
 	},
 	status: async ({ request, locals }) => {
-		const m = requirePerm(locals, 'report.weekly');
+		const m = requirePerm(locals, 'workplan.edit');
 		const form = formFields(await request.formData());
 		return run(() => setItemStatus(m, form).then(() => 'Status updated.'), locals.requestId);
 	},
 	remove: async ({ request, locals }) => {
-		const m = requirePerm(locals, 'report.weekly');
+		const m = requirePerm(locals, 'workplan.edit');
 		const form = formFields(await request.formData());
 		return run(() => removeItem(m, form).then(() => 'Item removed.'), locals.requestId);
 	},
 	rollover: async ({ request, locals }) => {
-		const m = requirePerm(locals, 'report.weekly');
+		const m = requirePerm(locals, 'workplan.edit');
 		const form = formFields(await request.formData());
 		return run(
 			() =>
