@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { addFiles, openFile } from '../../src/lib/server/attachments';
 import { closePools } from '../../src/lib/server/db';
 import { memberships, notifications, rolePermissions, roles, reviews } from '../../src/lib/server/db/schema';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib/server/employees';
@@ -22,6 +23,7 @@ import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
 import { createTenant, createUser } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
+const pdf = (name: string) => new File([`%PDF-1.7 ${name}`], name, { type: 'application/pdf' });
 let tenant: { id: string; slug: string };
 const ids: Record<string, string> = {};
 const who: Record<string, Member> = {};
@@ -142,7 +144,12 @@ describe('performance reviews', () => {
 		expect([billing.title, mentor.title, mentor.weight]).toEqual(['Ship billing', 'Mentor', 40]);
 		expect(await code(goal('lea', ana, 'Mentor juniors', '40', mentor.id))).toBe('ok');
 		expect(await code(goal('ana', ben, 'Sneak', '1', mentor.id))).toBe('not_found');
+		const [plan] = await addFiles(who.lea, 'goal', mentor.id, [pdf('plan.pdf')]);
+		expect((await openFile(who.viewer, plan)).fileName).toBe('plan.pdf');
+		expect(await code(openFile(who.ben, plan))).toBe('not_found');
+		expect(await code(addFiles(who.viewer, 'goal', mentor.id, [pdf('x.pdf')]))).toBe('forbidden');
 		expect(await code(removeGoal(who.ana, { reviewId: ana, goalId: mentor.id }))).toBe('ok');
+		expect(await code(openFile(who.lea, plan))).toBe('not_found');
 		expect(await code(goal('lea', ana, 'Mentor juniors', '40'))).toBe('ok');
 
 		const goals = (await view('ana', ana))!.goals;
@@ -152,7 +159,13 @@ describe('performance reviews', () => {
 		);
 		expect(await code(submitSelf(who.lea, { reviewId: ana, ...form }))).toBe('not_allowed');
 		const rated = { ...form, ...Object.fromEntries(goals.map((g) => [`rating.${g.id}`, '4'])) };
+		const [proof] = await addFiles(who.ana, 'review', ana, [pdf('proof.pdf')]);
+		expect(await code(addFiles(who.lea, 'review', ana, [pdf('x.pdf')]))).toBe('forbidden');
+		expect(await code(addFiles(who.ben, 'review', ana, [pdf('x.pdf')]))).toBe('not_found');
 		expect(await code(submitSelf(who.ana, { reviewId: ana, comments: 'Good half', ...rated }))).toBe('ok');
+		expect(await code(addFiles(who.ana, 'review', ana, [pdf('x.pdf')]))).toBe('forbidden');
+		expect(await code(addFiles(who.lea, 'review', ana, [pdf('notes.pdf')]))).toBe('ok');
+		expect((await openFile(who.lea, proof)).fileName).toBe('proof.pdf');
 		expect((await reviewOf(cycleId, ids.ana)).stage).toBe('manager');
 		expect(await inbox('lea')).toContain('Self review sent: Ana');
 		expect(await code(goal('ana', ana, 'Late', '1'))).toBe('not_allowed');

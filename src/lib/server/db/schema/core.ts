@@ -381,7 +381,9 @@ export const ATTACHMENT_OWNERS = [
 	'loan',
 	'ticket_comment',
 	'announcement',
-	'salary_change'
+	'salary_change',
+	'review',
+	'goal'
 ] as const;
 export type AttachmentOwner = (typeof ATTACHMENT_OWNERS)[number];
 export const MAX_ATTACHMENTS = 5;

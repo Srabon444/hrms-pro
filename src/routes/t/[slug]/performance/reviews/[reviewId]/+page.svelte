@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
@@ -40,6 +41,17 @@
 					{#if g.actual}<p class="text-slate-600">Result: {g.actual}</p>{/if}
 					{#if g.selfRating !== null}<p>Self rating {g.selfRating}/5</p>{/if}
 					{#if g.managerRating !== null}<p>Manager rating {g.managerRating}/5</p>{/if}
+					{#if allowed.goals || data.goalFiles[g.id]?.length}
+						<Attachments
+							slug={data.tenant.slug}
+							attachments={{ files: data.goalFiles[g.id] ?? [], canEdit: allowed.goals }}
+							{form}
+							action="?/goalFiles"
+							ownerId={g.id}
+							title={`Evidence for ${g.title}`}
+							compact
+						/>
+					{/if}
 					{#if allowed.goals}
 						<form method="POST" action="?/remove" class="mt-2">
 							<input type="hidden" name="goalId" value={g.id} />
@@ -135,6 +147,10 @@
 		<h2 class="section-title">Manager comments</h2>
 		<p class="mt-1 text-sm whitespace-pre-line">{r.managerComments}</p>
 	</section>
+{/if}
+
+{#if data.attachments && (data.attachments.canEdit || data.attachments.files.length)}
+	<Attachments slug={data.tenant.slug} attachments={data.attachments} {form} title="Review evidence" />
 {/if}
 
 {#if allowed.finalise}

@@ -5,7 +5,9 @@ import { weightedScore } from '../domain/performance/score';
 import { activeMemberships, activeMembershipsOf } from './approval-chain';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { employees, goals, MAX_GOALS, reviewCycles, reviews } from './db/schema';
+import type { AttachmentRules } from './attachments';
 import { AppError } from './errors';
+import { discardFiles, dropFiles } from './file-store';
 import { notify } from './notifications';
 import { can, scopesOf, userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
@@ -277,15 +279,35 @@ export async function saveGoal(m: Member, raw: Record<string, string>) {
 
 export async function removeGoal(m: Member, raw: Record<string, string>) {
 	const input = z.object({ reviewId, goalId: z.uuid({ error: 'Choose a goal.' }) }).parse(raw);
-	await withTenant(userCtx(m), async (tx) => {
+	const stored = await withTenant(userCtx(m), async (tx) => {
 		await editable(tx, m.access, input.reviewId, 'goals');
 		const gone = await tx
 			.delete(goals)
 			.where(and(eq(goals.id, input.goalId), eq(goals.reviewId, input.reviewId)))
 			.returning({ id: goals.id });
 		if (!gone.length) throw new AppError('not_found', 'That goal does not exist.', 404);
+		return dropFiles(tx, 'goal', [input.goalId]);
 	});
+	await discardFiles(stored);
 }
+
+export const reviewAttachments: AttachmentRules = {
+	canRead: async (tx, access, id) => (await loadReview(tx, access, id)) !== null,
+	async canEdit(tx, access, id, lock) {
+		const r = await loadReview(tx, access, id, lock);
+		return !!r && (r.allowed.self || r.allowed.manager);
+	}
+};
+
+async function goalReview(tx: Tx, access: Access, id: string, lock = false) {
+	const [g] = await tx.select({ reviewId: goals.reviewId }).from(goals).where(eq(goals.id, id));
+	return g ? loadReview(tx, access, g.reviewId, lock) : null;
+}
+
+export const goalAttachments: AttachmentRules = {
+	canRead: async (tx, access, id) => (await goalReview(tx, access, id)) !== null,
+	canEdit: async (tx, access, id, lock) => (await goalReview(tx, access, id, lock))?.allowed.goals ?? false
+};
 
 const caseOf = (column: PgColumn, values: Map<string, SQL>) =>
 	sql`case ${goals.id} ${sql.join(

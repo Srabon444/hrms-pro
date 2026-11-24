@@ -50,6 +50,13 @@ test('HR runs a review cycle from goals to a shared score', async ({ page, brows
 		await expect(ela.getByRole('status')).toHaveText('Goal saved.');
 	}
 	await expect(ela.getByTestId('goal')).toHaveCount(2);
+	const evidence = ela.getByRole('group', { name: 'Evidence for Ship billing' });
+	await evidence.getByText('Evidence for Ship billing (0)').click();
+	await evidence
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'release.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 release') });
+	await evidence.getByRole('button', { name: 'Attach files' }).click();
+	await expect(evidence.getByTestId('attachment')).toContainText('release.pdf');
 	const self = ela.getByRole('region', { name: 'Self review' });
 	await self.getByLabel('Result for Ship billing').fill('Shipped in November');
 	await self.getByLabel('Your rating for Ship billing').selectOption('4');
@@ -64,6 +71,13 @@ test('HR runs a review cycle from goals to a shared score', async ({ page, brows
 	await boss.goto(`/t/${slug}/performance`);
 	await boss.getByRole('region', { name: 'Waiting for your rating' }).getByRole('link', { name: /ela / }).click();
 	await expect(boss.getByTestId('goal').first()).toContainText('Result: Shipped in November');
+	await expect(boss.getByRole('group', { name: 'Evidence for Ship billing' })).toContainText('release.pdf');
+	const notes = boss.getByRole('region', { name: 'Review evidence' });
+	await notes
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'one-on-one.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 notes') });
+	await notes.getByRole('button', { name: 'Attach files' }).click();
+	await expect(notes.getByTestId('attachment')).toContainText('one-on-one.pdf');
 	const rate = boss.getByRole('region', { name: 'Manager review' });
 	await rate.getByLabel('Rating for Ship billing').selectOption('4');
 	await rate.getByLabel('Rating for Mentor juniors').selectOption('3');
