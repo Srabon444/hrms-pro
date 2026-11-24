@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, ne, sql, sum } from 'drizzle-orm';
 import { z } from 'zod';
 import { expireCompOff } from './comp-off';
+import { csvRecords, ImportFailed, type ImportRowError } from './csv';
 import { authPool } from './db';
 import {
 	employees,
@@ -17,7 +18,7 @@ import { fiscalYearOf, fiscalYearRange, monthlyCredits, proRataQuota } from './l
 import { tenantToday } from './lifecycle';
 import { log } from './log';
 import { userCtx, type Access, type requireMember } from './rbac/access';
-import { inScope, resolveScope } from './rbac/scope';
+import { inScope, resolveScope, type ScopeSet } from './rbac/scope';
 import { systemCtx, withTenant, type Tx } from './tenancy';
 
 type Member = ReturnType<typeof requireMember>;
@@ -27,6 +28,8 @@ type LedgerRow = typeof leaveLedger.$inferInsert;
 
 export const appliesTo = (t: Pick<LeaveType, 'gender'>, e: { gender: string | null }) =>
 	!t.gender || t.gender === e.gender;
+
+const unlimited = (t: Pick<LeaveType, 'quota' | 'accrual'>) => t.quota === null && t.accrual === 'none';
 
 export async function fiscalStartMonth(tx: Tx) {
 	const [s] = await tx.select({ m: tenantSettings.fiscalYearStartMonth }).from(tenantSettings);
@@ -150,7 +153,7 @@ export async function balanceRows(tx: Tx, e: { id: string; gender: string | null
 			id: t.id,
 			name: t.name,
 			paid: t.paid,
-			unlimited: t.quota === null && t.accrual === 'none',
+			unlimited: unlimited(t),
 			balance: by.get(t.id) ?? 0,
 			pending: held.get(t.id) ?? 0,
 			available: (by.get(t.id) ?? 0) - (held.get(t.id) ?? 0)
@@ -184,21 +187,38 @@ const adjustSchema = z.object({
 	note: z.string().trim().min(1, 'Say why the balance changes.').max(500, 'Keep the note under 500 characters.')
 });
 
+function adjustmentProblem(
+	manage: ScopeSet,
+	access: Access,
+	e: { id: string; gender: string | null },
+	t: LeaveType | undefined,
+	balance: number,
+	days: number
+): [code: string, message: string, status: number] | null {
+	if (!inScope(manage, e.id)) return ['forbidden', 'You cannot adjust leave for this person.', 403];
+	if (access.employeeId === e.id) return ['self_change', 'Someone else has to adjust your own leave.', 403];
+	if (!t || !t.active || !appliesTo(t, e)) return ['unknown_type', 'Choose a leave type that applies.', 400];
+	if (!unlimited(t) && balance + days < 0)
+		return ['negative_balance', `Only ${balance} day(s) of ${t.name} can be removed.`, 409];
+	return null;
+}
+
 export async function adjustLeave(m: Member, employeeId: string, raw: Record<string, string>) {
 	const input = adjustSchema.parse(raw);
 	await withTenant(userCtx(m), async (tx) => {
 		const e = await lockEmployee(tx, m.access, employeeId);
-		if (!inScope(await resolveScope(tx, m.access, 'leave.manage'), e.id))
-			throw new AppError('forbidden', 'You cannot adjust leave for this person.', 403);
-		if (m.access.employeeId === e.id)
-			throw new AppError('self_change', 'Someone else has to adjust your own leave.', 403);
 		const [t] = await tx.select().from(leaveTypes).where(eq(leaveTypes.id, input.leaveTypeId));
-		if (!t || !t.active || !appliesTo(t, e))
-			throw new AppError('unknown_type', 'Choose a leave type that applies.', 400);
 		const fy = fiscalYearOf(await tenantToday(tx), await fiscalStartMonth(tx));
-		const row = (await balanceRows(tx, e, fy)).find((b) => b.id === t.id);
-		if (row && !row.unlimited && row.balance + input.days < 0)
-			throw new AppError('negative_balance', `Only ${row.balance} day(s) of ${t.name} can be removed.`, 409);
+		const balance = t ? ((await balanceRows(tx, e, fy)).find((b) => b.id === t.id)?.balance ?? 0) : 0;
+		const problem = adjustmentProblem(
+			await resolveScope(tx, m.access, 'leave.manage'),
+			m.access,
+			e,
+			t,
+			balance,
+			input.days
+		);
+		if (problem) throw new AppError(...problem);
 		await tx.insert(leaveLedger).values({
 			tenantId: m.tenant.id,
 			employeeId: e.id,
@@ -209,5 +229,93 @@ export async function adjustLeave(m: Member, employeeId: string, raw: Record<str
 			note: input.note,
 			createdByUserId: m.user.userId
 		});
+	});
+}
+
+export const MAX_BALANCE_ROWS = 2000;
+export const BALANCE_COLUMNS = ['employee_code', 'leave_type_code', 'balance', 'note'] as const;
+const BALANCE_RANGE = 'Use whole or half days from 0 to 366.';
+const openingSchema = z.object({
+	balance: z
+		.string()
+		.trim()
+		.regex(/^\d{1,3}(\.[05])?$/, BALANCE_RANGE)
+		.transform(Number)
+		.refine((n) => n <= 366, BALANCE_RANGE),
+	note: adjustSchema.shape.note
+});
+
+export async function importLeaveBalances(m: Member, table: string[][]): Promise<number> {
+	const rows = csvRecords(table, BALANCE_COLUMNS, MAX_BALANCE_ROWS);
+	return withTenant(userCtx(m), async (tx) => {
+		const visible = await resolveScope(tx, m.access, 'employee.read');
+		const manage = await resolveScope(tx, m.access, 'leave.manage');
+		const people = new Map(
+			(
+				await tx
+					.select()
+					.from(employees)
+					.where(inArray(employees.code, [...new Set(rows.map((r) => r.v.employee_code))]))
+					.orderBy(asc(employees.id))
+					.for('update')
+			)
+				.filter((e) => inScope(visible, e.id))
+				.map((e) => [e.code, e])
+		);
+		const types = new Map((await tx.select().from(leaveTypes)).map((t) => [t.code, t]));
+		const fy = fiscalYearOf(await tenantToday(tx), await fiscalStartMonth(tx));
+		const current = new Map(
+			(
+				await tx
+					.select({ e: leaveLedger.employeeId, t: leaveLedger.leaveTypeId, days: sum(leaveLedger.days) })
+					.from(leaveLedger)
+					.where(
+						and(
+							eq(leaveLedger.fiscalYear, fy),
+							inArray(
+								leaveLedger.employeeId,
+								[...people.values()].map((e) => e.id)
+							)
+						)
+					)
+					.groupBy(leaveLedger.employeeId, leaveLedger.leaveTypeId)
+			).map((s) => [`${s.e}:${s.t}`, Number(s.days)])
+		);
+		const seen = new Set<string>();
+		const errors: ImportRowError[] = [];
+		const list: LedgerRow[] = [];
+		for (const { line, v } of rows) {
+			const parsed = openingSchema.safeParse(v);
+			const e = people.get(v.employee_code);
+			const t = types.get(v.leave_type_code);
+			const key = `${e?.id}:${t?.id}`;
+			const was = current.get(key) ?? 0;
+			const message = !parsed.success
+				? parsed.error.issues[0].message
+				: !e
+					? 'No employee has this code.'
+					: (adjustmentProblem(manage, m.access, e, t, was, parsed.data.balance - was)?.[1] ??
+						(unlimited(t!)
+							? `${t!.name} has no balance to set.`
+							: seen.has(key)
+								? 'This person and leave type appear twice in the file.'
+								: null));
+			seen.add(key);
+			if (message) errors.push({ line, message });
+			else if (parsed.data!.balance !== was)
+				list.push({
+					tenantId: m.tenant.id,
+					employeeId: e!.id,
+					leaveTypeId: t!.id,
+					fiscalYear: fy,
+					kind: 'adjustment',
+					days: Math.round((parsed.data!.balance - was) * 100) / 100,
+					note: parsed.data!.note,
+					createdByUserId: m.user.userId
+				});
+		}
+		if (errors.length) throw new ImportFailed(errors.slice(0, 50));
+		if (list.length) await tx.insert(leaveLedger).values(list);
+		return list.length;
 	});
 }

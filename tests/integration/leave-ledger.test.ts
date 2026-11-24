@@ -4,7 +4,7 @@ import { closePools } from '../../src/lib/server/db';
 import { employees, leaveLedger, leaveTypes, memberships, tenantSettings } from '../../src/lib/server/db/schema';
 import { addDays, dateIn } from '../../src/lib/server/dates';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib/server/employees';
-import { accrue, adjustLeave, leaveBalances, runLeaveAccrual } from '../../src/lib/server/leave';
+import { accrue, adjustLeave, importLeaveBalances, leaveBalances, runLeaveAccrual } from '../../src/lib/server/leave';
 import { listLeaveTypes, updateLeaveType } from '../../src/lib/server/leave-types';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
@@ -196,6 +196,58 @@ describe('leave ledger', () => {
 		expect(await code(adjustLeave(who.hr, ids.vet, form()))).toBe('ok');
 		expect(await code(adjustLeave(who.hr, ids.vet, form({ days: '-0.5' })))).toBe('ok');
 		expect((await balances(ids.vet))['Casual leave']).toBe(14.5);
+	});
+
+	it('sets opening balances from a file and changes nothing on a second import', async () => {
+		const codeOf = async (id: string) =>
+			(await withTenant(sys(), (tx) => tx.select().from(employees).where(eq(employees.id, id))))[0].code;
+		const [vet, self, stranger] = await Promise.all([ids.vet, ids.hrEmp, ids.stranger].map(codeOf));
+		const header = ['employee_code', 'leave_type_code', 'balance', 'note'];
+		const file = [
+			header,
+			[vet, 'casual', '10', 'Opening balance'],
+			[vet, 'sick', '7.5', 'Opening balance'],
+			[stranger, 'casual', '0', 'Opening balance']
+		];
+		expect(await importLeaveBalances(who.hr, file)).toBe(3);
+		expect(await importLeaveBalances(who.hr, file)).toBe(0);
+		expect(await balances(ids.vet)).toMatchObject({ 'Casual leave': 10, 'Sick leave': 7.5 });
+		expect((await balances(ids.stranger))['Casual leave']).toBe(0);
+		const rows = (key: string, body: string[][]) =>
+			importLeaveBalances(who[key], [header, ...body]).catch((e: { rows?: unknown }) => e.rows);
+		expect(
+			await rows('hr', [
+				[self, 'casual', '5', 'x'],
+				['NOPE-1', 'casual', '5', 'x'],
+				[vet, 'maternity', '5', 'x'],
+				[vet, 'unpaid', '5', 'x'],
+				[vet, 'nope', '5', 'x'],
+				[vet, 'casual', '2.3', 'x'],
+				[vet, 'casual', '-1', 'x'],
+				[vet, 'casual', '400', 'x'],
+				[vet, 'casual', '', 'x'],
+				[vet, 'sick', '3', ' '],
+				[stranger, 'sick', '3', 'x'],
+				[stranger, 'sick', '4', 'x']
+			])
+		).toEqual([
+			{ line: 2, message: 'Someone else has to adjust your own leave.' },
+			{ line: 3, message: 'No employee has this code.' },
+			{ line: 4, message: 'Choose a leave type that applies.' },
+			{ line: 5, message: 'Unpaid leave has no balance to set.' },
+			{ line: 6, message: 'Choose a leave type that applies.' },
+			{ line: 7, message: 'Use whole or half days from 0 to 366.' },
+			{ line: 8, message: 'Use whole or half days from 0 to 366.' },
+			{ line: 9, message: 'Use whole or half days from 0 to 366.' },
+			{ line: 10, message: 'Use whole or half days from 0 to 366.' },
+			{ line: 11, message: 'Say why the balance changes.' },
+			{ line: 13, message: 'This person and leave type appear twice in the file.' }
+		]);
+		expect(await rows('vet', [[vet, 'casual', '20', 'x']])).toEqual([
+			{ line: 2, message: 'You cannot adjust leave for this person.' }
+		]);
+		expect(await balances(ids.vet)).toMatchObject({ 'Casual leave': 10, 'Sick leave': 7.5 });
+		expect((await balances(ids.stranger))['Sick leave']).not.toBe(3);
 	});
 
 	it('runs the accrual job for every tenant', async () => {

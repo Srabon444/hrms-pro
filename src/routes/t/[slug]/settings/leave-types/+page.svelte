@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
+	import CsvImport from '#lib/components/ui/CsvImport.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -81,6 +82,7 @@
 <div class="mt-4 max-w-3xl space-y-2">
 	<Alert message={form?.message} />
 	{#if form && 'saved' in form}<Alert tone="info" message="Leave types saved." />{/if}
+	{#if form && 'imported' in form}<Alert tone="info" message="{form.imported} balances updated." />{/if}
 </div>
 
 {#each data.types as t (t.id)}
@@ -107,4 +109,21 @@
 		{@render fields(blank)}
 		<div class="sm:col-span-2"><Button type="submit">Add leave type</Button></div>
 	</form>
+</section>
+
+<section class="mt-6 max-w-3xl panel" aria-label="Opening balances">
+	<h2 class="section-title">Opening balances</h2>
+	<p class="mt-1 text-sm text-slate-600">
+		Set each person's balance for this leave year. The difference is recorded as an adjustment, so importing the same
+		file again changes nothing.
+	</p>
+	<CsvImport
+		action="?/importBalances"
+		label="Balances file, up to 2000 rows"
+		button="Import balances"
+		columns={data.balanceColumns}
+		example={['EMP-0001', 'casual', '7.5', 'Carried from the old system']}
+		file="leave-balances.csv"
+		rows={form && 'rows' in form ? form.rows : null}
+	/>
 </section>
