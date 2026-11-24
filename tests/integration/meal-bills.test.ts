@@ -1,5 +1,6 @@
 import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { addFiles, openFile } from '../../src/lib/server/attachments';
 import { closePools } from '../../src/lib/server/db';
 import { processors } from '../../src/lib/server/jobs';
 import { addDays } from '../../src/lib/server/dates';
@@ -350,6 +351,11 @@ describe('meal bills', () => {
 		expect(await pay(catBill, '10', '2999-01-01')).toBe('future_payment');
 		expect(await pay(catBill, ((total + 1) / 100).toFixed(2))).toBe('overpaid');
 		expect(await pay(catBill, '100.50')).toBe('ok');
+		const pdf = (name: string) => new File([`%PDF-1.7 ${name}`], name, { type: 'application/pdf' });
+		const [slip] = await addFiles(who.mm, 'meal_bill', catBill, [pdf('slip.pdf')]);
+		expect((await openFile(who.mm, slip)).fileName).toBe('slip.pdf');
+		expect(await code(openFile(who.ana, slip))).toBe('not_found');
+		expect(await code(addFiles(who.ana, 'meal_bill', catBill, [pdf('x.pdf')]))).toBe('not_found');
 		const [, , afterOne] = await bills('2026-02');
 		expect(afterOne[1]).toBe('partially_paid');
 		expect(await pay(catBill, (total / 100).toFixed(2))).toBe('overpaid');
@@ -368,6 +374,7 @@ describe('meal bills', () => {
 		);
 		const [anaFeb] = await bills('2026-02');
 		expect(await pay(anaFeb[4] as string, '1')).toBe('not_payable');
+		expect(await code(addFiles(who.mm, 'meal_bill', anaFeb[4] as string, [pdf('x.pdf')]))).toBe('forbidden');
 		await withTenant(sys(), (tx) =>
 			tx
 				.update(mealBills)

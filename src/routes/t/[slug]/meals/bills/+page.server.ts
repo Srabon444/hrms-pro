@@ -1,7 +1,9 @@
 import { fail } from '@sveltejs/kit';
 import { z } from 'zod';
+import { filesFor } from '#lib/server/attachments.ts';
+import { attachmentAction } from '#lib/server/http/attachments.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
-import { actionError } from '#lib/server/http/forms.ts';
+import { actionError, field } from '#lib/server/http/forms.ts';
 import { tenantToday } from '#lib/server/lifecycle.ts';
 import {
 	generateBills,
@@ -21,8 +23,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	return withTenant(userCtx(m), async (tx) => {
 		const picked = url.searchParams.get('period') ?? '';
 		const period = /^\d{4}-(0[1-9]|1[0-2])$/.test(picked) ? picked : lastPeriod(await tenantToday(tx));
+		const billing = await periodBills(tx, m.access, period);
 		return {
-			billing: await periodBills(tx, m.access, period),
+			billing,
+			receipts: Object.fromEntries(
+				await filesFor(
+					tx,
+					'meal_bill',
+					billing.bills.map((b) => b.id)
+				)
+			),
 			statement: await mealStatement(tx, period),
 			today: await tenantToday(tx)
 		};
@@ -39,6 +49,11 @@ async function run(fn: () => Promise<unknown>, requestId: string, done: (n: numb
 }
 
 export const actions: Actions = {
+	receipts: async ({ request, locals }) => {
+		const m = requirePerm(locals, 'meal.billing');
+		const form = await request.formData();
+		return attachmentAction(m, form, 'meal_bill', field(form, 'ownerId'), locals.requestId);
+	},
 	generate: async ({ request, locals }) => {
 		const m = requirePerm(locals, 'meal.billing');
 		const form = formFields(await request.formData());

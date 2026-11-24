@@ -11,6 +11,7 @@ import { discardFiles } from './file-store';
 import { ticketAttachments, ticketCommentAttachments } from './helpdesk';
 import { leaveAttachments } from './leave-requests';
 import { loanAttachments } from './loans';
+import { mealBillAttachments } from './meal-bills';
 import { goalAttachments, reviewAttachments } from './performance';
 import { projectAttachments } from './projects';
 import { files, MAX_ATTACHMENTS, MAX_DOCUMENT_BYTES, type AttachmentOwner } from './db/schema';
@@ -42,6 +43,7 @@ const owners = (): Record<AttachmentOwner, AttachmentRules> => ({
 	interview_feedback: feedbackAttachments,
 	leave_request: leaveAttachments,
 	loan: loanAttachments,
+	meal_bill: mealBillAttachments,
 	offer: offerAttachments,
 	project: projectAttachments,
 	resignation: resignationAttachments,

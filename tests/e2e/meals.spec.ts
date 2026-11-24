@@ -74,3 +74,37 @@ test('issuing meal bills emails each employee their own bill as a PDF', async ({
 	const bytes = await (await file.createReadStream()).toArray();
 	expect(Buffer.concat(bytes).subarray(0, 5).toString()).toBe('%PDF-');
 });
+
+test('a cash meal bill takes a payment with its receipt', async ({ page, request }) => {
+	const f = await fixture(request, {
+		tenant: {},
+		mealMonth: '2026-10',
+		users: [
+			{ key: 'mm', roles: ['meal_manager', 'employee'], employee: true },
+			{ key: 'ana', roles: ['employee'], employee: true }
+		]
+	});
+	await signIn(page, f.users.mm.email);
+	await page.goto(`/t/${f.tenant!.slug}/settings/meals`);
+	await page.getByLabel('Bills are paid').selectOption('direct');
+	await page.getByRole('button', { name: 'Save ordering rules' }).click();
+	await expect(page.getByRole('status')).toHaveText('Meal setup saved.');
+
+	await page.goto(`/t/${f.tenant!.slug}/meals/bills?period=2026-10`);
+	await page.getByRole('button', { name: 'Issue bills for 2026-10' }).click();
+	await expect(page.getByRole('status')).toHaveText('2 bills issued.');
+	const row = page.getByTestId('meal-bill').filter({ hasText: 'ana' });
+	await expect(row).toContainText('Cash');
+	await row.getByLabel(/^Amount from ana/).fill('840');
+	await row.getByRole('button', { name: /^Record payment from ana/ }).click();
+	await expect(page.getByRole('status')).toHaveText('Payment recorded.');
+	await expect(row).toContainText('Paid');
+
+	const receipts = row.getByRole('group', { name: /^Receipts of ana/ });
+	await receipts.getByText(/\(0\)$/).click();
+	await receipts
+		.getByLabel('Files to attach')
+		.setInputFiles({ name: 'bkash.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 bkash') });
+	await receipts.getByRole('button', { name: 'Attach files' }).click();
+	await expect(receipts.getByTestId('attachment')).toContainText('bkash.pdf');
+});

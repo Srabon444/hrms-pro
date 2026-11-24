@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Attachments from '#lib/components/Attachments.svelte';
 	import Badge from '#lib/components/ui/Badge.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
@@ -9,6 +10,8 @@
 	let { data, form }: PageProps = $props();
 	const b = $derived(data.billing);
 	const input = 'input px-2 py-1';
+	const takesReceipts = (bill: { billingMode: string; status: string }) =>
+		bill.billingMode === 'direct' && ['issued', 'partially_paid', 'paid'].includes(bill.status);
 </script>
 
 <svelte:head><title>Meal bills · {data.tenant.name}</title></svelte:head>
@@ -92,6 +95,17 @@
 								<a href="/t/{data.tenant.slug}/meals/bills/{bill.id}/pdf" class="text-brand-700 hover:underline">
 									PDF of {bill.name}
 								</a>
+							{/if}
+							{#if takesReceipts(bill) || data.receipts[bill.id]?.length}
+								<Attachments
+									slug={data.tenant.slug}
+									attachments={{ files: data.receipts[bill.id] ?? [], canEdit: takesReceipts(bill) }}
+									{form}
+									action="?/receipts"
+									ownerId={bill.id}
+									title={`Receipts of ${bill.name}`}
+									compact
+								/>
 							{/if}
 							{#if bill.status === 'issued' && !bill.paid}
 								<form method="POST" action="?/void">

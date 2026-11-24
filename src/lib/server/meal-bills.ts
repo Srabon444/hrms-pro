@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { mealCharge, money, poishaOf } from '../money';
+import type { AttachmentRules } from './attachments';
 import { now } from './clock';
 import { authPool } from './db';
 import { addDays } from './dates';
@@ -34,6 +35,7 @@ import { queue } from './queue';
 type Member = ReturnType<typeof requireMember>;
 
 const SETTLED = ['issued', 'partially_paid', 'paid', 'deducted'];
+const RECEIPT_STATUSES = ['issued', 'partially_paid', 'paid'];
 
 const periodSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Choose a month.');
 const periodInput = z.object({ period: periodSchema });
@@ -465,3 +467,19 @@ export async function openBillPdf(m: Member, billId: string) {
 		return { fileName: `meal-bill-${doc.period}.pdf`, body: await renderBillPdf(doc) };
 	});
 }
+
+async function billerSees(tx: Tx, access: Access, id: string) {
+	const [bill] = await tx
+		.select({ employeeId: mealBills.employeeId, status: mealBills.status, billingMode: mealBills.billingMode })
+		.from(mealBills)
+		.where(eq(mealBills.id, id));
+	return bill && inScope(await resolveScope(tx, access, 'meal.billing'), bill.employeeId) ? bill : null;
+}
+
+export const mealBillAttachments: AttachmentRules = {
+	canRead: async (tx, access, id) => (await billerSees(tx, access, id)) !== null,
+	async canEdit(tx, access, id) {
+		const bill = await billerSees(tx, access, id);
+		return !!bill && bill.billingMode === 'direct' && RECEIPT_STATUSES.includes(bill.status);
+	}
+};
