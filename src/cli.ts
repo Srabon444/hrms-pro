@@ -7,7 +7,8 @@ import { migrateDatabase } from './lib/server/db/migrate';
 import { tenants, users } from './lib/server/db/schema';
 import { inviteLink } from './lib/server/invitations';
 import { log } from './lib/server/log';
-import { addMember, provisionTenant, seedTenant, syncSystemRoles } from './lib/server/platform/tenants';
+import { seedDemo } from './lib/server/demo-seed';
+import { provisionTenant, seedTenant, syncSystemRoles } from './lib/server/platform/tenants';
 import { closeQueues } from './lib/server/queue';
 import { closeRedis } from './lib/server/redis';
 import { ensureBucket } from './lib/server/storage';
@@ -36,7 +37,7 @@ async function ensureUser(
 	if (!existing) return createUser({ email, name, password, isPlatformAdmin: opts.isPlatformAdmin });
 	const patch = {
 		...(opts.isPlatformAdmin ? { isPlatformAdmin: true } : {}),
-		...(opts.resetPassword ? { passwordHash: await hashPassword(password) } : {})
+		...(opts.resetPassword ? { passwordHash: await hashPassword(password), name } : {})
 	};
 	if (Object.keys(patch).length) await authPool().db.update(users).set(patch).where(eq(users.id, existing.id));
 	return existing.id;
@@ -67,23 +68,17 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 
 	async seed() {
 		if (process.env.NODE_ENV === 'production') throw new Error('seed refuses to run with NODE_ENV=production');
+		process.env.TEST_MODE = '1';
 		const password = process.env.SEED_PASSWORD || randomBytes(12).toString('base64url');
 		await ensureUser('admin@hrms.local', 'Platform Admin', password, { isPlatformAdmin: true, resetPassword: true });
+		const name = 'Nimbus Labs Ltd';
 		let [tenant] = await authPool().db.select().from(tenants).where(eq(tenants.slug, 'demo'));
-		if (!tenant)
-			[tenant] = await authPool().db.insert(tenants).values({ slug: 'demo', name: 'Demo Software Ltd' }).returning();
-		const people: [string, string, string[]][] = [
-			['owner@demo.local', 'Demo Owner', ['owner']],
-			['hr@demo.local', 'Demo HR Admin', ['hr_admin']],
-			['staff@demo.local', 'Demo Staff', []]
-		];
+		if (!tenant) [tenant] = await authPool().db.insert(tenants).values({ slug: 'demo', name }).returning();
+		await authPool().db.update(tenants).set({ name }).where(eq(tenants.id, tenant.id));
 		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
-		for (const [email, name, roleKeys] of people) {
-			const userId = await ensureUser(email, name, password, { resetPassword: true });
-			await withTenant(systemCtx(tenant.id), (tx) => addMember(tx, tenant.id, userId, roleKeys));
-		}
+		await seedDemo({ id: tenant.id, slug: tenant.slug, name }, password, ensureUser);
 		console.error(
-			`seeded tenant /t/demo; users admin@hrms.local, ${people.map((p) => p[0]).join(', ')}; password: ${process.env.SEED_PASSWORD ? '(SEED_PASSWORD)' : password}`
+			`seeded tenant /t/demo (${name}); users admin@hrms.local, owner@demo.local, hr@demo.local, finance@demo.local, payroll@demo.local, manager@demo.local, staff@demo.local; password: ${process.env.SEED_PASSWORD ? '(SEED_PASSWORD)' : password}`
 		);
 	}
 };
