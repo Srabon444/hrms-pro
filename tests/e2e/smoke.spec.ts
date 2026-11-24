@@ -23,3 +23,11 @@ test('landing page renders with a CSP header', async ({ page }) => {
 	await expect(page).toHaveURL(/\/login/);
 	await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 });
+
+test('a form post with a non-form body is refused, not a server error', async ({ request, baseURL }) => {
+	const res = await request.post('/login', {
+		headers: { 'content-type': 'text/plain', origin: baseURL! },
+		data: 'email=x'
+	});
+	expect(res.status()).toBe(415);
+});

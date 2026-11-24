@@ -33,7 +33,12 @@ async function mutationLimit(userId: string): Promise<Response | null> {
 	}
 }
 
+const FORM_TYPES = new Set(['application/x-www-form-urlencoded', 'multipart/form-data']);
+
 const route: Handle = async ({ event, resolve }) => {
+	const type = event.request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() ?? '';
+	if (!SAFE_METHODS.has(event.request.method) && !event.url.pathname.startsWith('/api/') && !FORM_TYPES.has(type))
+		return new Response('Unsupported content type', { status: 415 });
 	event.locals.user = await validateSession(event.cookies.get(SESSION_COOKIE)).catch((err) => {
 		log.error({ err, requestId: event.locals.requestId }, 'session validation failed');
 		return null;
