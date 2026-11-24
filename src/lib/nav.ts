@@ -47,6 +47,13 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 	},
 	{ href: 'audit', label: 'Audit log', group: 'Access', perm: 'audit.read', about: 'Who changed what, and when.' },
 	{
+		href: 'data-export',
+		label: 'Data export',
+		group: 'Access',
+		perm: 'data.export',
+		about: 'Download employees, leave, attendance, assets, tickets, expenses and pay as CSV.'
+	},
+	{
 		href: 'attendance',
 		label: 'Attendance rules',
 		group: 'Time',

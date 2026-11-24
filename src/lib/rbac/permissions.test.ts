@@ -15,7 +15,8 @@ describe('permission catalog', () => {
 				'salary.read',
 				'audit.sensitive',
 				'employee.sensitive.read',
-				'role.manage'
+				'role.manage',
+				'data.export'
 			])
 		);
 		expect(isRestricted('employee.read')).toBe(false);

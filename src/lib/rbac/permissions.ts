@@ -62,7 +62,8 @@ export const PERMISSIONS = [
 	'user.manage',
 	'role.manage',
 	'audit.read',
-	'audit.sensitive'
+	'audit.sensitive',
+	'data.export'
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -76,7 +77,7 @@ export const isScopeValue = (value: string): value is Scope => (SCOPES as readon
 export type Grant = readonly [Permission, Scope];
 
 const RESTRICTED_PREFIXES = ['payroll.', 'salary.', 'audit.', 'employee.sensitive.'];
-const RESTRICTED_EXACT = new Set<Permission>(['role.manage', 'user.manage', 'settings.manage']);
+const RESTRICTED_EXACT = new Set<Permission>(['role.manage', 'user.manage', 'settings.manage', 'data.export']);
 
 export const isRestricted = (p: Permission): boolean =>
 	RESTRICTED_EXACT.has(p) || RESTRICTED_PREFIXES.some((prefix) => p.startsWith(prefix));
