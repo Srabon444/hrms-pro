@@ -5,6 +5,7 @@ test('HR tunes a seeded leave type and adds a new one', async ({ page, request }
 	const f = await fixture(request, { tenant: {}, users: [{ key: 'hr', roles: ['hr_admin'] }] });
 	await signIn(page, f.users.hr.email);
 	await page.goto(`/t/${f.tenant!.slug}`);
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Leave types' }).click();
 
 	const casual = page.getByRole('region', { name: 'Casual leave' });

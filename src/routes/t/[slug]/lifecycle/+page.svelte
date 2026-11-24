@@ -21,7 +21,7 @@
 </div>
 
 <section class="mt-6 max-w-4xl rounded-xl bg-white p-6 ring-1 ring-slate-200" aria-label="Probation due">
-	<h2 class="font-semibold text-slate-900">Probation ending within 30 days</h2>
+	<h2 class="font-semibold text-slate-900">Probation ending within {data.probation.days} days</h2>
 	<ul class="mt-3 divide-y divide-slate-100 text-sm">
 		{#each data.probation.rows as p (p.id)}
 			<li class="flex flex-wrap items-center gap-3 py-3" data-testid="probation-row">

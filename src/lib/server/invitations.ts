@@ -5,9 +5,8 @@ import { config } from './config';
 import { invitations, roles } from './db/schema';
 import { AppError } from './errors';
 import type { Mail } from './mail';
+import { readSettings } from './settings';
 import type { Tx } from './tenancy';
-
-const INVITE_TTL_MS = 7 * 24 * 3600_000;
 
 export type InvitationInput = {
 	tenantId: string;
@@ -17,7 +16,7 @@ export type InvitationInput = {
 	employeeId?: string | null;
 };
 
-export async function createInvitation(tx: Tx, input: InvitationInput): Promise<string> {
+export async function createInvitation(tx: Tx, input: InvitationInput) {
 	const email = input.email.trim().toLowerCase();
 	const roleIds = [...new Set(input.roleIds)];
 	if (roleIds.length) {
@@ -29,6 +28,7 @@ export async function createInvitation(tx: Tx, input: InvitationInput): Promise<
 		.set({ revokedAt: now() })
 		.where(and(eq(invitations.email, email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
 	const token = randomToken();
+	const validDays = (await readSettings(tx)).invitationValidDays;
 	await tx.insert(invitations).values({
 		tenantId: input.tenantId,
 		email,
@@ -36,15 +36,15 @@ export async function createInvitation(tx: Tx, input: InvitationInput): Promise<
 		roleIds,
 		employeeId: input.employeeId ?? null,
 		invitedByMembershipId: input.invitedByMembershipId ?? null,
-		expiresAt: new Date(now().getTime() + INVITE_TTL_MS)
+		expiresAt: new Date(now().getTime() + validDays * 24 * 3600_000)
 	});
-	return token;
+	return { token, validDays };
 }
 
 export const inviteLink = (token: string): string => `${config().APP_URL}/invite/${token}`;
 
-export const invitationMail = (to: string, tenantName: string, token: string): Mail => ({
+export const invitationMail = (to: string, tenantName: string, invite: { token: string; validDays: number }): Mail => ({
 	to,
 	subject: `You are invited to ${tenantName} on HRMS`,
-	text: `You have been invited to join ${tenantName}.\n\nAccept the invitation within 7 days:\n${inviteLink(token)}\n\nIf you did not expect this, ignore this email.`
+	text: `You have been invited to join ${tenantName}.\n\nAccept the invitation within ${invite.validDays} day(s):\n${inviteLink(invite.token)}\n\nIf you did not expect this, ignore this email.`
 });

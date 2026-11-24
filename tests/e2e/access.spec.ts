@@ -16,6 +16,7 @@ test('employees are refused the admin screens but have an approvals inbox', asyn
 test('HR filters the audit log by record type', async ({ page, request }) => {
 	const f = await fixture(request, { tenant: {}, users: [{ key: 'hr', roles: ['hr_admin'] }] });
 	await signIn(page, f.users.hr.email);
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Audit log' }).click();
 	await page.getByLabel('Record type').selectOption('membership_roles');
 	await page.getByRole('button', { name: 'Filter' }).click();

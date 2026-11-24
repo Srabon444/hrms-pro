@@ -127,6 +127,7 @@ test('HR links a member to an employee record and the member then sees it', asyn
 	await page.getByRole('button', { name: 'Add employee' }).click();
 	await expect(page.getByRole('heading', { name: 'Karim Staff' })).toBeVisible();
 
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Users' }).click();
 	await page.getByRole('link', { name: /^staff / }).click();
 	await page.getByLabel('Linked employee').selectOption({ label: 'Karim Staff (EMP-0001)' });

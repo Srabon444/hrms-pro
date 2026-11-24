@@ -164,7 +164,7 @@ export async function inviteMember(
 	const email = emailSchema.parse(input.email);
 	const roleIds = [...new Set(input.roleIds)];
 	const employeeId = optionalId.parse(input.employeeId ?? null);
-	const token = await withTenant(actor.ctx, async (tx) => {
+	const invite = await withTenant(actor.ctx, async (tx) => {
 		const wanted = await rolesWithGrants(tx, roleIds);
 		if (wanted.length !== roleIds.length) throw new AppError('role_not_found', 'One or more roles do not exist.');
 		assertCanHandOut(actor.access, wanted);
@@ -185,7 +185,7 @@ export async function inviteMember(
 			invitedByMembershipId: actor.access.membershipId
 		});
 	});
-	await sendMail(invitationMail(email, actor.tenant.name, token));
+	await sendMail(invitationMail(email, actor.tenant.name, invite));
 }
 
 export async function revokeInvitation(actor: Actor, invitationId: string): Promise<void> {

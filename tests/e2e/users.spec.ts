@@ -16,6 +16,7 @@ test('HR invites a recruiter who joins, then changes their roles and the member 
 }) => {
 	const f = await fixture(request, { tenant: {}, users: [{ key: 'hr', roles: ['hr_admin'] }] });
 	await signIn(page, f.users.hr.email);
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Users' }).click();
 	await expect(page.getByLabel('Payroll Officer')).toHaveCount(0);
 

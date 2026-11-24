@@ -100,7 +100,7 @@ export async function provisionTenant(
 		.onConflictDoNothing({ target: tenants.slug })
 		.returning({ id: tenants.id });
 	if (!t) throw new AppError('slug_taken', 'That organisation URL is already taken', 409);
-	const invitationToken = await withTenant(systemCtx(t.id), async (tx) => {
+	const invite = await withTenant(systemCtx(t.id), async (tx) => {
 		const roleIds = await seedTenant(tx, t.id);
 		return createInvitation(tx, { tenantId: t.id, email: input.ownerEmail, roleIds: [roleIds.owner] });
 	});
@@ -112,8 +112,8 @@ export async function provisionTenant(
 			target: t.id,
 			meta: { slug: input.slug, ownerEmail: input.ownerEmail }
 		});
-	await sendMail(invitationMail(input.ownerEmail, input.name, invitationToken));
-	return { tenantId: t.id, slug: input.slug, invitationToken };
+	await sendMail(invitationMail(input.ownerEmail, input.name, invite));
+	return { tenantId: t.id, slug: input.slug, invitationToken: invite.token };
 }
 
 export async function setTenantStatus(tenantId: string, status: 'active' | 'suspended', actorUserId: string) {

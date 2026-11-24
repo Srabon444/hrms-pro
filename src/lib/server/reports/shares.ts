@@ -10,6 +10,7 @@ import type { Mail } from '../mail';
 import { notify } from '../notifications';
 import { can, userCtx, type Access, type requireMember } from '../rbac/access';
 import { resolveScope } from '../rbac/scope';
+import { readSettings } from '../settings';
 import { deleteObject, getObject, putObject } from '../storage';
 import { withTenant, type Tx } from '../tenancy';
 import { reportCsv, reportFileName, reportPdf, reportPeriod } from './files';
@@ -18,7 +19,6 @@ import type { Report, ReportDef } from './types';
 
 type Member = ReturnType<typeof requireMember>;
 
-export const REPORT_SHARE_DAYS = 30;
 export const MAX_SHARE_RECIPIENTS = 200;
 
 const choice = (msg: string) => z.array(z.string().max(200, msg)).max(5000, msg);
@@ -174,7 +174,7 @@ export async function shareReport(
 				recipientMembershipIds: recipients,
 				sharedByMembershipId: m.access.membershipId,
 				sharedByUserId: m.user.userId,
-				expiresOn: addDays(await tenantToday(tx), REPORT_SHARE_DAYS)
+				expiresOn: addDays(await tenantToday(tx), (await readSettings(tx)).reportShareDays)
 			});
 			const [me] = await tx.execute<{ name: string }>(
 				sql`select name from tenant_users where membership_id = ${m.access.membershipId}::uuid`

@@ -8,11 +8,10 @@ import { AppError } from './errors';
 import { notify, sendAll } from './notifications';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
+import { readSettings } from './settings';
 import { withTenant, type Tx } from './tenancy';
 
 type Member = ReturnType<typeof requireMember>;
-
-export const PROBATION_WINDOW_DAYS = 30;
 
 export async function tenantToday(tx: Tx): Promise<string> {
 	const [s] = await tx.select({ tz: tenantSettings.timezone }).from(tenantSettings);
@@ -32,6 +31,7 @@ export async function tenantWeeks(tx: Tx) {
 export async function probationDue(tx: Tx, access: Access) {
 	const scope = await resolveScope(tx, access, 'employee.update');
 	const today = await tenantToday(tx);
+	const days = (await readSettings(tx)).probationAlertDays;
 	const rows = await tx
 		.select({
 			id: employees.id,
@@ -43,13 +43,17 @@ export async function probationDue(tx: Tx, access: Access) {
 		.where(
 			and(
 				eq(employees.status, 'probation'),
-				lte(employees.probationEndDate, addDays(today, PROBATION_WINDOW_DAYS)),
+				lte(employees.probationEndDate, addDays(today, days)),
 				scopeWhere(scope, employees.id)
 			)
 		)
 		.orderBy(asc(employees.probationEndDate), asc(employees.code))
 		.limit(200);
-	return { today, rows: rows.map((r) => ({ ...r, overdue: !!r.probationEndDate && r.probationEndDate < today })) };
+	return {
+		today,
+		days,
+		rows: rows.map((r) => ({ ...r, overdue: !!r.probationEndDate && r.probationEndDate < today }))
+	};
 }
 
 const probationSchema = z.discriminatedUnion('decision', [

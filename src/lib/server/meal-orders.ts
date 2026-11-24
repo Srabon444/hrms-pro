@@ -26,7 +26,6 @@ type Member = ReturnType<typeof requireMember>;
 type Status = 'ordered' | 'opted_out' | 'auto_off';
 type Rules = Awaited<ReturnType<typeof rules>>;
 
-export const MEAL_DAYS_AHEAD = 14;
 const MAX_AHEAD = 60;
 const MAX_RANGE = 62;
 
@@ -37,7 +36,8 @@ async function rules(tx: Tx) {
 			weekendDays: tenantSettings.weekendDays,
 			cutoff: tenantSettings.mealCutoffTime,
 			mode: tenantSettings.mealMode,
-			workingDaysOnly: tenantSettings.mealWorkingDaysOnly
+			workingDaysOnly: tenantSettings.mealWorkingDaysOnly,
+			daysAhead: tenantSettings.mealOrderDaysAhead
 		})
 		.from(tenantSettings);
 	return { ...s, today: dateIn(now(), s.timeZone) };
@@ -126,7 +126,7 @@ export async function myMeals(tx: Tx, access: Access) {
 	if (!access.employeeId) return null;
 	const e = await self(tx, access);
 	const r = await rules(tx);
-	const to = addDays(r.today, MEAL_DAYS_AHEAD - 1);
+	const to = addDays(r.today, r.daysAhead - 1);
 	const served = await menu(tx, to);
 	const off = await holidaySet(tx, r.today, to);
 	const leave = await leaveSet(tx, r.today, to, [e.id]);

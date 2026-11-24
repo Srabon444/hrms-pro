@@ -124,7 +124,7 @@ describe('member management guards', () => {
 		expect(open).toEqual([]);
 
 		const inviter = await member(['hr_admin']);
-		const token = await withTenant(systemCtx(tenant.id), (tx) =>
+		const { token } = await withTenant(systemCtx(tenant.id), (tx) =>
 			createInvitation(tx, {
 				tenantId: tenant.id,
 				email: 'late@members.test',

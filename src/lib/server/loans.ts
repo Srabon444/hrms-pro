@@ -12,6 +12,7 @@ import { advisoryLock, LOCK } from './locks';
 import { notify } from './notifications';
 import { can, userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
+import { readSettings } from './settings';
 import { withTenant, type Tx } from './tenancy';
 
 type Member = ReturnType<typeof requireMember>;
@@ -52,6 +53,9 @@ export async function requestLoan(m: Member, form: Record<string, string>) {
 	return withTenant(userCtx(m), async (tx) => {
 		const [e] = await tx.select({ status: employees.status }).from(employees).where(eq(employees.id, employeeId));
 		if (!e || e.status === 'exited') throw new AppError('exited', 'People who have left cannot ask for a loan.', 409);
+		const most = (await readSettings(tx)).loanMaxInstalments;
+		if (input.instalments > most)
+			throw new AppError('too_many_instalments', `Repay in at most ${most} instalments.`, 400);
 		if (input.startPeriod < (await tenantToday(tx)).slice(0, 7))
 			throw new AppError('past_start', 'Repayment cannot start in a past month.', 400);
 		const [row] = await tx
@@ -191,7 +195,7 @@ export async function loanBoard(tx: Tx, m: Member) {
 	return {
 		today: await tenantToday(tx),
 		canRequest: !!me && can(m.access, 'loan.request'),
-		maxInstalments: MAX_INSTALMENTS,
+		maxInstalments: (await readSettings(tx)).loanMaxInstalments,
 		mine: await withSchedule(tx, mine),
 		toDecide,
 		active: await withSchedule(tx, active)

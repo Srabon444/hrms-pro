@@ -14,6 +14,7 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 import { citext, createdAt, tenantBase, tenantKey, tfk, tstz, updatedAt } from './_helpers';
+import { LIMITS } from '../../../settings-sections';
 import { employees } from './org';
 export { tenants } from './tenants';
 
@@ -221,7 +222,14 @@ export const tenantSettings = pgTable(
 		arrearsLookbackMonths: smallint().notNull().default(12),
 		gratuityDaysPerYear: smallint().notNull().default(30),
 		gratuityMinYears: smallint().notNull().default(5),
-		pfVestingMonths: smallint().notNull().default(24)
+		pfVestingMonths: smallint().notNull().default(24),
+		probationAlertDays: smallint().notNull().default(30),
+		documentExpiryAlertDays: smallint().notNull().default(30),
+		upcomingHireDays: smallint().notNull().default(14),
+		mealOrderDaysAhead: smallint().notNull().default(14),
+		loanMaxInstalments: smallint().notNull().default(60),
+		invitationValidDays: smallint().notNull().default(7),
+		reportShareDays: smallint().notNull().default(30)
 	},
 	(t) => [
 		tenantKey('tenant_settings', t),
@@ -254,6 +262,22 @@ export const tenantSettings = pgTable(
 		check(
 			'tenant_settings_settlement_ck',
 			sql`${t.gratuityDaysPerYear} between 0 and 90 and ${t.gratuityMinYears} between 0 and 40 and ${t.pfVestingMonths} between 0 and 120`
+		),
+		...(
+			[
+				'probationAlertDays',
+				'documentExpiryAlertDays',
+				'upcomingHireDays',
+				'mealOrderDaysAhead',
+				'loanMaxInstalments',
+				'invitationValidDays',
+				'reportShareDays'
+			] as const
+		).map((k) =>
+			check(
+				`tenant_settings_${k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}_ck`,
+				sql`${t[k]} between ${sql.raw(String(LIMITS[k].min))} and ${sql.raw(String(LIMITS[k].max))}`
+			)
 		)
 	]
 );

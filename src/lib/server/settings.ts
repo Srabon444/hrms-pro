@@ -2,13 +2,13 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { poishaOf } from '../money';
 import { tenantSettings } from './db/schema';
+import { rangeMessage, SETTING_SECTIONS, type IntField, type SectionId, type SettingField } from '../settings-sections';
 import { AppError } from './errors';
 import { advisoryLock, LOCK } from './locks';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
 
 const TIMEZONES = new Set(Intl.supportedValuesOf('timeZone'));
 const checkbox = z.preprocess((v) => v === 'on' || v === true, z.boolean());
-const days = (min: number, message: string) => z.coerce.number().int().min(min, message).max(3650, message);
 
 export const settingsSchema = z.object({
 	legalName: z.string().trim().max(200),
@@ -22,27 +22,7 @@ export const settingsSchema = z.object({
 	employeeCodePrefix: z
 		.string()
 		.trim()
-		.regex(/^[A-Za-z0-9-]{1,10}$/, 'Use up to 10 letters, digits or dashes.'),
-	require2faForSensitive: checkbox,
-	allowSingleAdminApproval: checkbox,
-	exEmployeeAccessDays: days(0, 'Former employee access must be 0 to 3650 days.'),
-	noticePeriodDays: z.coerce
-		.number()
-		.int()
-		.min(0, 'Notice period must be 0 to 365 days.')
-		.max(365, 'Notice period must be 0 to 365 days.'),
-	retentionAuditDays: days(365, 'Keep audit history for 365 to 3650 days.'),
-	retentionCandidatesDays: days(30, 'Keep rejected candidates for 30 to 3650 days.'),
-	overtimeDailyCapMinutes: z.coerce
-		.number()
-		.int()
-		.min(15, 'Daily overtime cap must be 15 to 720 minutes.')
-		.max(720, 'Daily overtime cap must be 15 to 720 minutes.'),
-	compOffExpiryDays: z.coerce
-		.number()
-		.int()
-		.min(1, 'Compensatory leave must expire after 1 to 365 days.')
-		.max(365, 'Compensatory leave must expire after 1 to 365 days.')
+		.regex(/^[A-Za-z0-9-]{1,10}$/, 'Use up to 10 letters, digits or dashes.')
 });
 
 export type SettingsInput = z.input<typeof settingsSchema>;
@@ -53,16 +33,32 @@ export async function readSettings(tx: Tx) {
 	return row;
 }
 
-export async function saveSettings(ctx: TenantCtx, isOwner: boolean, raw: SettingsInput): Promise<void> {
+export async function saveSettings(ctx: TenantCtx, raw: SettingsInput): Promise<void> {
 	const input = settingsSchema.parse(raw);
+	await withTenant(ctx, (tx) =>
+		tx.update(tenantSettings).set({ ...input, legalName: input.legalName || null, address: input.address || null })
+	);
+}
+
+export const intSchema = (f: IntField) =>
+	z.preprocess(
+		(v) => (v === '' ? undefined : v),
+		z.coerce.number(rangeMessage(f)).int(rangeMessage(f)).min(f.min, rangeMessage(f)).max(f.max, rangeMessage(f))
+	);
+
+const fieldSchema = (f: SettingField) => (f.kind === 'bool' ? checkbox : intSchema(f));
+
+export const sectionSchema = (id: SectionId) =>
+	z.object(Object.fromEntries(SETTING_SECTIONS[id].fields.map((f) => [f.key, fieldSchema(f)])));
+
+export async function saveSection(ctx: TenantCtx, isOwner: boolean, id: SectionId, raw: Record<string, string>) {
+	const input = sectionSchema(id).parse(raw) as Partial<typeof tenantSettings.$inferInsert>;
 	await withTenant(ctx, async (tx) => {
 		const current = await readSettings(tx);
-		if (input.allowSingleAdminApproval !== current.allowSingleAdminApproval && !isOwner)
-			throw new AppError('owner_only', 'Only an owner can change single-admin approval.', 403);
-		await tx
-			.update(tenantSettings)
-			.set({ ...input, legalName: input.legalName || null, address: input.address || null })
-			.where(eq(tenantSettings.id, current.id));
+		for (const f of SETTING_SECTIONS[id].fields)
+			if ('ownerOnly' in f && !isOwner && input[f.key as keyof typeof input] !== current[f.key as keyof typeof current])
+				throw new AppError('owner_only', `Only an owner can change "${f.label}".`, 403);
+		await tx.update(tenantSettings).set(input).where(eq(tenantSettings.id, current.id));
 	});
 }
 

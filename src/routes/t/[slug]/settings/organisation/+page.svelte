@@ -10,9 +10,9 @@
 	const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleString('en', { month: 'long' }));
 </script>
 
-<svelte:head><title>Organisation settings · {data.tenant.name}</title></svelte:head>
+<svelte:head><title>General settings · {data.tenant.name}</title></svelte:head>
 
-<h1 class="text-2xl font-semibold text-slate-900">Organisation settings</h1>
+<h1 class="text-2xl font-semibold text-slate-900">General</h1>
 
 <form method="POST" class="mt-6 max-w-2xl space-y-6 rounded-xl bg-white p-6 ring-1 ring-slate-200">
 	<Alert message={form?.message} />
@@ -46,73 +46,5 @@
 			{/each}
 		</div>
 	</fieldset>
-	<div class="grid gap-4 sm:grid-cols-2">
-		<Field
-			label="Former employee access (days)"
-			name="exEmployeeAccessDays"
-			type="number"
-			min={0}
-			max={3650}
-			value={s.exEmployeeAccessDays}
-		/>
-		<Field
-			label="Resignation notice period (days)"
-			name="noticePeriodDays"
-			type="number"
-			min={0}
-			max={365}
-			value={s.noticePeriodDays}
-		/>
-		<Field
-			label="Keep audit history (days)"
-			name="retentionAuditDays"
-			type="number"
-			min={365}
-			max={3650}
-			value={s.retentionAuditDays}
-		/>
-		<Field
-			label="Keep rejected candidates (days)"
-			name="retentionCandidatesDays"
-			type="number"
-			min={30}
-			max={3650}
-			value={s.retentionCandidatesDays}
-		/>
-		<Field
-			label="Overtime cap per working day (minutes)"
-			name="overtimeDailyCapMinutes"
-			type="number"
-			min={15}
-			max={720}
-			value={s.overtimeDailyCapMinutes}
-		/>
-		<Field
-			label="Compensatory leave expires after (days)"
-			name="compOffExpiryDays"
-			type="number"
-			min={1}
-			max={365}
-			value={s.compOffExpiryDays}
-		/>
-	</div>
-	<div class="space-y-2">
-		<label class="flex items-center gap-2 text-sm">
-			<input type="checkbox" name="require2faForSensitive" checked={s.require2faForSensitive} />
-			Require two-step sign-in for members with sensitive permissions
-		</label>
-		<label class="flex items-center gap-2 text-sm">
-			<input
-				type="checkbox"
-				name="allowSingleAdminApproval"
-				checked={s.allowSingleAdminApproval}
-				disabled={!data.isOwner}
-			/>
-			Let one admin both request and approve (small teams only)
-		</label>
-		{#if !data.isOwner && s.allowSingleAdminApproval}
-			<input type="hidden" name="allowSingleAdminApproval" value="on" />
-		{/if}
-	</div>
 	<Button type="submit">Save settings</Button>
 </form>

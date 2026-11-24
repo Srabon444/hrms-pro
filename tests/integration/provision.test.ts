@@ -3,9 +3,10 @@ import { sql } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { SYSTEM_ROLES } from '../../src/lib/rbac/permissions';
 import { closePools, ownerPool } from '../../src/lib/server/db';
-import { roles } from '../../src/lib/server/db/schema';
+import { roles, tenantSettings } from '../../src/lib/server/db/schema';
 import { AppError } from '../../src/lib/server/errors';
-import { createInvitation } from '../../src/lib/server/invitations';
+import { sha256 } from '../../src/lib/server/auth/crypto';
+import { createInvitation, invitationMail } from '../../src/lib/server/invitations';
 import { processors } from '../../src/lib/server/jobs';
 import { provisionTenant, seedTenant } from '../../src/lib/server/platform/tenants';
 import { closeQueues, startWorker } from '../../src/lib/server/queue';
@@ -83,5 +84,18 @@ describe('invitations', () => {
 			select revoked_at is not null as revoked from invitations where tenant_id = ${a.tenantId} and email = ${email}
 			order by created_at`;
 		expect(rows.map((r) => r.revoked)).toEqual([true, false]);
+	});
+
+	it('makes invitations last as many days as the organisation sets', async () => {
+		const a = await provisionTenant({ slug: slug(), name: 'A', ownerEmail: `${randomUUID()}@test.local` }, null);
+		const invite = await withTenant(systemCtx(a.tenantId), async (tx) => {
+			await tx.update(tenantSettings).set({ invitationValidDays: 2 });
+			return createInvitation(tx, { tenantId: a.tenantId, email: `${randomUUID()}@test.local`, roleIds: [] });
+		});
+		const [row] = await ownerPool().sql`
+			select extract(epoch from expires_at - created_at)::int as seconds from invitations where token_hash = ${sha256(invite.token)}`;
+		expect(invite.validDays).toBe(2);
+		expect(Math.abs(row.seconds - 2 * 86400)).toBeLessThan(60);
+		expect(invitationMail('x@test.local', 'A', invite).text).toContain('within 2 day(s)');
 	});
 });

@@ -92,17 +92,25 @@ describe('meal setup', () => {
 	});
 
 	it('changes how bills are paid only for people who handle billing', async () => {
-		const rules = { mealCutoffTime: '11:30', mealMode: 'opt_in', mealWorkingDaysOnly: '', mealBillingMode: 'payroll' };
+		const rules = {
+			mealCutoffTime: '11:30',
+			mealMode: 'opt_in',
+			mealWorkingDaysOnly: '',
+			mealBillingMode: 'payroll',
+			mealOrderDaysAhead: '21'
+		};
 		expect(await code(saveMealSettings(ctx(), false, rules))).toBe('ok');
 		expect(await code(saveMealSettings(ctx(), false, { ...rules, mealBillingMode: 'direct' }))).toBe('forbidden');
 		expect(await code(saveMealSettings(ctx(), false, { ...rules, mealMode: 'free' }))).toBe('invalid');
 		expect(await code(saveMealSettings(ctx(), false, { ...rules, mealCutoffTime: '25:00' }))).toBe('invalid');
+		expect(await code(saveMealSettings(ctx(), false, { ...rules, mealOrderDaysAhead: '61' }))).toBe('invalid');
 		expect(await code(saveMealSettings(ctx(), true, { ...rules, mealBillingMode: 'direct' }))).toBe('ok');
 		expect((await setup()).settings).toEqual({
 			mealCutoffTime: '11:30:00',
 			mealMode: 'opt_in',
 			mealWorkingDaysOnly: false,
-			mealBillingMode: 'direct'
+			mealBillingMode: 'direct',
+			mealOrderDaysAhead: 21
 		});
 		expect((await setup(other.id)).settings.mealMode).toBe('opt_out');
 	});

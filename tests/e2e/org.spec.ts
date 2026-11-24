@@ -33,15 +33,26 @@ test('settings reject invalid values and save valid ones', async ({ page, reques
 	const f = await fixture(request, { tenant: {}, users: [{ key: 'owner', roles: ['owner'] }] });
 	await signIn(page, f.users.owner.email);
 	await page.getByRole('link', { name: 'Settings', exact: true }).click();
-	await page.getByLabel('Keep audit history (days)').evaluate((el: HTMLInputElement) => el.removeAttribute('min'));
-	await page.getByLabel('Keep audit history (days)').fill('10');
-	await page.getByRole('button', { name: 'Save settings' }).click();
-	await expect(page.getByRole('alert')).toHaveText('Keep audit history for 365 to 3650 days.');
-	await page.getByLabel('Keep audit history (days)').fill('1000');
+	await page.getByRole('link', { name: 'General', exact: true }).click();
 	await page.getByLabel('Thursday').check();
 	await page.getByRole('button', { name: 'Save settings' }).click();
 	await expect(page.getByRole('status')).toHaveText('Settings saved.');
 	await page.reload();
 	await expect(page.getByLabel('Thursday')).toBeChecked();
-	await expect(page.getByLabel('Keep audit history (days)')).toHaveValue('1000');
+
+	await page
+		.getByRole('navigation', { name: 'Settings' })
+		.getByRole('link', { name: 'Security and retention' })
+		.click();
+	const audit = page.getByLabel('Keep audit history (days)');
+	await expect(audit).toHaveAttribute('min', '365');
+	await audit.evaluate((el: HTMLInputElement) => el.removeAttribute('min'));
+	await audit.fill('10');
+	await page.getByRole('button', { name: 'Save settings' }).click();
+	await expect(page.getByRole('alert')).toHaveText('Keep audit history: enter 365 to 3650 days.');
+	await audit.fill('1000');
+	await page.getByRole('button', { name: 'Save settings' }).click();
+	await expect(page.getByRole('status')).toHaveText('Settings saved.');
+	await page.reload();
+	await expect(audit).toHaveValue('1000');
 });

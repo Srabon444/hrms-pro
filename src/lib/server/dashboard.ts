@@ -13,9 +13,9 @@ import { canSeePayroll } from './payroll';
 import { can, userCtx, type Access, type requireMember } from './rbac/access';
 import { resolveScope, scopeWhere } from './rbac/scope';
 import { headcountReport } from './reports/people';
+import { readSettings } from './settings';
 import { withTenant, type Tx } from './tenancy';
 
-export const DOCUMENT_EXPIRY_DAYS = 30;
 export const DASHBOARD_LIST_SIZE = 5;
 
 async function headcount(tx: Tx, access: Access, today: string) {
@@ -37,6 +37,7 @@ async function headcount(tx: Tx, access: Access, today: string) {
 }
 
 async function expiringDocuments(tx: Tx, access: Access, today: string) {
+	const days = (await readSettings(tx)).documentExpiryAlertDays;
 	const rows = await tx
 		.select({
 			id: employeeDocuments.id,
@@ -51,8 +52,8 @@ async function expiringDocuments(tx: Tx, access: Access, today: string) {
 			and(
 				scopeWhere(await resolveScope(tx, access, 'document.read'), employees.id),
 				ne(employees.status, 'exited'),
-				gte(employeeDocuments.expiresOn, addDays(today, -DOCUMENT_EXPIRY_DAYS)),
-				lte(employeeDocuments.expiresOn, addDays(today, DOCUMENT_EXPIRY_DAYS))
+				gte(employeeDocuments.expiresOn, addDays(today, -days)),
+				lte(employeeDocuments.expiresOn, addDays(today, days))
 			)
 		)
 		.orderBy(asc(employeeDocuments.expiresOn), asc(employees.fullName))

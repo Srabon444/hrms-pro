@@ -5,6 +5,7 @@ test('an admin sets provident fund, overtime, bonus and settlement pay rules', a
 	const f = await fixture(request, { tenant: {}, users: [{ key: 'adm', roles: ['hr_admin'] }] });
 	await signIn(page, f.users.adm.email);
 	await page.goto(`/t/${f.tenant!.slug}`);
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Payroll settings', exact: true }).click();
 	await page.getByLabel('Part-month pay is based on').selectOption('working');
 	await page.getByLabel('Provident fund, employee (% of basic)').fill('10');

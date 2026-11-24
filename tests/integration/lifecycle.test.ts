@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { GrantMap } from '../../src/lib/rbac/grants';
 import { closePools } from '../../src/lib/server/db';
-import { employeeHistory, employees } from '../../src/lib/server/db/schema';
+import { employeeHistory, employees, tenantSettings } from '../../src/lib/server/db/schema';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib/server/employees';
 import { addDays, dateIn } from '../../src/lib/server/dates';
 import { decideProbation, probationDue } from '../../src/lib/server/lifecycle';
@@ -77,6 +77,16 @@ describe('probation', () => {
 		const manager = access(ids.boss, { 'employee.read': ['team'], 'employee.update': ['team'] });
 		const mine = await withTenant(systemCtx(tenant.id), (tx) => probationDue(tx, manager));
 		expect(mine.rows.map((r) => r.fullName)).toEqual(['Late', 'Soon']);
+	});
+
+	it('looks as far ahead as the organisation sets', async () => {
+		const due = () => withTenant(systemCtx(tenant.id), (tx) => probationDue(tx, hr));
+		await withTenant(systemCtx(tenant.id), (tx) => tx.update(tenantSettings).set({ probationAlertDays: 90 }));
+		const wide = await due();
+		await withTenant(systemCtx(tenant.id), (tx) => tx.update(tenantSettings).set({ probationAlertDays: 30 }));
+		expect(wide.days).toBe(90);
+		expect(wide.rows.map((r) => r.fullName)).toContain('Far');
+		expect((await due()).rows.map((r) => r.fullName)).not.toContain('Far');
 	});
 
 	it('confirms employment and records it in history', async () => {

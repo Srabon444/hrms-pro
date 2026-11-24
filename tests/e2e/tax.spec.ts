@@ -12,6 +12,7 @@ test('an admin confirms tax rules and payroll records a tax profile', async ({ p
 	});
 	await signIn(page, f.users.adm.email);
 	await page.goto(`/t/${f.tenant!.slug}`);
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Income tax', exact: true }).click();
 	await page.getByRole('button', { name: 'Set up tax year' }).click();
 	await expect(page.getByRole('status')).toContainText('set up. Review and confirm it.');

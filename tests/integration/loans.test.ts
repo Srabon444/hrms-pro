@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { closePools } from '../../src/lib/server/db';
-import { employees, loanInstalments, loans, memberships } from '../../src/lib/server/db/schema';
+import { employees, loanInstalments, loans, memberships, tenantSettings } from '../../src/lib/server/db/schema';
 import { addMonths } from '../../src/lib/server/dates';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib/server/employees';
 import { tenantToday } from '../../src/lib/server/lifecycle';
@@ -105,6 +105,16 @@ describe('requesting', () => {
 		expect(await code(ask('ana', { amount: '5', instalments: '6' }))).toBe('tiny_instalment');
 		expect(await code(ask('ana', { amount: '6', instalments: '6' }))).toBe('ok');
 		await withTenant(sys(), (tx) => tx.delete(loans).where(eq(loans.employeeId, ids.ana)));
+	});
+
+	it('caps instalments at the organisation limit', async () => {
+		await withTenant(sys(), (tx) => tx.update(tenantSettings).set({ loanMaxInstalments: 6 }));
+		try {
+			expect(await code(ask('ana', { instalments: '7' }))).toBe('too_many_instalments');
+			expect((await withTenant(sys(), (tx) => loanBoard(tx, who.ana))).maxInstalments).toBe(6);
+		} finally {
+			await withTenant(sys(), (tx) => tx.update(tenantSettings).set({ loanMaxInstalments: 60 }));
+		}
 	});
 
 	it('allows one waiting request per person and refuses leavers and non-employees', async () => {

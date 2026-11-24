@@ -14,6 +14,7 @@ test('the owner creates a role, grants a permission and assigns it to a member',
 		users: [{ key: 'owner', roles: ['owner'] }, { key: 'emp' }]
 	});
 	await signIn(page, f.users.owner.email);
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Roles' }).click();
 
 	await page.getByLabel('Role name').fill('Report viewer');
@@ -29,6 +30,7 @@ test('the owner creates a role, grants a permission and assigns it to a member',
 	await page.getByRole('link', { name: 'Employee', exact: true }).click();
 	await expect(page.getByLabel('payroll.read all')).toBeDisabled();
 
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Users' }).click();
 	await page
 		.getByRole('row', { name: new RegExp(f.users.emp.email) })

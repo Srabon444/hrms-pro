@@ -5,7 +5,8 @@ import { departments } from '../../src/lib/server/db/schema';
 import { advisoryLock, LOCK } from '../../src/lib/server/locks';
 import { addHoliday, addOrgItem, removeOrgItem, updateOrgItem } from '../../src/lib/server/org';
 import { seedTenant } from '../../src/lib/server/platform/tenants';
-import { readSettings, saveSettings, type SettingsInput } from '../../src/lib/server/settings';
+import { readSettings, saveSection, saveSettings, type SettingsInput } from '../../src/lib/server/settings';
+import { SETTING_SECTIONS, type SectionId } from '../../src/lib/settings-sections';
 import { withTenant, type TenantCtx } from '../../src/lib/server/tenancy';
 import { createTenant } from './helpers';
 
@@ -87,42 +88,55 @@ describe('organisation settings', () => {
 		timezone: 'Asia/Dhaka',
 		fiscalYearStartMonth: '7',
 		weekendDays: ['5', '6', '5'],
-		employeeCodePrefix: 'ACM-',
+		employeeCodePrefix: 'ACM-'
+	};
+	const security = {
 		require2faForSensitive: 'on',
 		allowSingleAdminApproval: '',
-		exEmployeeAccessDays: '90',
-		noticePeriodDays: '30',
+		invitationValidDays: '7',
 		retentionAuditDays: '730',
-		retentionCandidatesDays: '180',
-		overtimeDailyCapMinutes: '120',
-		compOffExpiryDays: '90'
+		retentionCandidatesDays: '180'
 	};
-
-	it('saves valid settings and normalises weekend days', async () => {
-		expect(await code(saveSettings(a, false, base))).toBe('ok');
+	it('saves valid general settings and normalises weekend days', async () => {
+		expect(await code(saveSettings(a, base))).toBe('ok');
 		const s = await withTenant(a, readSettings);
 		expect(s.weekendDays).toEqual([5, 6]);
-		expect(s.require2faForSensitive).toBe(true);
 		expect(s.employeeCodePrefix).toBe('ACM-');
-		expect(s.retentionCandidatesDays).toBe(180);
 	});
 
-	it('validates every field on the server', async () => {
-		expect(await code(saveSettings(a, false, { ...base, timezone: 'Mars/Base' }))).toBe('invalid');
-		expect(await code(saveSettings(a, false, { ...base, retentionAuditDays: '30' }))).toBe('invalid');
-		expect(await code(saveSettings(a, false, { ...base, retentionCandidatesDays: '29' }))).toBe('invalid');
-		expect(await code(saveSettings(a, false, { ...base, noticePeriodDays: '400' }))).toBe('invalid');
-		expect(await code(saveSettings(a, false, { ...base, overtimeDailyCapMinutes: '10' }))).toBe('invalid');
-		expect(await code(saveSettings(a, false, { ...base, compOffExpiryDays: '0' }))).toBe('invalid');
-		expect(await code(saveSettings(a, false, { ...base, weekendDays: ['0', '1', '2', '3', '4', '5', '6'] }))).toBe(
-			'invalid'
+	it('validates every general field on the server', async () => {
+		expect(await code(saveSettings(a, { ...base, timezone: 'Mars/Base' }))).toBe('invalid');
+		expect(await code(saveSettings(a, { ...base, weekendDays: ['0', '1', '2', '3', '4', '5', '6'] }))).toBe('invalid');
+		expect(await code(saveSettings(a, { ...base, employeeCodePrefix: '<b>' }))).toBe('invalid');
+	});
+
+	it('saves a section and checks every number against its range', async () => {
+		expect(await code(saveSection(a, false, 'security', security))).toBe('ok');
+		const s = await withTenant(a, readSettings);
+		expect(s.require2faForSensitive).toBe(true);
+		expect(s.retentionCandidatesDays).toBe(180);
+		for (const [id, fields] of Object.entries(SETTING_SECTIONS) as [
+			SectionId,
+			(typeof SETTING_SECTIONS)[SectionId]
+		][]) {
+			const valid = Object.fromEntries(fields.fields.map((f) => [f.key, f.kind === 'int' ? String(f.min) : '']));
+			expect(await code(saveSection(a, true, id, valid))).toBe('ok');
+			for (const f of fields.fields) {
+				if (f.kind !== 'int') continue;
+				for (const bad of [String(f.min - 1), String(f.max + 1), '', '1.5', 'x'])
+					expect(await code(saveSection(a, true, id, { ...valid, [f.key]: bad })), `${f.key}=${bad}`).toBe('invalid');
+			}
+		}
+		await expect(saveSection(a, true, 'security', { ...security, retentionAuditDays: '30' })).rejects.toThrow(
+			'Keep audit history: enter 365 to 3650 days.'
 		);
-		expect(await code(saveSettings(a, false, { ...base, employeeCodePrefix: '<b>' }))).toBe('invalid');
 	});
 
 	it('only an owner turns on single-admin approval', async () => {
-		expect(await code(saveSettings(a, false, { ...base, allowSingleAdminApproval: 'on' }))).toBe('owner_only');
-		expect(await code(saveSettings(a, true, { ...base, allowSingleAdminApproval: 'on' }))).toBe('ok');
-		expect(await code(saveSettings(a, false, { ...base, allowSingleAdminApproval: 'on' }))).toBe('ok');
+		await saveSection(a, true, 'security', security);
+		const on = { ...security, allowSingleAdminApproval: 'on' };
+		expect(await code(saveSection(a, false, 'security', on))).toBe('owner_only');
+		expect(await code(saveSection(a, true, 'security', on))).toBe('ok');
+		expect(await code(saveSection(a, false, 'security', on))).toBe('ok');
 	});
 });

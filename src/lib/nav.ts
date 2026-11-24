@@ -1,4 +1,123 @@
 import type { Permission } from './rbac/permissions';
+import { SETTING_SECTIONS } from './settings-sections';
+
+export type SettingsPage = {
+	href: string;
+	label: string;
+	group: string;
+	perm: Permission | Permission[];
+	about: string;
+};
+
+export const SETTINGS_PAGES: SettingsPage[] = [
+	{
+		href: 'organisation',
+		label: 'General',
+		group: 'Organisation',
+		perm: 'settings.manage',
+		about: 'Name, address, time zone, fiscal year and weekend days.'
+	},
+	{
+		href: 'people',
+		label: 'People',
+		group: 'Organisation',
+		perm: 'settings.manage',
+		about: SETTING_SECTIONS.people.intro
+	},
+	{
+		href: 'users',
+		label: 'Users',
+		group: 'Access',
+		perm: 'user.manage',
+		about: 'Invite people, set their roles, disable access.'
+	},
+	{
+		href: 'roles',
+		label: 'Roles',
+		group: 'Access',
+		perm: 'role.manage',
+		about: 'What each role can see and do, and for whom.'
+	},
+	{
+		href: 'security',
+		label: 'Security and retention',
+		group: 'Access',
+		perm: 'settings.manage',
+		about: SETTING_SECTIONS.security.intro
+	},
+	{ href: 'audit', label: 'Audit log', group: 'Access', perm: 'audit.read', about: 'Who changed what, and when.' },
+	{
+		href: 'attendance',
+		label: 'Attendance rules',
+		group: 'Time',
+		perm: 'settings.manage',
+		about: SETTING_SECTIONS.attendance.intro
+	},
+	{
+		href: 'shifts',
+		label: 'Shifts',
+		group: 'Time',
+		perm: 'attendance.manage',
+		about: 'Working hours, late grace and day lengths.'
+	},
+	{
+		href: 'leave-types',
+		label: 'Leave types',
+		group: 'Time',
+		perm: 'leave.manage',
+		about: 'Quotas, accrual, carry-over and notice rules.'
+	},
+	{
+		href: 'payroll',
+		label: 'Payroll settings',
+		group: 'Money',
+		perm: 'settings.manage',
+		about: 'Part months, provident fund, overtime, bonus and gratuity.'
+	},
+	{
+		href: 'tax',
+		label: 'Income tax',
+		group: 'Money',
+		perm: ['settings.manage', 'payroll.run'],
+		about: 'Tax years, rules, rebates and employee tax profiles.'
+	},
+	{ href: 'loans', label: 'Loan rules', group: 'Money', perm: 'settings.manage', about: SETTING_SECTIONS.loans.intro },
+	{
+		href: 'meals',
+		label: 'Meal setup',
+		group: 'Money',
+		perm: 'meal.manage',
+		about: 'Vendors, meal types, prices and ordering rules.'
+	},
+	{
+		href: 'checklists',
+		label: 'Checklists',
+		group: 'Workflows',
+		perm: 'settings.manage',
+		about: 'Onboarding and exit task lists.'
+	},
+	{
+		href: 'helpdesk',
+		label: 'Helpdesk setup',
+		group: 'Workflows',
+		perm: 'helpdesk.manage',
+		about: 'Ticket categories, response times and confidentiality.'
+	},
+	{
+		href: 'letters',
+		label: 'Letter templates',
+		group: 'Workflows',
+		perm: 'letter.issue',
+		about: 'Wording of offer, appointment and other letters.'
+	},
+	{
+		href: 'reports',
+		label: 'Report sharing',
+		group: 'Workflows',
+		perm: 'settings.manage',
+		about: SETTING_SECTIONS.reports.intro
+	}
+];
 
 export type NavItem = { href: string; label: string; perm?: Permission | Permission[]; self?: true; active?: true };
 
@@ -45,16 +164,5 @@ export const NAV: NavItem[] = [
 	{ href: 'helpdesk', label: 'Helpdesk', perm: ['helpdesk.submit', 'helpdesk.manage', 'helpdesk.confidential'] },
 	{ href: 'work-plan', label: 'Work plan', perm: 'workplan.edit' },
 	{ href: 'org', label: 'Organisation', perm: 'org.manage' },
-	{ href: 'settings/users', label: 'Users', perm: 'user.manage' },
-	{ href: 'settings/roles', label: 'Roles', perm: 'role.manage' },
-	{ href: 'settings/checklists', label: 'Checklists', perm: 'settings.manage' },
-	{ href: 'settings/leave-types', label: 'Leave types', perm: 'leave.manage' },
-	{ href: 'settings/shifts', label: 'Shifts', perm: 'attendance.manage' },
-	{ href: 'settings/meals', label: 'Meal setup', perm: 'meal.manage' },
-	{ href: 'settings/helpdesk', label: 'Helpdesk setup', perm: 'helpdesk.manage' },
-	{ href: 'settings/letters', label: 'Letter templates', perm: 'letter.issue' },
-	{ href: 'settings/payroll', label: 'Payroll settings', perm: 'settings.manage' },
-	{ href: 'settings/tax', label: 'Income tax', perm: ['settings.manage', 'payroll.run'] },
-	{ href: 'settings/audit', label: 'Audit log', perm: 'audit.read' },
-	{ href: 'settings/organisation', label: 'Settings', perm: 'settings.manage' }
+	{ href: 'settings', label: 'Settings', perm: [...new Set(SETTINGS_PAGES.flatMap((p) => [p.perm].flat()))] }
 ];

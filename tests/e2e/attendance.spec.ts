@@ -12,6 +12,7 @@ test('HR adds a night shift and assigns it to an employee', async ({ page, reque
 	const slug = f.tenant!.slug;
 	await signIn(page, f.users.hr.email);
 	await page.goto(`/t/${slug}`);
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Shifts', exact: true }).click();
 	const add = page.getByRole('region', { name: 'New shift' });
 	await add.getByLabel('Name').fill('Night');

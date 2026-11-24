@@ -13,6 +13,7 @@ test('HR edits a template, issues a salary certificate and the employee download
 	await signIn(page, f.users.hr.email);
 	await expect(page).toHaveURL(/\/t\//);
 	await page.goto(`/t/${slug}`);
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Letter templates', exact: true }).click();
 	await expect(page.getByTestId('letter-template')).toHaveCount(6);
 	await page.getByRole('link', { name: 'Salary certificate' }).click();
@@ -48,7 +49,7 @@ test('HR edits a template, issues a salary certificate and the employee download
 	await expect(ela).toHaveURL(/\/t\//);
 	await ela.getByRole('link', { name: 'Letters', exact: true }).click();
 	await expect(ela.getByRole('region', { name: 'Issue a letter' })).toHaveCount(0);
-	await expect(ela.getByRole('link', { name: 'Letter templates' })).toHaveCount(0);
+	await expect(ela.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
 	await expect(ela.getByTestId('my-letter')).toHaveCount(1);
 	const href = await ela.getByTestId('my-letter').getByRole('link').getAttribute('href');
 	const res = await ela.request.get(href!);

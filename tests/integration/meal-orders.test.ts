@@ -197,6 +197,10 @@ describe('meal orders', () => {
 		const shown = (date: string) =>
 			mine!.days.find((d) => d.date === date)!.meals.map((m) => [m.name, m.status, m.guestQty, m.unitCost]);
 		expect(mine!.days).toHaveLength(14);
+		await withTenant(sys(), (tx) => tx.update(tenantSettings).set({ mealOrderDaysAhead: 5 }));
+		const short = await at(morning, () => withTenant(sys(), (tx) => myMeals(tx, who.ana.access)));
+		await withTenant(sys(), (tx) => tx.update(tenantSettings).set({ mealOrderDaysAhead: 14 }));
+		expect(short!.days).toHaveLength(5);
 		expect(shown('2026-03-10')).toEqual([['Lunch', 'opted_out', 0, 8000]]);
 		expect(shown('2026-03-11')).toEqual([['Lunch', 'ordered', 0, 8000]]);
 		expect(shown('2026-03-12')).toEqual([

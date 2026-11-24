@@ -5,6 +5,7 @@ test('HR builds an onboarding checklist from the settings', async ({ page, reque
 	const f = await fixture(request, { tenant: {}, users: [{ key: 'hr', roles: ['hr_admin'] }] });
 	await signIn(page, f.users.hr.email);
 	await page.goto(`/t/${f.tenant!.slug}`);
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Checklists' }).click();
 	await page.getByLabel('Type').selectOption('onboarding');
 	await page.getByLabel('Checklist name').fill('New joiner');

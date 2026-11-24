@@ -9,6 +9,7 @@ test('a meal manager sets up lunch and chooses it with guests', async ({ page, r
 	});
 	await signIn(page, f.users.mm.email);
 	await page.goto(`/t/${f.tenant!.slug}`);
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await page.getByRole('link', { name: 'Meal setup', exact: true }).click();
 	const caterer = page.getByRole('region', { name: 'New caterer' });
 	await caterer.getByLabel('Caterer name').fill('Rice Bowl');

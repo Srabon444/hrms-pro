@@ -13,12 +13,11 @@ import { addDays } from '../dates';
 import { tenantToday, tenantWeeks } from '../lifecycle';
 import { can } from '../rbac/access';
 import { resolveScope, scopeWhere } from '../rbac/scope';
+import { readSettings } from '../settings';
 import { personColumns } from './groups';
 import { recruitmentReport } from './people';
 import { attendanceReport } from './time';
 import type { ReportDef, Section } from './types';
-
-export const UPCOMING_HIRE_DAYS = 14;
 
 const hours = (minutes: number) => Math.round(minutes / 6) / 10;
 
@@ -80,7 +79,13 @@ export const weeklyReport: ReportDef = {
 			.from(employees)
 			.leftJoin(departments, eq(departments.id, employees.departmentId))
 			.leftJoin(designations, eq(designations.id, employees.designationId))
-			.where(and(inScope, gte(employees.joinDate, from), lte(employees.joinDate, addDays(to, UPCOMING_HIRE_DAYS))))
+			.where(
+				and(
+					inScope,
+					gte(employees.joinDate, from),
+					lte(employees.joinDate, addDays(to, (await readSettings(tx)).upcomingHireDays))
+				)
+			)
 			.orderBy(asc(employees.joinDate), asc(employees.fullName));
 		const issues = await tx
 			.select({

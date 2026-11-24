@@ -4,7 +4,9 @@ import { poishaOf } from '../money';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { MEAL_BILLING_MODES, MEAL_MODES, mealTypePrices, mealTypes, mealVendors, tenantSettings } from './db/schema';
 import { AppError } from './errors';
+import { LIMITS } from '../settings-sections';
 import { tenantToday } from './lifecycle';
+import { intSchema } from './settings';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
 
 const checkbox = z.preprocess((v) => v === 'on' || v === true, z.boolean());
@@ -42,7 +44,8 @@ const settingsSchema = z.object({
 	mealCutoffTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:00)?$/, 'Enter the daily cutoff time.'),
 	mealMode: z.enum(MEAL_MODES, 'Choose how meals are ordered.'),
 	mealWorkingDaysOnly: checkbox,
-	mealBillingMode: z.enum(MEAL_BILLING_MODES, 'Choose how bills are paid.')
+	mealBillingMode: z.enum(MEAL_BILLING_MODES, 'Choose how bills are paid.'),
+	mealOrderDaysAhead: intSchema(LIMITS.mealOrderDaysAhead)
 });
 
 const duplicate = (message: string) => (err: unknown) => {
@@ -56,7 +59,8 @@ export async function mealSetup(tx: Tx) {
 			mealCutoffTime: tenantSettings.mealCutoffTime,
 			mealMode: tenantSettings.mealMode,
 			mealWorkingDaysOnly: tenantSettings.mealWorkingDaysOnly,
-			mealBillingMode: tenantSettings.mealBillingMode
+			mealBillingMode: tenantSettings.mealBillingMode,
+			mealOrderDaysAhead: tenantSettings.mealOrderDaysAhead
 		})
 		.from(tenantSettings);
 	const vendors = await tx.select().from(mealVendors).orderBy(asc(mealVendors.name));

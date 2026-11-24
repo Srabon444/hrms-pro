@@ -1,4 +1,6 @@
 <script lang="ts">
+	import SettingInput from '#lib/components/ui/SettingInput.svelte';
+	import { LIMITS } from '#lib/settings-sections.ts';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { taka } from '#lib/money.ts';
@@ -86,6 +88,7 @@
 			<input type="checkbox" name="mealWorkingDaysOnly" checked={s.mealWorkingDaysOnly} />
 			Serve meals on working days only
 		</label>
+		<SettingInput field={LIMITS.mealOrderDaysAhead} value={s.mealOrderDaysAhead} />
 		<div class="sm:col-span-2"><Button type="submit">Save ordering rules</Button></div>
 	</form>
 </section>
