@@ -1,4 +1,5 @@
 import { fail } from '@sveltejs/kit';
+import { ImportFailed } from '../csv';
 import { AppError } from '../errors';
 import { log } from '../log';
 
@@ -8,6 +9,7 @@ export const field = (form: FormData, name: string): string => {
 };
 
 export function actionError(err: unknown, requestId: string) {
+	if (err instanceof ImportFailed) return fail(400, { message: err.message, rows: err.rows });
 	if (err instanceof AppError) return fail(err.status, { message: err.message });
 	log.error({ err, requestId }, 'action failed');
 	return fail(503, { message: 'The service is temporarily unavailable. Please try again shortly.' });

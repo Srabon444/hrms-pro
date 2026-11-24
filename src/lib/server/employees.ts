@@ -15,6 +15,7 @@ import {
 	memberships,
 	tenantSettings
 } from './db/schema';
+import { ImportFailed, unformula, type ImportRowError } from './csv';
 import { FK_VIOLATION, pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { startChecklists } from './checklists';
 import { accrue } from './leave';
@@ -429,16 +430,6 @@ export async function exportEmployees(tx: Tx, access: Access, raw: Record<string
 }
 
 export const MAX_IMPORT_ROWS = 2000;
-
-export type ImportRowError = { line: number; message: string };
-
-export class ImportFailed extends AppError {
-	constructor(public rows: ImportRowError[]) {
-		super('import_failed', 'Nothing was imported. Fix the rows below and upload the file again.', 400);
-	}
-}
-
-const unformula = (v: string) => v.trim().replace(/^'(?=[=+\-@\t\r])/, '');
 
 export async function importEmployees(ctx: TenantCtx, access: Access, table: string[][]): Promise<number> {
 	const [header, ...body] = table;

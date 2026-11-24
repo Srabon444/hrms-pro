@@ -1,9 +1,11 @@
+import { AppError } from './errors';
+
 const BOM = '﻿';
 const FORMULA = /^[=+\-@\t\r]/;
 
 const cell = (v: string | number | null | undefined) => {
 	let s = v == null ? '' : String(v);
-	if (FORMULA.test(s)) s = `'${s}`;
+	if (typeof v !== 'number' && FORMULA.test(s)) s = `'${s}`;
 	return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
@@ -37,4 +39,39 @@ export function parseCsv(text: string): string[][] {
 	if (quoted) throw new Error('unterminated_quote');
 	if (field !== '' || row.length) rows.push([...row, field]);
 	return rows.filter((r) => r.some((v) => v.trim() !== ''));
+}
+
+export type ImportRowError = { line: number; message: string };
+
+export class ImportFailed extends AppError {
+	constructor(public rows: ImportRowError[]) {
+		super('import_failed', 'Nothing was imported. Fix the rows below and upload the file again.', 400);
+	}
+}
+
+const MAX_CSV_BYTES = 1024 * 1024;
+
+export async function readCsvUpload(file: FormDataEntryValue | null): Promise<string[][]> {
+	if (!(file instanceof File) || file.size === 0) throw new AppError('no_file', 'Choose a CSV file.', 400);
+	if (file.size > MAX_CSV_BYTES) throw new AppError('too_large', 'CSV files can be at most 1 MB.', 413);
+	try {
+		return parseCsv(new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()));
+	} catch {
+		throw new AppError('bad_csv', 'That file is not a valid UTF-8 CSV.', 400);
+	}
+}
+
+export const unformula = (v: string) => v.trim().replace(/^'(?=[=+\-@\t\r])/, '');
+
+export function csvRecords<K extends string>(table: string[][], columns: readonly K[], max: number) {
+	const [header, ...body] = table;
+	const cols = (header ?? []).map((h) => h.trim().toLowerCase());
+	if (cols.length !== columns.length || columns.some((c) => !cols.includes(c)))
+		throw new ImportFailed([{ line: 1, message: `Header must be ${columns.join(',')}.` }]);
+	if (!body.length) throw new ImportFailed([{ line: 2, message: 'The file has no rows to import.' }]);
+	if (body.length > max) throw new ImportFailed([{ line: 1, message: `Import at most ${max} rows at a time.` }]);
+	return body.map((cells, i) => ({
+		line: i + 2,
+		v: Object.fromEntries(columns.map((c) => [c, unformula(cells[cols.indexOf(c)] ?? '')])) as Record<K, string>
+	}));
 }

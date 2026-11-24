@@ -9,8 +9,7 @@ import {
 	teamDay,
 	todayPunches
 } from '#lib/server/attendance.ts';
-import { parseCsv } from '#lib/server/csv.ts';
-import { ImportFailed } from '#lib/server/employees.ts';
+import { readCsvUpload } from '#lib/server/csv.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { tenantToday } from '#lib/server/lifecycle.ts';
@@ -82,19 +81,10 @@ export const actions: Actions = {
 	},
 	importPunches: async ({ request, locals }) => {
 		const m = requirePerm(locals, 'attendance.manage');
-		const file = (await request.formData()).get('file');
-		if (!(file instanceof File) || file.size === 0) return fail(400, { message: 'Choose a CSV file.' });
-		if (file.size > 1024 * 1024) return fail(413, { message: 'CSV files can be at most 1 MB.' });
-		let table: string[][];
 		try {
-			table = parseCsv(new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()));
-		} catch {
-			return fail(400, { message: 'That file is not a valid UTF-8 CSV.' });
-		}
-		try {
+			const table = await readCsvUpload((await request.formData()).get('file'));
 			return { imported: await importPunches(m, table) };
 		} catch (err) {
-			if (err instanceof ImportFailed) return fail(400, { message: err.message, rows: err.rows });
 			return actionError(err, locals.requestId);
 		}
 	}

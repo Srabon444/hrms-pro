@@ -17,7 +17,8 @@ import {
 	tenantSettings
 } from './db/schema';
 import { AppError } from './errors';
-import { ImportFailed, lockEmployee, type ImportRowError } from './employees';
+import { csvRecords, ImportFailed, type ImportRowError } from './csv';
+import { lockEmployee } from './employees';
 import { log } from './log';
 import { singleAdmin } from './approval-chain';
 import { userCtx, type Access, type requireMember } from './rbac/access';
@@ -305,15 +306,7 @@ function readStamp(raw: string, timeZone: string) {
 }
 
 export async function importPunches(m: Member, table: string[][]) {
-	const [header, ...body] = table;
-	const cols = (header ?? []).map((h) => h.trim().toLowerCase());
-	if (cols.length !== 2 || !cols.includes('employee_code') || !cols.includes('timestamp'))
-		throw new ImportFailed([{ line: 1, message: 'Header must be employee_code,timestamp.' }]);
-	if (!body.length) throw new ImportFailed([{ line: 2, message: 'The file has no rows to import.' }]);
-	if (body.length > MAX_PUNCH_ROWS)
-		throw new ImportFailed([{ line: 1, message: `Import at most ${MAX_PUNCH_ROWS} rows at a time.` }]);
-	const codeAt = cols.indexOf('employee_code');
-	const stampAt = cols.indexOf('timestamp');
+	const body = csvRecords(table, ['employee_code', 'timestamp'], MAX_PUNCH_ROWS);
 	return withTenant(userCtx(m), async (tx) => {
 		const scope = await resolveScope(tx, m.access, 'attendance.manage');
 		const selfAllowed = await singleAdmin(tx);
@@ -334,10 +327,9 @@ export async function importPunches(m: Member, table: string[][]) {
 		const at = now();
 		const errors: ImportRowError[] = [];
 		const list: { employeeId: string; at: Date; day: string }[] = [];
-		for (const [i, cells] of body.entries()) {
-			const line = i + 2;
-			const e = people.get((cells[codeAt] ?? '').trim().toLowerCase());
-			const when = e && readStamp((cells[stampAt] ?? '').trim(), e.zone);
+		for (const { line, v } of body) {
+			const e = people.get(v.employee_code.toLowerCase());
+			const when = e && readStamp(v.timestamp, e.zone);
 			const day = when && dateIn(when, e.zone);
 			const problem = !e
 				? 'Unknown employee code.'
