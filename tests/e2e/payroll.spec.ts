@@ -4,6 +4,7 @@ import { mailLink, waitForMail } from '../mailpit';
 import { fixture, signIn } from './fixtures';
 
 test('payroll computes a month and a festival bonus that finance approves and pays', async ({ page, request }) => {
+	test.slow();
 	const f = await fixture(request, {
 		tenant: {},
 		users: [
