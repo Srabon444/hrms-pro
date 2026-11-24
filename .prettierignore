@@ -1,0 +1,12 @@
+build
+.svelte-kit
+node_modules
+drizzle
+package-lock.json
+docs
+.superpowers
+test-results
+playwright-report
+static
+*.md
+*.pdf

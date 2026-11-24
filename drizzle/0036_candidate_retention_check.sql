@@ -1,0 +1,1 @@
+ALTER TABLE "tenant_settings" ADD CONSTRAINT "tenant_settings_candidates_ret_ck" CHECK ("tenant_settings"."retention_candidates_days" between 30 and 3650);

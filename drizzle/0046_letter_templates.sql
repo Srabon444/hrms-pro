@@ -1,0 +1,11 @@
+INSERT INTO "letter_templates" ("tenant_id", "kind", "name", "subject", "body")
+SELECT t."id", v."kind", v."name", v."subject", v."body" FROM "tenants" t
+CROSS JOIN (VALUES
+('offer', 'Offer letter', 'Offer of employment', E'Dear {{employee.name}},\n\nWe are pleased to offer you the position of {{employee.designation}} in the {{employee.department}} department at {{company.name}}, starting on {{employee.join_date}}, with a monthly gross salary of BDT {{salary.gross}}.\n\nPlease confirm your acceptance by signing a copy of this letter.\n\nSincerely,\n\nHuman Resources\n{{company.name}}'),
+('appointment', 'Appointment letter', 'Letter of appointment', E'Dear {{employee.name}},\n\nWe are pleased to appoint you as {{employee.designation}} at {{company.name}} with effect from {{employee.join_date}}. Your employee ID is {{employee.code}}. You will be on probation until {{employee.probation_end}}.\n\nSincerely,\n\nHuman Resources\n{{company.name}}'),
+('confirmation', 'Confirmation letter', 'Confirmation of employment', E'Dear {{employee.name}},\n\nWe are pleased to confirm your employment as {{employee.designation}} with effect from {{employee.confirmation_date}}. Thank you for your contribution so far.\n\nSincerely,\n\nHuman Resources\n{{company.name}}'),
+('increment', 'Increment letter', 'Salary increment', E'Dear {{employee.name}},\n\nIn recognition of your performance, your monthly gross salary has been revised to BDT {{salary.gross}}.\n\nSincerely,\n\nHuman Resources\n{{company.name}}'),
+('experience', 'Experience certificate', 'Experience certificate', E'To whom it may concern,\n\nThis is to certify that {{employee.name}} (ID {{employee.code}}) worked at {{company.name}} as {{employee.designation}} from {{employee.join_date}} to {{employee.exit_date}}.\n\nWe wish them every success.\n\nSincerely,\n\nHuman Resources\n{{company.name}}'),
+('salary_certificate', 'Salary certificate', 'Salary certificate', E'To whom it may concern,\n\nThis is to certify that {{employee.name}} (ID {{employee.code}}) has been working at {{company.name}} as {{employee.designation}} since {{employee.join_date}}, and currently draws a monthly gross salary of BDT {{salary.gross}}.\n\nSincerely,\n\nHuman Resources\n{{company.name}}')
+) AS v("kind", "name", "subject", "body")
+ON CONFLICT DO NOTHING;

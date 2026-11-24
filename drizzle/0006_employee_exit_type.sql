@@ -1,0 +1,2 @@
+ALTER TABLE "employees" ADD COLUMN "exit_type" text;--> statement-breakpoint
+ALTER TABLE "employees" ADD CONSTRAINT "employees_exit_type_ck" CHECK ("employees"."exit_type" is null or "employees"."exit_type" in ('resignation','termination','retirement','contract_end','other'));

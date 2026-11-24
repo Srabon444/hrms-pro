@@ -1,0 +1,2 @@
+ALTER TABLE "files" DROP CONSTRAINT "files_owner_type_ck";--> statement-breakpoint
+ALTER TABLE "files" ADD CONSTRAINT "files_owner_type_ck" CHECK ("files"."owner_type" in ('leave_request','ticket','resignation','asset','candidate','offer','interview_feedback','checklist_item','change_request','attendance_request','loan','ticket_comment','announcement','salary_change','review','goal','project','meal_bill','education','experience'));

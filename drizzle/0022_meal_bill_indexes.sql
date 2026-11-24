@@ -1,0 +1,2 @@
+CREATE INDEX "meal_bill_lines_bill_ix" ON "meal_bill_lines" USING btree ("tenant_id","bill_id");--> statement-breakpoint
+CREATE INDEX "meal_bill_lines_order_ix" ON "meal_bill_lines" USING btree ("tenant_id","order_id");

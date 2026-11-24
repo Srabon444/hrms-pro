@@ -1,0 +1,2 @@
+ALTER TABLE "files" ALTER COLUMN "owner_id" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "files" ADD CONSTRAINT "files_owner_type_ck" CHECK ("files"."owner_type" in ('leave_request','ticket','expense_claim','resignation','asset'));

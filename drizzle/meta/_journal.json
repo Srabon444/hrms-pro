@@ -1,0 +1,461 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1795422932098,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795427225935,
+      "tag": "0001_org",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795427544374,
+      "tag": "0002_employees",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795428389337,
+      "tag": "0003_employee_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795429228071,
+      "tag": "0004_employee_profile_lists",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795429668007,
+      "tag": "0005_change_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795430384198,
+      "tag": "0006_employee_exit_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795431060496,
+      "tag": "0007_resignations",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795431424065,
+      "tag": "0008_exit_interviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795431670653,
+      "tag": "0009_checklist_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795431937411,
+      "tag": "0010_checklists",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795439145022,
+      "tag": "0011_leave_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795439496341,
+      "tag": "0012_leave_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795440151209,
+      "tag": "0013_leave_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795441641121,
+      "tag": "0014_shifts",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1795441651311,
+      "tag": "0015_default_shift",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795442203521,
+      "tag": "0016_attendance",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795443199308,
+      "tag": "0017_attendance_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795444330009,
+      "tag": "0018_comp_off_expiry",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795445245815,
+      "tag": "0019_meal_setup",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795445562601,
+      "tag": "0020_meal_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795446555499,
+      "tag": "0021_meal_bills",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795446568038,
+      "tag": "0022_meal_bill_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795447187360,
+      "tag": "0023_meal_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795448634449,
+      "tag": "0024_salaries",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795449359986,
+      "tag": "0025_expenses",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795450376944,
+      "tag": "0026_loans",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1795451085414,
+      "tag": "0027_tax",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795451887013,
+      "tag": "0028_payroll_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1795452224425,
+      "tag": "0029_payroll_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1795458186155,
+      "tag": "0030_payslip_pdf_on_demand",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795458854325,
+      "tag": "0031_bonus_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795460407006,
+      "tag": "0032_arrears_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795461920706,
+      "tag": "0033_final_settlement",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795465816632,
+      "tag": "0034_recruitment",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795466528977,
+      "tag": "0035_interviews_offers",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795468315069,
+      "tag": "0036_candidate_retention_check",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795468974271,
+      "tag": "0037_performance_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795469826054,
+      "tag": "0038_work_plan_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795470317729,
+      "tag": "0039_projects_timesheets",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795472225670,
+      "tag": "0040_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795473445646,
+      "tag": "0041_helpdesk",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795474432566,
+      "tag": "0042_helpdesk_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795474585186,
+      "tag": "0043_announcements",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1795475196080,
+      "tag": "0044_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1795485399007,
+      "tag": "0045_letters",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1795485511861,
+      "tag": "0046_letter_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795487250412,
+      "tag": "0047_report_shares",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795493933577,
+      "tag": "0048_system_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795498025739,
+      "tag": "0049_tenant_setting_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795512058817,
+      "tag": "0050_file_owners",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1795513178304,
+      "tag": "0051_file_owner_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1795513858127,
+      "tag": "0052_payroll_run_currency",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795515042160,
+      "tag": "0053_branch_timezones",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1795525761332,
+      "tag": "0054_audit_sensitive_pk_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1795528166353,
+      "tag": "0055_attach_recruitment",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795528788681,
+      "tag": "0056_attach_checklist_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1795529226499,
+      "tag": "0057_attach_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795529732309,
+      "tag": "0058_attach_ticket_comments",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795530084802,
+      "tag": "0059_attach_announcements",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795530547954,
+      "tag": "0060_attach_salary_changes",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795531036904,
+      "tag": "0061_attach_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1795531193459,
+      "tag": "0062_attach_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1795531356234,
+      "tag": "0063_attach_meal_bills",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1795531596896,
+      "tag": "0064_attach_certificates",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+import { collectDefaultMetrics, Counter, Histogram, Registry } from 'prom-client';
+
+export const registry = new Registry();
+collectDefaultMetrics({ register: registry });
+
+export const httpDuration = new Histogram({
+	name: 'hrms_http_request_duration_seconds',
+	help: 'HTTP request duration',
+	labelNames: ['method', 'route', 'status'],
+	buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+	registers: [registry]
+});
+
+export const rateLimited = new Counter({
+	name: 'hrms_rate_limited_total',
+	help: 'Requests rejected by a rate limiter',
+	labelNames: ['bucket'],
+	registers: [registry]
+});
