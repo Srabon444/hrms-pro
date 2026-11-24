@@ -8,7 +8,11 @@ export const NAV: NavItem[] = [
 	{ href: 'announcements', label: 'Announcements', active: true },
 	{ href: 'policies', label: 'Policies', active: true },
 	{ href: 'letters', label: 'Letters' },
-	{ href: 'reports', label: 'Reports', perm: ['report.headcount', 'report.attendance', 'report.leave'] },
+	{
+		href: 'reports',
+		label: 'Reports',
+		perm: ['report.headcount', 'report.attendance', 'report.leave', 'report.payroll']
+	},
 	{ href: 'approvals', label: 'Approvals' },
 	{ href: 'tasks', label: 'Tasks' },
 	{ href: 'leave', label: 'Leave', perm: 'leave.request' },

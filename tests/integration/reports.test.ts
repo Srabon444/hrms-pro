@@ -10,6 +10,8 @@ import {
 	leaveRequests,
 	leaveTypes,
 	memberships,
+	payrollRuns,
+	payslips,
 	reportShares,
 	rolePermissions,
 	roles
@@ -18,7 +20,7 @@ import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type Access, type requireMember } from '../../src/lib/server/rbac/access';
 import { reportCsv, reportPdf } from '../../src/lib/server/reports/files';
-import { reportsFor, runReport } from '../../src/lib/server/reports/index';
+import { reportCtx, reportsFor, runReport } from '../../src/lib/server/reports/index';
 import { headcountReport } from '../../src/lib/server/reports/people';
 import {
 	applySpec,
@@ -84,7 +86,9 @@ async function member(key: string, roleKeys: string[], employeeId: string | null
 }
 
 const run = (key: string, id: string, raw: Record<string, string>) =>
-	withTestNow('2026-11-24T06:00:00Z', () => withTenant(sys(), (tx) => runReport(tx, who[key], id, raw)));
+	withTestNow('2026-11-24T06:00:00Z', () =>
+		withTenant(reportCtx(mem[key], id), (tx) => runReport(tx, who[key], id, raw))
+	);
 const fails = (key: string, id: string, raw: Record<string, string>) =>
 	run(key, id, raw).then(
 		() => 'ok',
@@ -329,7 +333,11 @@ describe('sharing reports', () => {
 	});
 });
 
-async function grant(roleKey: string, permission: 'report.attendance' | 'report.leave', scope: string) {
+async function grant(
+	roleKey: string,
+	permission: 'report.attendance' | 'report.leave' | 'report.payroll',
+	scope: string
+) {
 	await withTenant(sys(), async (tx) => {
 		const [r] = await tx.select().from(roles).where(eq(roles.key, roleKey));
 		await tx.insert(rolePermissions).values({ tenantId: tenant.id, roleId: r.id, permission, scope });
@@ -517,5 +525,133 @@ describe('attendance and leave reports', () => {
 		]);
 		expect(await fails('lead', 'leave', october)).toBe('not_found');
 		expect(reportsFor(who.dh).map((r) => r.id)).toEqual(['headcount', 'leave']);
+	});
+});
+
+describe('payroll cost report', () => {
+	beforeAll(async () => {
+		await member('pay', ['payroll_officer'], null);
+		await withTenant({ ...sys(), payrollAll: true }, async (tx) => {
+			const run = async (period: string, status: string, slips: [string, number, string?][], runType = 'regular') => {
+				const [r] = await tx
+					.insert(payrollRuns)
+					.values({
+						tenantId: tenant.id,
+						period,
+						status,
+						runType,
+						title: runType === 'bonus' ? 'Puja bonus' : null,
+						inputsHash: 'x',
+						outputHash: 'x',
+						computedByUserId: mem.hr.user.userId,
+						computedAt: new Date()
+					})
+					.returning({ id: payrollRuns.id });
+				await tx.insert(payslips).values(
+					slips.map(([employeeId, gross, error]) => ({
+						tenantId: tenant.id,
+						runId: r.id,
+						employeeId,
+						gross,
+						deductions: gross / 10,
+						tax: gross / 20,
+						net: gross - gross / 10 - gross / 20,
+						error
+					}))
+				);
+			};
+			await run('2026-10', 'approved', [
+				[ids.ana, 6_000_000],
+				[ids.bo, 5_000_000],
+				[ids.cy, 4_000_000],
+				[ids.di, 3_000_000],
+				[ids.ed, 2_000_000],
+				[ids.ab, 2_500_000],
+				[ids.gi, 1_000_000]
+			]);
+			await run('2026-10', 'void', [[ids.ana, 7_777_700]]);
+			await run(
+				'2026-10',
+				'approved',
+				[
+					[ids.ab, 1_000_000],
+					[ids.gi, 999_900, 'No salary on record.']
+				],
+				'bonus'
+			);
+			await run('2026-09', 'paid', [[ids.ana, 6_000_000]]);
+			await run('2026-10', 'computed', [[ids.ana, 6_000_000]], 'bonus');
+		});
+		await grant('dept_reports', 'report.payroll', 'department');
+	});
+
+	it('totals approved and paid runs by department, month and employee for a company-wide viewer', async () => {
+		const r = await run('pay', 'payroll', october);
+		const all = { employees: 7, gross: '245000.00', deductions: '24500.00', tax: '12250.00', net: '208250.00' };
+		expect(table(r, 'departments')).toEqual([
+			{
+				department: 'Engineering',
+				employees: 5,
+				gross: '200000.00',
+				deductions: '20000.00',
+				tax: '10000.00',
+				net: '170000.00'
+			},
+			{
+				department: 'No department',
+				employees: 1,
+				gross: '10000.00',
+				deductions: '1000.00',
+				tax: '500.00',
+				net: '8500.00'
+			},
+			{
+				department: 'Operations',
+				employees: 1,
+				gross: '35000.00',
+				deductions: '3500.00',
+				tax: '1750.00',
+				net: '29750.00'
+			},
+			{ department: 'All departments', ...all }
+		]);
+		expect(table(r, 'months')).toEqual([{ month: '2026-10', ...all }]);
+		expect(names(r, 'employees')).toEqual(['Ab', 'Ana', 'Bo', 'Cy', 'Di', 'Ed', 'Gi']);
+		expect(table(r, 'employees')[1]).toEqual({
+			name: 'Ana',
+			code: expect.any(String),
+			department: 'Engineering',
+			gross: '60000.00',
+			deductions: '6000.00',
+			tax: '3000.00',
+			net: '51000.00'
+		});
+		const two = await run('pay', 'payroll', { from: '2026-09-15', to: '2026-10-31', department: dept.Engineering });
+		expect(table(two, 'months').map((c) => [c.month, c.employees, c.gross])).toEqual([
+			['2026-09', 1, '60000.00'],
+			['2026-10', 5, '200000.00']
+		]);
+		expect(table(two, 'employees')[0]).toMatchObject({ name: 'Ana', gross: '120000.00' });
+		expect(reportsFor(who.pay).map((x) => x.id)).toEqual(['payroll']);
+		expect(await fails('hr', 'payroll', october)).toBe('not_found');
+	});
+
+	it('hides groups under five people and the employee table from a limited viewer', async () => {
+		const r = await run('dh', 'payroll', { from: '2026-09-01', to: '2026-10-31' });
+		expect(r.sections.map((x) => x.key)).toEqual(['departments', 'months']);
+		const hidden = { employees: '<5', gross: null, deductions: null, tax: null, net: null };
+		expect(table(r, 'months')).toEqual([
+			{ month: '2026-09', ...hidden },
+			{ month: '2026-10', employees: 5, gross: '200000.00', deductions: '20000.00', tax: '10000.00', net: '170000.00' }
+		]);
+		expect(table(r, 'departments').map((c) => [c.department, c.employees, c.gross])).toEqual([
+			['Engineering', 5, '260000.00'],
+			['All departments', 5, '260000.00']
+		]);
+		const sep = await run('dh', 'payroll', { from: '2026-09-01', to: '2026-09-30' });
+		expect(table(sep, 'departments')).toEqual([
+			{ department: 'Engineering', ...hidden },
+			{ department: 'All departments', ...hidden }
+		]);
 	});
 });

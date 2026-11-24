@@ -3,16 +3,22 @@ import { z } from 'zod';
 import { departments } from '../db/schema';
 import { AppError } from '../errors';
 import { tenantToday } from '../lifecycle';
-import { can, type Access } from '../rbac/access';
+import { can, userCtx, type Access, type requireMember } from '../rbac/access';
 import { resolveScope } from '../rbac/scope';
 import type { Tx } from '../tenancy';
+import { payrollCostReport } from './money';
 import { headcountReport } from './people';
 import { attendanceReport, leaveReport } from './time';
 import type { Report, ReportDef, ReportParams } from './types';
 
-export const REPORTS: ReportDef[] = [headcountReport, attendanceReport, leaveReport];
+export const REPORTS: ReportDef[] = [headcountReport, attendanceReport, leaveReport, payrollCostReport];
 
 export const MAX_REPORT_DAYS = 366;
+
+export function reportCtx(m: ReturnType<typeof requireMember>, id: string) {
+	const def = REPORTS.find((r) => r.id === id);
+	return userCtx(m, { payrollAll: !!def?.sensitive && can(m.access, def.permission) });
+}
 
 export const reportsFor = (access: Access) =>
 	REPORTS.filter((r) => can(access, r.permission)).map((r) => ({ id: r.id, title: r.title }));

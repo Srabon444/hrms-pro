@@ -4,9 +4,9 @@ import { auditEvent } from '#lib/server/audit.ts';
 import { config } from '#lib/server/config.ts';
 import { AppError } from '#lib/server/errors.ts';
 import { hit } from '#lib/server/ratelimit.ts';
-import { requireMember, userCtx } from '#lib/server/rbac/access.ts';
+import { requireMember } from '#lib/server/rbac/access.ts';
 import { reportCsv, reportFileName, reportPdf } from '#lib/server/reports/files.ts';
-import { runReport } from '#lib/server/reports/index.ts';
+import { reportCtx, runReport } from '#lib/server/reports/index.ts';
 import { withTenant } from '#lib/server/tenancy/index.ts';
 import type { RequestHandler } from './$types';
 
@@ -17,7 +17,7 @@ export const GET: RequestHandler = async ({ locals, params, url }) => {
 	const limit = await hit('download', m.user.userId, config().RL_DOWNLOADS_PER_USER_MIN, 60_000).catch(() => null);
 	if (limit && !limit.ok)
 		return new Response('Too many downloads', { status: 429, headers: { 'retry-after': String(limit.retryAfter) } });
-	const ctx = userCtx(m);
+	const ctx = reportCtx(m, params.reportId);
 	const report = await withTenant(ctx, async (tx) => {
 		const r = await runReport(tx, m.access, params.reportId, filters);
 		await auditEvent(tx, ctx, 'reports', null, `report.export.${r.id}`);

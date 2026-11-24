@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { AppError } from '#lib/server/errors.ts';
 import { actionError } from '#lib/server/http/forms.ts';
 import { sendAll } from '#lib/server/notifications.ts';
-import { requireMember, userCtx } from '#lib/server/rbac/access.ts';
-import { departmentOptions, reportDef, runReport } from '#lib/server/reports/index.ts';
+import { requireMember } from '#lib/server/rbac/access.ts';
+import { departmentOptions, reportCtx, reportDef, runReport } from '#lib/server/reports/index.ts';
 import { shareRecipients, shareReport } from '#lib/server/reports/shares.ts';
 import { withTenant } from '#lib/server/tenancy/index.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -21,7 +21,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const m = requireMember(locals);
 	const def = known(m.access, params.reportId);
 	const filters = Object.fromEntries(url.searchParams);
-	return withTenant(userCtx(m), async (tx) => {
+	return withTenant(reportCtx(m, def.id), async (tx) => {
 		const departments = await departmentOptions(tx);
 		const recipients = await shareRecipients(tx, m.access, def);
 		try {

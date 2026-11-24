@@ -13,7 +13,7 @@ import { resolveScope } from '../rbac/scope';
 import { deleteObject, getObject, putObject } from '../storage';
 import { withTenant, type Tx } from '../tenancy';
 import { reportCsv, reportFileName, reportPdf, reportPeriod } from './files';
-import { REPORTS, reportDef, runReport } from './index';
+import { REPORTS, reportCtx, reportDef, runReport } from './index';
 import type { Report, ReportDef } from './types';
 
 type Member = ReturnType<typeof requireMember>;
@@ -117,7 +117,7 @@ export async function shareReport(
 		stored.push(key);
 	};
 	try {
-		return await withTenant(userCtx(m), async (tx) => {
+		return await withTenant(reportCtx(m, reportId), async (tx) => {
 			const full = await runReport(tx, m.access, reportId, raw.filters);
 			const report = applySpec(full, spec);
 			const eligible = new Set((await shareRecipients(tx, m.access, def)).map((r) => r.membershipId));
