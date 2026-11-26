@@ -60,6 +60,11 @@ Vitest · Playwright · Docker.
 - **Locked payslip PDFs by email.** An organisation can attach the payslip PDF to the payslip email. Each person
   sets their own payslip password (12 to 64 characters, not their sign-in password) and the attached PDF is locked
   with AES-256; without a password they get the link only. Downloads inside the app stay unlocked.
+- **Work weeks.** Settings → Work weeks defines other weekends, such as Saturday–Sunday next to a Friday–Saturday
+  company weekend, and a profile assigns one from a date onwards. Attendance, leave day counts, payroll working days
+  and meal defaults follow each person's own weekend. A change can only start today or later, never inside a month
+  whose payroll is approved, and it refuses to turn rest days inside booked leave into working days; leave days that
+  become rest days are dropped and refunded.
 - **International by default.** A new company starts on UTC, USD, a January fiscal year and a Saturday–Sunday
   weekend, or on the time zone, currency, fiscal month and weekend days its creator picks. Payslips, letters and
   reports print names in Latin, Cyrillic, Greek, Vietnamese, Devanagari and Bengali script.
