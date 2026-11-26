@@ -53,14 +53,14 @@ test('an employee punches in and their manager sees it on the team view', async 
 	await expect(page.getByRole('region', { name: 'Team' })).toHaveCount(0);
 	await today.getByRole('button', { name: 'Punch in' }).click();
 	await expect(page.getByRole('status')).toHaveText('Punch recorded.');
-	await expect(today.getByTestId('today-status')).toHaveText(/^(Present|Late|Absent)$/);
+	await expect(today.getByTestId('today-status')).toHaveText(/^(Present|Late|Absent|Weekend)$/);
 	await expect(today.getByTestId('punch')).toHaveCount(1);
 	await today.getByRole('button', { name: 'Punch out' }).click();
 	await expect(page.getByRole('alert')).toHaveText('You punched less than a minute ago.');
 	await expect(today.getByTestId('punch')).toHaveCount(1);
 	const day = (await today.getByRole('heading').textContent())!.match(/\d{4}-\d{2}-\d{2}/)![0];
 	await expect(page.getByRole('region', { name: 'My month' }).getByTestId('attendance-day')).toContainText([
-		new RegExp(`${day}\\s*(Present|Late|Absent)`)
+		new RegExp(`${day}\\s*(Present|Late|Absent|Weekend)`)
 	]);
 
 	const ctx = await browser.newContext();
@@ -68,7 +68,7 @@ test('an employee punches in and their manager sees it on the team view', async 
 	await signIn(boss, f.users.boss.email);
 	await boss.goto(`/t/${slug}/attendance?date=${day}`);
 	const team = boss.getByRole('region', { name: 'Team' });
-	await expect(team.getByTestId('team-day').filter({ hasText: /^ela / })).toContainText(/Present|Late|Absent/);
+	await expect(team.getByTestId('team-day').filter({ hasText: /^ela / })).toContainText(/Present|Late|Absent|Weekend/);
 	await expect(team.getByRole('button', { name: 'Add punch' })).toHaveCount(0);
 	await ctx.close();
 });
