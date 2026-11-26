@@ -10,7 +10,7 @@ Vitest · Playwright · Docker.
 
 <p align="center"><a href="https://youtu.be/BGxO0nnjlsM" target="_blank" rel="noopener">▶ Watch the 7-minute walkthrough on YouTube</a></p>
 
-<p align="center"><a href="https://srabon444.github.io/htms-pro/"><b>System design</b></a>: architecture, data model, business requirements and functional spec</p>
+<p align="center"><a href="https://srabon444.github.io/hrms-pro/"><b>System design</b></a>: architecture, data model, business requirements and functional spec</p>
 
 ## Screenshots
 
