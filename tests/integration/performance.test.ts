@@ -20,7 +20,7 @@ import {
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 const pdf = (name: string) => new File([`%PDF-1.7 ${name}`], name, { type: 'application/pdf' });
@@ -88,7 +88,7 @@ const goal = (key: string, reviewId: string, title: string, weight: string, goal
 
 beforeAll(async () => {
 	tenant = await createTenant('perf');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.lea = await hire('Lea');
 	ids.ana = await hire('Ana', ids.lea);
 	ids.ben = await hire('Ben');

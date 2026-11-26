@@ -4,7 +4,7 @@ import { closePools } from '../../src/lib/server/db';
 import { mealSetup, saveMealSettings, saveMealType, saveVendor, setMealPrice } from '../../src/lib/server/meals';
 import { seedTenant } from '../../src/lib/server/platform/tenants';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant } from './helpers';
+import { createTenant, TEST_LOCALE } from './helpers';
 
 let tenant: { id: string; slug: string };
 let other: { id: string; slug: string };
@@ -19,7 +19,7 @@ const setup = (id = tenant.id) => at('2026-03-10', () => withTenant(systemCtx(id
 beforeAll(async () => {
 	tenant = await createTenant('meals');
 	other = await createTenant('meals-other');
-	for (const t of [tenant, other]) await withTenant(systemCtx(t.id), (tx) => seedTenant(tx, t.id));
+	for (const t of [tenant, other]) await withTenant(systemCtx(t.id), (tx) => seedTenant(tx, t.id, TEST_LOCALE));
 });
 
 afterAll(closePools);

@@ -606,7 +606,8 @@ flowchart LR
 							<li>Queues: <code>mail</code>, <code>meal-bills</code>, <code>lifecycle</code>.</li>
 							<li>
 								Hourly run: exits and probation, leave accrual, attendance close-out, meal orders, overdue meal bills,
-								candidate data purge.
+								candidate data purge. Each step runs on its own, so one failure does not stop the rest; a failed step is
+								logged, counted in <code>hrms_lifecycle_step_failures_total</code> and retried with the job.
 							</li>
 							<li>Both processes stop cleanly on SIGTERM.</li>
 						</ul>
@@ -774,11 +775,17 @@ erDiagram
 						<h3>Constraints</h3>
 						<ul class="plain">
 							<li>
-								Money stored as whole minor units so totals never drift; each company picks its currency (BDT by
-								default) and every payroll run keeps the currency it was computed in; Bangladesh income tax slabs per
-								tax year.
+								Money stored as whole minor units so totals never drift; each company picks its currency and every
+								payroll run keeps the currency it was computed in; Bangladesh income tax slabs per tax year.
 							</li>
-							<li>Bengali text must render in generated PDFs.</li>
+							<li>
+								A new company starts on neutral settings (UTC, USD, January fiscal year, Saturday and Sunday off); the
+								platform admin can set its time zone, currency, fiscal month and weekend days when creating it.
+							</li>
+							<li>
+								Names in Latin, Cyrillic, Greek, Vietnamese, Devanagari and Bengali script must render in generated
+								PDFs.
+							</li>
 							<li>Runs on plain Postgres, Redis and S3-compatible storage; no vendor lock-in.</li>
 							<li>
 								A tenant can be onboarded by a platform admin in minutes, by invitation, and bring its existing records
@@ -925,7 +932,10 @@ erDiagram
 							<tr>
 								<td>Lifecycle</td>
 								<td>Onboarding and offboarding checklists, resignations, exit interviews, letters from templates.</td>
-								<td>Exited staff lose access after a grace period; letters render to PDF with Bengali text.</td>
+								<td>
+									Exited staff lose access after a grace period; letters render to PDF in Latin, Cyrillic, Greek,
+									Vietnamese, Devanagari and Bengali script.
+								</td>
 							</tr>
 							<tr>
 								<td>Workplace</td>
@@ -1004,10 +1014,11 @@ erDiagram
 					<div class="panel">
 						<h3>Tests</h3>
 						<ul class="plain">
-							<li><strong>282</strong> unit tests with Vitest for money, dates, tax, parsing and PDFs.</li>
+							<li><strong>287</strong> unit tests with Vitest for money, dates, tax, parsing and PDFs.</li>
 							<li>
-								<strong>359</strong> integration tests against a real Postgres, Redis and MinIO, including cross-tenant
-								and scope attacks.
+								<strong>363</strong> integration tests against a real Postgres, Redis and MinIO, including cross-tenant
+								and scope attacks; a shared leak helper checks every read with own, team, department, company and
+								other-tenant viewers.
 							</li>
 							<li>
 								<strong>75</strong> Playwright end-to-end tests that drive the built app, read the emails it sends and

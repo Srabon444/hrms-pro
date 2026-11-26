@@ -16,7 +16,7 @@ import {
 } from '../../src/lib/server/tax';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
 import { DEFAULT_TAX_YEAR, fiscalYearOf } from '../../src/lib/tax';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -85,7 +85,7 @@ const profile = (taxYearId: string, employeeId: string, extra: Record<string, st
 
 beforeAll(async () => {
 	tenant = await createTenant('tax');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.ana = await hire('Ana');
 	ids.gone = await hire('Gone');
 	await withTenant(sys(), (tx) =>

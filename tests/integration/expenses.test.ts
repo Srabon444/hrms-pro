@@ -19,7 +19,7 @@ import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { config } from '../../src/lib/server/config';
 import { getObject, s3 } from '../../src/lib/server/storage';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -84,7 +84,7 @@ const decide = (key: string, claimId: string, decision = 'approve', payVia = 'di
 
 beforeAll(async () => {
 	tenant = await createTenant('expenses');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.lea = await hire('Lea');
 	ids.ana = await hire('Ana', ids.lea);
 	ids.ben = await hire('Ben');

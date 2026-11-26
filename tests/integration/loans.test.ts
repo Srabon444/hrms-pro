@@ -10,7 +10,7 @@ import { cancelLoan, decideLoan, loanApprovals, loanBoard, requestLoan } from '.
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -80,7 +80,7 @@ const scheduleOf = (loanId: string) =>
 
 beforeAll(async () => {
 	tenant = await createTenant('loans');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	month = (await withTenant(sys(), tenantToday)).slice(0, 7);
 	ids.ana = await hire('Ana');
 	ids.ben = await hire('Ben');

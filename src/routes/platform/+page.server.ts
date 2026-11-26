@@ -4,7 +4,9 @@ import { z } from 'zod';
 import { authPool } from '#lib/server/db/index.ts';
 import { memberships, tenants } from '#lib/server/db/schema/index.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
+import { CURRENCIES } from '#lib/money.ts';
 import { provisionTenant, setTenantStatus } from '#lib/server/platform/tenants.ts';
+import { NEUTRAL_LOCALE, TIMEZONES } from '#lib/server/settings.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 const admin = (locals: App.Locals) => {
@@ -26,7 +28,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.leftJoin(memberships, eq(memberships.tenantId, tenants.id))
 		.groupBy(tenants.id)
 		.orderBy(tenants.name);
-	return { tenants: rows };
+	return { tenants: rows, timezones: TIMEZONES, currencies: Object.keys(CURRENCIES), locale: NEUTRAL_LOCALE };
 };
 
 export const actions: Actions = {
@@ -34,12 +36,26 @@ export const actions: Actions = {
 		const user = admin(locals);
 		const form = await request.formData();
 		const values = { slug: field(form, 'slug'), name: field(form, 'name'), ownerEmail: field(form, 'ownerEmail') };
+		const locale = {
+			timezone: field(form, 'timezone'),
+			currency: field(form, 'currency'),
+			fiscalYearStartMonth: field(form, 'fiscalYearStartMonth'),
+			weekendDays: form.getAll('weekendDays').map(String)
+		};
 		try {
-			const t = await provisionTenant(values, user.userId);
+			const t = await provisionTenant({ ...values, locale }, user.userId);
 			return { created: t.slug };
 		} catch (err) {
 			if (err instanceof z.ZodError)
-				return fail(400, { ...values, message: err.issues.map((i) => i.message).join('. ') });
+				return fail(400, {
+					...values,
+					locale: {
+						...locale,
+						fiscalYearStartMonth: Number(locale.fiscalYearStartMonth),
+						weekendDays: locale.weekendDays.map(Number)
+					},
+					message: err.issues.map((i) => i.message).join('. ')
+				});
 			return actionError(err, locals.requestId);
 		}
 	},

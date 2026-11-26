@@ -24,3 +24,10 @@ export const searchProviderFailures = new Counter({
 	labelNames: ['kind', 'reason'],
 	registers: [registry]
 });
+
+export const lifecycleStepFailures = new Counter({
+	name: 'hrms_lifecycle_step_failures_total',
+	help: 'Hourly lifecycle steps that threw',
+	labelNames: ['step'],
+	registers: [registry]
+});

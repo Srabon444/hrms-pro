@@ -21,6 +21,7 @@ import {
 import { accrue } from '#lib/server/leave.ts';
 import { periodRange } from '#lib/server/meal-bills.ts';
 import { prepareMealDay } from '#lib/server/meal-orders.ts';
+import { DEMO_LOCALE } from '#lib/server/demo-seed.ts';
 import { addMember, seedTenant } from '#lib/server/platform/tenants.ts';
 import { systemCtx, withTenant } from '#lib/server/tenancy/index.ts';
 import type { RequestHandler } from './$types';
@@ -58,7 +59,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		const id = tenant.id;
 		const require2faForSensitive = body.tenant.require2fa;
 		await withTenant(systemCtx(id), async (tx) => {
-			await seedTenant(tx, id);
+			await seedTenant(tx, id, DEMO_LOCALE);
 			await tx.update(tenantSettings).set({ require2faForSensitive });
 		});
 	}

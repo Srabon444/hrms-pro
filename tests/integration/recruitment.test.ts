@@ -43,7 +43,7 @@ import {
 import { getObject } from '../../src/lib/server/storage';
 import { systemCtx, withTenant, type TenantCtx } from '../../src/lib/server/tenancy';
 import { waitForMail } from '../mailpit';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let ctx: TenantCtx;
@@ -224,7 +224,7 @@ describe('interviews, offers and hiring', () => {
 
 	beforeAll(async () => {
 		tenant = await createTenant('ats-hire');
-		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 		await member('rec', ['recruiter']);
 		await member('ivA', ['hr_officer']);
 		await member('ivB', ['hr_officer']);

@@ -41,7 +41,7 @@ import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
 import { waitForMail } from '../mailpit';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -128,7 +128,7 @@ const bill = (key: string, period: string) => generateBills(who[key], { period }
 
 beforeAll(async () => {
 	tenant = await createTenant('meal-bills');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.ana = await hire('Ana');
 	ids.ben = await hire('Ben');
 	ids.cat = await hire('Cat');

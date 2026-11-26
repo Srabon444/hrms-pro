@@ -5,7 +5,7 @@ import { closePools } from '../../src/lib/server/db';
 import { rolePermissions, roles, systemGrants } from '../../src/lib/server/db/schema';
 import { seedTenant, syncSystemRoles } from '../../src/lib/server/platform/tenants';
 import { systemCtx, withTenant, type Tx } from '../../src/lib/server/tenancy';
-import { createTenant } from './helpers';
+import { createTenant, TEST_LOCALE } from './helpers';
 
 let tenant: { id: string };
 const inTenant = <T>(fn: (tx: Tx) => Promise<T>) => withTenant(systemCtx(tenant.id), fn);
@@ -34,7 +34,7 @@ const revoke = async (key: string, permission: string) => {
 
 beforeAll(async () => {
 	tenant = await createTenant('sysroles');
-	await inTenant((tx) => seedTenant(tx, tenant.id));
+	await inTenant((tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 });
 
 afterAll(closePools);

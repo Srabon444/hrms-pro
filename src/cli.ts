@@ -7,10 +7,11 @@ import { migrateDatabase } from './lib/server/db/migrate';
 import { tenants, users } from './lib/server/db/schema';
 import { inviteLink } from './lib/server/invitations';
 import { log } from './lib/server/log';
-import { seedDemo } from './lib/server/demo-seed';
+import { DEMO_LOCALE, seedDemo } from './lib/server/demo-seed';
 import { provisionTenant, seedTenant, syncSystemRoles } from './lib/server/platform/tenants';
 import { closeQueues } from './lib/server/queue';
 import { closeRedis } from './lib/server/redis';
+import { NEUTRAL_LOCALE } from './lib/server/settings';
 import { ensureBucket } from './lib/server/storage';
 import { systemCtx, withTenant } from './lib/server/tenancy';
 
@@ -60,9 +61,20 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 		console.error(`platform admin ready: ${email} (${id})`);
 	},
 
-	async 'create-tenant'([slug, name, ownerEmail]) {
-		if (!slug || !name || !ownerEmail) throw new Error('usage: create-tenant <slug> <name> <owner-email>');
-		const t = await provisionTenant({ slug, name, ownerEmail }, null);
+	async 'create-tenant'(args) {
+		const [slug, name, ownerEmail] = args.filter((a) => !a.startsWith('--'));
+		if (!slug || !name || !ownerEmail)
+			throw new Error(
+				'usage: create-tenant <slug> <name> <owner-email> [--timezone=UTC] [--currency=USD] [--fiscal-start=1] [--weekend=0,6]'
+			);
+		const option = (key: string) => args.find((a) => a.startsWith(`--${key}=`))?.slice(key.length + 3);
+		const locale = {
+			timezone: option('timezone') ?? NEUTRAL_LOCALE.timezone,
+			currency: option('currency') ?? NEUTRAL_LOCALE.currency,
+			fiscalYearStartMonth: option('fiscal-start') ?? NEUTRAL_LOCALE.fiscalYearStartMonth,
+			weekendDays: option('weekend')?.split(',').filter(Boolean) ?? NEUTRAL_LOCALE.weekendDays
+		};
+		const t = await provisionTenant({ slug, name, ownerEmail, locale }, null);
 		console.error(`tenant ${t.slug} created; owner invitation: ${inviteLink(t.invitationToken)}`);
 	},
 
@@ -75,7 +87,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 		let [tenant] = await authPool().db.select().from(tenants).where(eq(tenants.slug, 'demo'));
 		if (!tenant) [tenant] = await authPool().db.insert(tenants).values({ slug: 'demo', name }).returning();
 		await authPool().db.update(tenants).set({ name }).where(eq(tenants.id, tenant.id));
-		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, DEMO_LOCALE));
 		await seedDemo({ id: tenant.id, slug: tenant.slug, name }, password, ensureUser);
 		console.error(
 			`seeded tenant /t/demo (${name}); users admin@hrms.local, owner@demo.local, hr@demo.local, finance@demo.local, payroll@demo.local, manager@demo.local, staff@demo.local; password: ${process.env.SEED_PASSWORD ? '(SEED_PASSWORD)' : password}`

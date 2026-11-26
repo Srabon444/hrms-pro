@@ -32,7 +32,7 @@ import { addHoliday, importHolidays } from '../../src/lib/server/org';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -148,7 +148,7 @@ const view = (key: string, id: string) => withTenant(sys(), (tx) => getLeaveRequ
 beforeAll(async () => {
 	tenant = await createTenant('leavereq');
 	await withTenant(sys(), async (tx) => {
-		await seedTenant(tx, tenant.id);
+		await seedTenant(tx, tenant.id, TEST_LOCALE);
 		await tx.update(tenantSettings).set({ fiscalYearStartMonth: month });
 		await tx.update(leaveTypes).set({ maxConsecutive: 3 }).where(eq(leaveTypes.code, 'casual'));
 		await tx.update(leaveTypes).set({ halfDayAllowed: false }).where(eq(leaveTypes.code, 'sick'));

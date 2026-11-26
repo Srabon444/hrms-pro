@@ -54,7 +54,7 @@ import { decideSalary, proposeSalary } from '../../src/lib/server/salaries';
 import { confirmTaxYear, startTaxYear, taxRule } from '../../src/lib/server/tax';
 import { systemCtx, withTenant, type Tx } from '../../src/lib/server/tenancy';
 import { annualTax, fiscalYearOf } from '../../src/lib/tax';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -128,7 +128,7 @@ const slipOf = async (runId: string, employeeId: string) => {
 
 beforeAll(async () => {
 	tenant = await createTenant('payroll');
-	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	P = addMonths((await withTenant(systemCtx(tenant.id), tenantToday)).slice(0, 7), -1);
 	ids.ana = await hire('Ana');
 	ids.ben = await hire('Ben', `${P}-16`);
@@ -462,7 +462,7 @@ describe('payroll inputs', () => {
 
 	beforeAll(async () => {
 		tenant = await createTenant('payroll-inputs');
-		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 		await member('po', ['payroll_officer'], null);
 		await member('fin', ['finance'], null);
 		await member('adm', ['hr_admin'], null);
@@ -700,7 +700,7 @@ describe('bonus runs', () => {
 
 	beforeAll(async () => {
 		tenant = await createTenant('payroll-bonus');
-		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 		await member('po', ['payroll_officer'], null);
 		await member('fin', ['finance'], null);
 		await member('adm', ['hr_admin'], null);
@@ -869,7 +869,7 @@ describe('arrears runs', () => {
 
 	beforeAll(async () => {
 		tenant = await createTenant('payroll-arrears');
-		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 		await member('po', ['payroll_officer'], null);
 		await member('fin', ['finance'], null);
 		await member('adm', ['hr_admin'], null);
@@ -976,7 +976,7 @@ describe('final settlement', () => {
 
 	beforeAll(async () => {
 		tenant = await createTenant('payroll-final');
-		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 		await member('po', ['payroll_officer'], null);
 		await member('fin', ['finance'], null);
 		await member('adm', ['hr_admin'], null);
@@ -1196,7 +1196,7 @@ describe('payroll exports', () => {
 
 	beforeAll(async () => {
 		tenant = await createTenant('payroll-export');
-		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 		await member('po', ['payroll_officer'], null);
 		await member('fin', ['finance'], null);
 		await member('adm', ['hr_admin'], null);

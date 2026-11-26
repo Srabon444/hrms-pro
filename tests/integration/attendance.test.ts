@@ -27,7 +27,7 @@ import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { assignShift, createShift, listShifts, removeShiftAssignment } from '../../src/lib/server/shifts';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -92,7 +92,7 @@ const manual = (key: string, employeeId: string, when: string) =>
 
 beforeAll(async () => {
 	tenant = await createTenant('attendance');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.boss = await hire('Boss');
 	ids.staff = await hire('Staff', { managerId: ids.boss });
 	ids.owl = await hire('Owl', { managerId: ids.boss });

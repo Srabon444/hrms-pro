@@ -22,6 +22,7 @@ import { assignAsset, returnAsset, saveAsset } from './assets';
 import { commentOnTicket, createTicket, requesterAction, updateTicket } from './helpdesk';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from './employees';
 import { log } from './log';
+import type { Locale } from './settings';
 import { decideClaim, payClaim, saveCategory, submitClaim } from './expenses';
 import { decideLeave, requestLeave } from './leave-requests';
 import { decideLoan, requestLoan } from './loans';
@@ -71,6 +72,13 @@ type Person = {
 	roles: string[];
 	dob: string;
 	area: string;
+};
+
+export const DEMO_LOCALE: Locale = {
+	timezone: 'Asia/Dhaka',
+	currency: 'BDT',
+	fiscalYearStartMonth: 7,
+	weekendDays: [5, 6]
 };
 
 const HQ = 'Dhaka HQ';

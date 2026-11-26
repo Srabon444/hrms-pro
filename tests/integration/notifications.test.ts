@@ -5,13 +5,13 @@ import { notificationPrefs, notifications } from '../../src/lib/server/db/schema
 import { notify } from '../../src/lib/server/notifications';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 let tenant: { id: string; slug: string };
 
 beforeAll(async () => {
 	tenant = await createTenant('notif');
-	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 });
 
 afterAll(closePools);

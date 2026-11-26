@@ -68,6 +68,11 @@ test('platform admin creates an organisation and the owner joins from the emaile
 	await page.getByLabel('Name', { exact: true }).fill('Invited Org');
 	await page.getByLabel('URL name').fill(slug);
 	await page.getByLabel('Owner email').fill(ownerEmail);
+	await expect(page.getByLabel('Time zone')).toHaveValue('UTC');
+	await expect(page.getByLabel('Currency')).toHaveValue('USD');
+	await page.getByLabel('Time zone').selectOption('Europe/Berlin');
+	await page.getByLabel('Currency').selectOption('EUR');
+	await page.getByLabel('Fiscal year starts in').selectOption('4');
 	await page.getByRole('button', { name: 'Create and invite owner' }).click();
 	await expect(page.getByRole('status')).toContainText(`Organisation ${slug} created`);
 
@@ -80,6 +85,19 @@ test('platform admin creates an organisation and the owner joins from the emaile
 	await page.getByLabel('Repeat password').fill(PASSWORD);
 	await page.getByRole('button', { name: 'Create account and join' }).click();
 	await expect(page).toHaveURL(`/t/${slug}`);
+	await page.goto(`/t/${slug}/settings/organisation`);
+	await expect(page.getByLabel('Time zone')).toHaveValue('Europe/Berlin');
+	await expect(page.getByLabel('Currency')).toHaveValue('EUR');
+	await expect(page.getByLabel('Fiscal year starts in')).toHaveValue('4');
+	await expect(page.getByLabel('Saturday')).toBeChecked();
+	await expect(page.getByLabel('Sunday')).toBeChecked();
+	await expect(page.getByLabel('Friday')).not.toBeChecked();
+	await page.getByLabel('Friday').check();
+	await page.getByLabel('Sunday').uncheck();
+	await page.getByRole('button', { name: 'Save settings' }).click();
+	await expect(page.getByRole('status')).toHaveText('Settings saved.');
+	await expect(page.getByLabel('Friday')).toBeChecked();
+	await expect(page.getByLabel('Sunday')).not.toBeChecked();
 
 	const reuse = await page.goto(new URL(link).pathname);
 	expect(reuse?.status()).toBe(410);

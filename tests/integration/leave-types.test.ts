@@ -3,7 +3,7 @@ import { closePools } from '../../src/lib/server/db';
 import { createLeaveType, listLeaveTypes, updateLeaveType } from '../../src/lib/server/leave-types';
 import { seedTenant } from '../../src/lib/server/platform/tenants';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant } from './helpers';
+import { createTenant, TEST_LOCALE } from './helpers';
 
 let tenant: { id: string; slug: string };
 let other: { id: string; slug: string };
@@ -29,15 +29,15 @@ const form = (extra: Record<string, string> = {}) => ({
 beforeAll(async () => {
 	tenant = await createTenant('leavetypes');
 	other = await createTenant('leavetypes-other');
-	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
-	await withTenant(systemCtx(other.id), (tx) => seedTenant(tx, other.id));
+	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
+	await withTenant(systemCtx(other.id), (tx) => seedTenant(tx, other.id, TEST_LOCALE));
 });
 
 afterAll(closePools);
 
 describe('leave types', () => {
 	it('seeds the Bangladesh defaults once per tenant', async () => {
-		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+		await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 		const seeded = await types();
 		expect(seeded.map((t) => t.code).sort()).toEqual([
 			'casual',

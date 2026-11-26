@@ -27,7 +27,7 @@ import {
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -71,7 +71,7 @@ const pending = (employeeId: string) =>
 
 beforeAll(async () => {
 	tenant = await createTenant('changes');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	const hrAll = { 'employee.read': ['all'], 'employee.create': ['all'], 'employee.update': ['all'] } as const;
 	const creator = { membershipId: '', employeeId: null, grants: hrAll, roleKeys: [], isOwner: false };
 	for (const name of ['me', 'hrPerson', 'other'])

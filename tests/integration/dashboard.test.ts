@@ -20,7 +20,7 @@ import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -63,7 +63,7 @@ async function member(key: string, roleKeys: string[], employeeId: string | null
 
 beforeAll(async () => {
 	tenant = await createTenant('dashboard');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.lea = await hire('Lea', '2026-01-01');
 	ids.ana = await hire('Ana', '2026-01-01', ids.lea);
 	ids.ben = await hire('Ben', '2026-01-01', ids.lea, 'probation', '2026-12-10');

@@ -11,7 +11,7 @@ import { closePools } from '../../src/lib/server/db';
 import { checklistTemplateItems } from '../../src/lib/server/db/schema';
 import { seedTenant } from '../../src/lib/server/platform/tenants';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant } from './helpers';
+import { createTenant, TEST_LOCALE } from './helpers';
 
 let tenant: { id: string; slug: string };
 let other: { id: string; slug: string };
@@ -32,8 +32,8 @@ const task = (title: string, extra: Record<string, string> = {}) => ({
 beforeAll(async () => {
 	tenant = await createTenant('lists');
 	other = await createTenant('lists-other');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
-	await withTenant(systemCtx(other.id), (tx) => seedTenant(tx, other.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
+	await withTenant(systemCtx(other.id), (tx) => seedTenant(tx, other.id, TEST_LOCALE));
 });
 
 afterAll(closePools);

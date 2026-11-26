@@ -189,13 +189,13 @@ export const tenantSettings = pgTable(
 		legalName: text(),
 		logoFileId: uuid(),
 		address: text(),
-		currency: text().notNull().default('BDT'),
-		timezone: text().notNull().default('Asia/Dhaka'),
-		fiscalYearStartMonth: smallint().notNull().default(7),
+		currency: text().notNull().default('USD'),
+		timezone: text().notNull().default('UTC'),
+		fiscalYearStartMonth: smallint().notNull().default(1),
 		weekendDays: smallint()
 			.array()
 			.notNull()
-			.default(sql`'{5,6}'::smallint[]`),
+			.default(sql`'{0,6}'::smallint[]`),
 		payrollProrationBasis: text().notNull().default('calendar'),
 		mealPayrollLagMonths: smallint().notNull().default(1),
 		latePolicyCount: smallint().notNull().default(0),

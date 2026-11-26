@@ -6,7 +6,7 @@ import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess } from '../../src/lib/server/rbac/access';
 import { createRole, updateRole } from '../../src/lib/server/rbac/roles';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 let tenant: { id: string; slug: string };
 
@@ -30,7 +30,7 @@ const toActor = (v: Viewer) => ({
 
 beforeAll(async () => {
 	tenant = await createTenant('audit');
-	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 });
 
 afterAll(closePools);

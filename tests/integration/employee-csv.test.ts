@@ -8,7 +8,7 @@ import { addOrgItem } from '../../src/lib/server/org';
 import { seedTenant } from '../../src/lib/server/platform/tenants';
 import type { Access } from '../../src/lib/server/rbac/access';
 import { withTenant, type TenantCtx } from '../../src/lib/server/tenancy';
-import { createTenant } from './helpers';
+import { createTenant, TEST_LOCALE } from './helpers';
 
 let ctx: TenantCtx;
 const dept: Record<string, string> = {};
@@ -31,7 +31,7 @@ const failure = (p: Promise<unknown>) =>
 
 beforeAll(async () => {
 	const t = await createTenant('csv');
-	await withTenant({ tenantId: t.id, actor: 'system' }, (tx) => seedTenant(tx, t.id));
+	await withTenant({ tenantId: t.id, actor: 'system' }, (tx) => seedTenant(tx, t.id, TEST_LOCALE));
 	ctx = { tenantId: t.id, actor: 'user' };
 	dept.eng = await addOrgItem(ctx, 'department', { name: 'Engineering' });
 	dept.sales = await addOrgItem(ctx, 'department', { name: 'Sales' });

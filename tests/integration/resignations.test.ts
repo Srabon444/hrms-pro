@@ -17,7 +17,7 @@ import {
 	withdrawResignation
 } from '../../src/lib/server/resignations';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -82,7 +82,7 @@ const openOf = async (key: string) =>
 
 beforeAll(async () => {
 	tenant = await createTenant('resign');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.boss = await hire('Bo Boss');
 	ids.staff = await hire('Sam Staff', { managerId: ids.boss });
 	ids.quick = await hire('Qu Quick', { managerId: ids.boss });

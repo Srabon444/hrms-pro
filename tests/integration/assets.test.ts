@@ -17,7 +17,7 @@ import { recordExit, runTenantLifecycle } from '../../src/lib/server/exits';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -79,7 +79,7 @@ const view = (key: string, t: string) => read(key, (tx, a) => assetView(tx, a, t
 
 beforeAll(async () => {
 	tenant = await createTenant('assets');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.ana = await hire('Ana');
 	ids.ben = await hire('Ben');
 	ids.old = await hire('Old');

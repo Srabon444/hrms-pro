@@ -12,16 +12,28 @@ const ZONES = new Set(TIMEZONES);
 export const timeZoneSchema = z.string().refine((tz) => ZONES.has(tz), 'Pick a valid time zone.');
 const checkbox = z.preprocess((v) => v === 'on' || v === true, z.boolean());
 
-export const settingsSchema = z.object({
-	legalName: z.string().trim().max(200),
-	address: z.string().trim().max(500),
+export const localeSchema = z.object({
 	timezone: timeZoneSchema,
 	currency: z.string().refine((c) => Object.hasOwn(CURRENCIES, c), 'Pick a currency from the list.'),
-	fiscalYearStartMonth: z.coerce.number().int().min(1).max(12),
+	fiscalYearStartMonth: z.coerce.number().int().min(1, 'Pick a month.').max(12, 'Pick a month.'),
 	weekendDays: z
 		.array(z.coerce.number().int().min(0).max(6))
 		.max(6, 'At least one working day is needed.')
-		.transform((d) => [...new Set(d)].sort()),
+		.transform((d) => [...new Set(d)].sort())
+});
+
+export type Locale = z.output<typeof localeSchema>;
+
+export const NEUTRAL_LOCALE: Locale = {
+	timezone: 'UTC',
+	currency: 'USD',
+	fiscalYearStartMonth: 1,
+	weekendDays: [0, 6]
+};
+
+export const settingsSchema = localeSchema.extend({
+	legalName: z.string().trim().max(200),
+	address: z.string().trim().max(500),
 	employeeCodePrefix: z
 		.string()
 		.trim()
@@ -37,7 +49,7 @@ export async function readSettings(tx: Tx) {
 }
 
 export const tenantCurrency = async (tx: Tx) =>
-	(await tx.select({ currency: tenantSettings.currency }).from(tenantSettings))[0]?.currency ?? 'BDT';
+	(await tx.select({ currency: tenantSettings.currency }).from(tenantSettings))[0]?.currency ?? NEUTRAL_LOCALE.currency;
 
 export async function saveSettings(ctx: TenantCtx, raw: SettingsInput): Promise<void> {
 	const input = settingsSchema.parse(raw);

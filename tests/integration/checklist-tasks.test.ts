@@ -20,7 +20,7 @@ import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { getObject } from '../../src/lib/server/storage';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -78,7 +78,7 @@ const itemId = async (employeeId: string, title: string) =>
 
 beforeAll(async () => {
 	tenant = await createTenant('tasks');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	await createTemplate(ctx(), { kind: 'onboarding', name: 'Joiners' });
 	await createTemplate(ctx(), { kind: 'onboarding', name: 'Old way' });
 	await createTemplate(ctx(), { kind: 'offboarding', name: 'Leavers' });
