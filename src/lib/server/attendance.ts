@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { computeDay, shiftDayOf, shiftWindow, zonedInstant, type DayResult } from './attendance-day';
 import { now } from './clock';
@@ -11,8 +11,6 @@ import {
 	employees,
 	holidays,
 	leaveRequestDays,
-	shiftAssignments,
-	shifts,
 	tenants,
 	tenantSettings
 } from './db/schema';
@@ -25,7 +23,7 @@ import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { systemCtx, withTenant, type Tx } from './tenancy';
 import type { Shift } from './shifts';
-import { restDayResolver } from './rest-days';
+import { dayRules } from './rest-days';
 
 type Member = ReturnType<typeof requireMember>;
 type DayRow = typeof attendanceDays.$inferInsert;
@@ -97,14 +95,7 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 				)
 		).map((d) => [`${d.employeeId}:${d.date}`, d.zone])
 	);
-	const restDay = await restDayResolver(tx, ids, last);
-	const allShifts = new Map((await tx.select().from(shifts)).map((s) => [s.id, s]));
-	const fallback = [...allShifts.values()].find((s) => s.isDefault);
-	const assignments = await tx
-		.select()
-		.from(shiftAssignments)
-		.where(and(inArray(shiftAssignments.employeeId, ids), lte(shiftAssignments.effectiveFrom, last)))
-		.orderBy(desc(shiftAssignments.effectiveFrom));
+	const rule = await dayRules(tx, ids, from, addDays(last, 1));
 	const off = new Set(
 		(
 			await tx
@@ -162,12 +153,8 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 	const upserts: DayRow[] = [];
 	const cleared: { employeeId: string; date: string }[] = [];
 	for (const p of people) {
-		const mine = assignments.filter((a) => a.employeeId === p.id);
 		const own = (punchesOf.get(p.id) ?? []).map((x) => x.at);
-		const shiftFor = (date: string): Shift | undefined => {
-			const a = mine.find((x) => x.effectiveFrom <= date);
-			return a ? allShifts.get(a.shiftId) : fallback;
-		};
+		const shiftFor = (date: string): Shift | undefined => rule(p.id, date).shift;
 		const zoneFor = (date: string) => kept.get(`${p.id}:${date}`) ?? p.zone;
 		for (const date of dates(from, p.last)) {
 			const shift = shiftFor(date);
@@ -179,6 +166,8 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 					? new Date(zonedInstant(`${next}T00:00`, zoneFor(next)).getTime() + shiftWindow(nextShift).from * 60_000)
 					: undefined;
 			const employed = date >= p.joinDate && (!p.exitDate || date <= p.exitDate);
+			const today = rule(p.id, date);
+			const leaveSession = leave.get(`${p.id}:${date}`) ?? null;
 			const day: DayResult | null =
 				employed && shift
 					? computeDay({
@@ -187,9 +176,9 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 							timeZone,
 							punches: own,
 							until,
-							weekend: restDay(p.id, date),
+							weekend: today.rest && !(today.rosterRest && leaveSession === 'full'),
 							holiday: off.has(date),
-							leave: leave.get(`${p.id}:${date}`) ?? null,
+							leave: leaveSession,
 							wfh: wfh.has(`${p.id}:${date}`),
 							now: at
 						})
@@ -224,16 +213,7 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 }
 
 export async function shiftOn(tx: Tx, employeeId: string, date: string) {
-	const [a] = await tx
-		.select({ shift: shifts })
-		.from(shiftAssignments)
-		.innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
-		.where(and(eq(shiftAssignments.employeeId, employeeId), lte(shiftAssignments.effectiveFrom, date)))
-		.orderBy(desc(shiftAssignments.effectiveFrom))
-		.limit(1);
-	if (a) return a.shift;
-	const [d] = await tx.select().from(shifts).where(eq(shifts.isDefault, true));
-	return d;
+	return (await dayRules(tx, [employeeId], date, date))(employeeId, date).shift;
 }
 
 async function savePunch(

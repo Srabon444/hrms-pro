@@ -65,6 +65,13 @@ Vitest · Playwright · Docker.
   and meal defaults follow each person's own weekend. A change can only start today or later, never inside a month
   whose payroll is approved, and it refuses to turn rest days inside booked leave into working days; leave days that
   become rest days are dropped and refunded.
+- **Schedule.** The Schedule page is a weekly roster: a manager puts people on a shift or gives them a day off
+  for each day, copies last week as drafts, and publishes the week, which tells each person. Staff only see
+  published days. A published shift makes a weekend a working day for attendance and meals, a published day off
+  makes a working day a rest day, and a work week marked "Rostered" rests people on every day without a shift.
+  Leave days and payroll still follow the work week. People mark the times they are unavailable, and the grid flags
+  a shift during them or over leave. Publishing refuses a shift over leave or inside a month whose payroll is
+  approved, and warns about anyone with no rest day that week. Line managers schedule only their team.
 - **International by default.** A new company starts on UTC, USD, a January fiscal year and a Saturday–Sunday
   weekend, or on the time zone, currency, fiscal month and weekend days its creator picks. Payslips, letters and
   reports print names in Latin, Cyrillic, Greek, Vietnamese, Devanagari and Bengali script.

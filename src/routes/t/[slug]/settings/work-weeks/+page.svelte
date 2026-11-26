@@ -5,8 +5,8 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	type Values = { name?: string; weekendDays: number[]; active: boolean; used?: boolean };
-	const blank: Values = { weekendDays: [], active: true };
+	type Values = { name?: string; weekendDays: number[]; rosterMode: boolean; active: boolean; used?: boolean };
+	const blank: Values = { weekendDays: [], rosterMode: false, active: true };
 </script>
 
 <svelte:head><title>Work weeks · {data.tenant.name}</title></svelte:head>
@@ -25,10 +25,20 @@
 				</label>
 			{/each}
 		</div>
+		<label class="mt-3 flex items-start gap-2 text-sm">
+			<input type="checkbox" name="rosterMode" checked={v.rosterMode} class="mt-1" />
+			<span>
+				Rostered
+				<span class="block text-xs text-slate-500">
+					A day is only a working day when the published schedule gives the person a shift.
+				</span>
+			</span>
+		</label>
 		{#if v.used}<p class="mt-1 text-xs text-slate-500">People follow this work week, so its days are fixed.</p>{/if}
 	</fieldset>
 	{#if v.used}
 		{#each v.weekendDays as d (d)}<input type="hidden" name="weekendDays" value={d} />{/each}
+		{#if v.rosterMode}<input type="hidden" name="rosterMode" value="on" />{/if}
 	{/if}
 	<label class="flex items-center gap-2 text-sm text-slate-700">
 		<input type="checkbox" name="active" checked={v.active} />
@@ -52,7 +62,7 @@
 		<h2 class="section-title [overflow-wrap:anywhere]">
 			{w.name}
 			<span class="ml-2 text-xs font-normal text-slate-500">
-				Weekend: {weekendText(w.weekendDays)}{w.active ? '' : ' · inactive'}
+				Weekend: {weekendText(w.weekendDays)}{w.rosterMode ? ' · rostered' : ''}{w.active ? '' : ' · inactive'}
 			</span>
 		</h2>
 		<form method="POST" action="?/update" class="mt-3 grid gap-3 sm:grid-cols-2">
