@@ -63,7 +63,8 @@ export const PERMISSIONS = [
 	'role.manage',
 	'audit.read',
 	'audit.sensitive',
-	'data.export'
+	'data.export',
+	'directory.read'
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -92,7 +93,7 @@ export const RETIRED_SYSTEM_GRANTS: readonly (readonly [string, Permission, Scop
 
 export type SystemRole = { key: string; name: string; description: string; locked?: boolean; grants: Grant[] };
 
-export const SYSTEM_ROLES: SystemRole[] = [
+const ROLES: SystemRole[] = [
 	{
 		key: 'owner',
 		name: 'Owner',
@@ -296,3 +297,9 @@ export const SYSTEM_ROLES: SystemRole[] = [
 		)
 	}
 ];
+
+export const EVERY_MEMBER_GRANTS: Grant[] = at('all', 'directory.read');
+
+export const SYSTEM_ROLES: SystemRole[] = ROLES.map((r) =>
+	r.key === 'owner' ? r : { ...r, grants: [...r.grants, ...EVERY_MEMBER_GRANTS] }
+);

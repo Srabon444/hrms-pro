@@ -75,6 +75,7 @@ export const employees = pgTable(
 		personalEmail: citext(),
 		phone: text(),
 		dateOfBirth: date({ mode: 'string' }),
+		showBirthday: boolean().notNull().default(false),
 		gender: text(),
 		bloodGroup: text(),
 		presentAddress: text(),

@@ -1,3 +1,4 @@
+import type { ModuleId } from './modules';
 import type { Permission } from './rbac/permissions';
 import { SETTING_SECTIONS } from './settings-sections';
 
@@ -16,6 +17,13 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 		group: 'Organisation',
 		perm: 'settings.manage',
 		about: 'Name, address, time zone, fiscal year and weekend days.'
+	},
+	{
+		href: 'modules',
+		label: 'Modules',
+		group: 'Organisation',
+		perm: 'settings.manage',
+		about: 'Turn the directory, birthdays and other optional parts on or off.'
 	},
 	{
 		href: 'people',
@@ -136,6 +144,7 @@ export type NavItem = {
 	perm?: Permission | Permission[];
 	self?: true;
 	active?: true;
+	module?: ModuleId;
 };
 
 const REPORT_PERMS: Permission[] = [
@@ -155,8 +164,6 @@ export const NAV: NavItem[] = [
 	{ href: 'notifications', label: 'Notifications', group: 'Workspace' },
 	{ href: 'approvals', label: 'Approvals', group: 'Workspace' },
 	{ href: 'tasks', label: 'Tasks', group: 'Workspace' },
-	{ href: 'announcements', label: 'Announcements', group: 'Workspace', active: true },
-	{ href: 'policies', label: 'Policies', group: 'Workspace', active: true },
 	{ href: 'letters', label: 'Letters', group: 'Workspace' },
 	{
 		href: 'helpdesk',
@@ -164,6 +171,8 @@ export const NAV: NavItem[] = [
 		group: 'Workspace',
 		perm: ['helpdesk.submit', 'helpdesk.manage', 'helpdesk.confidential']
 	},
+	{ href: 'announcements', label: 'Announcements', group: 'Communicate', active: true },
+	{ href: 'directory', label: 'Directory', group: 'Communicate', perm: 'directory.read', module: 'directory' },
 	{ href: 'leave', label: 'Leave', group: 'My work', perm: 'leave.request' },
 	{ href: 'attendance', label: 'Attendance', group: 'My work', perm: 'attendance.read' },
 	{ href: 'meals', label: 'Meals', group: 'My work', perm: 'meal.order' },
@@ -177,6 +186,7 @@ export const NAV: NavItem[] = [
 		perm: ['expense.submit', 'expense.approve', 'expense.pay']
 	},
 	{ href: 'loans', label: 'Loans', group: 'My work', perm: ['loan.request', 'loan.approve'] },
+	{ href: 'policies', label: 'Policies', group: 'Learn', active: true },
 	{ href: 'employees', label: 'Employees', group: 'People', perm: 'employee.read' },
 	{ href: 'lifecycle', label: 'Lifecycle', group: 'People', perm: 'employee.update' },
 	{ href: 'recruitment', label: 'Recruitment', group: 'People', perm: 'recruitment.read' },

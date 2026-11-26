@@ -1,6 +1,7 @@
 <script lang="ts">
 	import AnnouncementCard from '#lib/components/AnnouncementCard.svelte';
 	import Card from '#lib/components/ui/Card.svelte';
+	import { dayMonth } from '#lib/day-month.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -104,6 +105,22 @@
 				{:else}
 					<p>Everyone is in today.</p>
 				{/if}
+			</Card>
+		{/if}
+		{#if home.celebrations?.length}
+			<Card title="This week" href={`${base}/directory`}>
+				<ul class="space-y-1" data-testid="celebrations">
+					{#each home.celebrations.slice(0, 8) as c (`${c.date}${c.kind}${c.employeeId}`)}
+						<li class="flex justify-between gap-2">
+							<span>{c.name}</span><span class="text-slate-500">
+								{c.kind === 'birthday' ? 'Birthday' : `${c.years} year${c.years === 1 ? '' : 's'}`} · {c.date ===
+								home.today
+									? 'today'
+									: dayMonth(c.date.slice(5))}
+							</span>
+						</li>
+					{/each}
+				</ul>
 			</Card>
 		{/if}
 		{#if home.headcount}

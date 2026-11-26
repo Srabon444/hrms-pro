@@ -14,7 +14,8 @@ export const NOTIFICATION_CATEGORIES = {
 	helpdesk: 'Helpdesk tickets',
 	policies: 'Policies to read',
 	letters: 'Letters issued to you',
-	reports: 'Reports shared with you'
+	reports: 'Reports shared with you',
+	celebrations: 'Birthdays and work anniversaries in your team'
 } as const;
 
 export type NotificationCategory = keyof typeof NOTIFICATION_CATEGORIES;

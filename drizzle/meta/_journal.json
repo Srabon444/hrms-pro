@@ -470,6 +470,13 @@
       "when": 1795692874877,
       "tag": "0066_tenant_neutral_defaults",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1795709522216,
+      "tag": "0067_directory_modules",
+      "breakpoints": true
     }
   ]
 }

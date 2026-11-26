@@ -1,8 +1,8 @@
 # HRMS Pro
 
-Multi-tenant HR system for running a software company: people, leave, attendance, timesheets, payroll with Bangladesh
-tax, loans, expenses, meal billing, recruitment, performance, helpdesk, letters, policies, shareable reports and one
-search box for pages and records.
+Multi-tenant HR system for running a software company: people, directory and org chart, leave, attendance,
+timesheets, payroll with Bangladesh tax, loans, expenses, meal billing, recruitment, performance, helpdesk, letters,
+policies, shareable reports and one search box for pages and records.
 
 SvelteKit (Svelte 5) · TypeScript · Postgres 17 with row-level security · drizzle-orm · Redis + BullMQ · MinIO ·
 Vitest · Playwright · Docker.
@@ -44,6 +44,9 @@ Vitest · Playwright · Docker.
 - **Money in integer poisha.** Payroll, tax, loans and meal bills never touch floating point.
 - **Background work.** Email, meal bills and an hourly job for leave accrual, attendance and exits run on BullMQ
   workers backed by Redis. Each hourly step runs on its own, so one failure does not stop the others.
+- **Directory and org chart.** Everyone can find colleagues, browse the reporting lines or departments and jump to
+  their own place in the chart; work anniversaries and opt-in birthdays (day and month only) show on the home page.
+  Optional parts like these are modules each organisation turns on or off.
 - **International by default.** A new company starts on UTC, USD, a January fiscal year and a Saturday–Sunday
   weekend, or on the time zone, currency, fiscal month and weekend days its creator picks. Payslips, letters and
   reports print names in Latin, Cyrillic, Greek, Vietnamese, Devanagari and Bengali script.

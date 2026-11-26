@@ -4,6 +4,7 @@ import { announcementFeed } from './announcements';
 import { pendingApprovals } from './approvals';
 import { todayPunches } from './attendance';
 import { addDays } from './dates';
+import { weekCelebrations } from './directory';
 import { employeeDocuments, employees, payrollRuns, payslips } from './db/schema';
 import { ownBalances } from './leave';
 import { whoIsOut } from './leave-requests';
@@ -101,7 +102,8 @@ export async function homeDashboard(m: ReturnType<typeof requireMember>) {
 			headcount: can(a, 'report.headcount') ? await headcount(tx, a, today) : null,
 			probation: can(a, 'employee.update') ? (await probationDue(tx, a)).rows.slice(0, DASHBOARD_LIST_SIZE) : null,
 			documents: await expiringDocuments(tx, a, today),
-			payroll: payroll ? await lastRun(tx) : null
+			payroll: payroll ? await lastRun(tx) : null,
+			celebrations: can(a, 'directory.read') ? await weekCelebrations(tx, today) : null
 		};
 	});
 }

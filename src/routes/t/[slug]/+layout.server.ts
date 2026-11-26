@@ -2,20 +2,22 @@ import { and, count, eq, isNull } from 'drizzle-orm';
 import { allowedSettingsPages, NAV } from '#lib/nav.ts';
 import { notifications } from '#lib/server/db/schema/index.ts';
 import { can, requireMember, userCtx } from '#lib/server/rbac/access.ts';
+import { modulesOn } from '#lib/server/modules.ts';
 import { tenantCurrency } from '#lib/server/settings.ts';
 import { withTenant } from '#lib/server/tenancy/index.ts';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
 	const m = requireMember(locals);
-	const { unread, currency } = await withTenant(userCtx(m), async (tx) => ({
+	const { unread, currency, modules } = await withTenant(userCtx(m), async (tx) => ({
 		unread: (
 			await tx
 				.select({ unread: count() })
 				.from(notifications)
 				.where(and(eq(notifications.membershipId, m.access.membershipId), isNull(notifications.readAt)))
 		)[0].unread,
-		currency: await tenantCurrency(tx)
+		currency: await tenantCurrency(tx),
+		modules: await modulesOn(tx)
 	}));
 	return {
 		tenant: { id: m.tenant.id, slug: m.tenant.slug, name: m.tenant.name },
@@ -25,6 +27,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			(item) =>
 				(!item.self || m.access.employeeId) &&
 				(!item.active || locals.membership!.status === 'active') &&
+				(!item.module || modules.has(item.module)) &&
 				(!item.perm || [item.perm].flat().some((p) => can(m.access, p)))
 		).map(({ href, label, group }) => ({ href, label, group })),
 		settingsMenu: allowedSettingsPages((perm) => can(m.access, perm)).map(({ href, label, group }) => ({
