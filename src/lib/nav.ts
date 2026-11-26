@@ -183,6 +183,7 @@ export const NAV: NavItem[] = [
 	{ href: 'events', label: 'Events', group: 'Communicate', perm: 'calendar.read', module: 'events' },
 	{ href: 'directory', label: 'Directory', group: 'Communicate', perm: 'directory.read', module: 'directory' },
 	{ href: 'leave', label: 'Leave', group: 'My work', perm: 'leave.request' },
+	{ href: 'schedule', label: 'Schedule', group: 'My work', perm: 'schedule.read', module: 'schedule' },
 	{ href: 'attendance', label: 'Attendance', group: 'My work', perm: 'attendance.read' },
 	{ href: 'meals', label: 'Meals', group: 'My work', perm: 'meal.order' },
 	{ href: 'timesheets', label: 'Timesheets', group: 'My work', perm: ['timesheet.submit', 'timesheet.approve'] },

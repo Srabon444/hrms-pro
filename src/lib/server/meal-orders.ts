@@ -20,7 +20,7 @@ import { AppError } from './errors';
 import { log } from './log';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
-import { restDayResolver } from './rest-days';
+import { workingRest } from './rest-days';
 import { systemCtx, withTenant, type Tx } from './tenancy';
 
 type Member = ReturnType<typeof requireMember>;
@@ -123,9 +123,10 @@ async function kitchenDays(tx: Tx, from: string, to: string) {
 				sql`${employees.status} <> 'exited'`
 			)
 		);
-	const restDay = await restDayResolver(
+	const restDay = await workingRest(
 		tx,
 		people.map((p) => p.id),
+		from,
 		to
 	);
 	const off = await holidaySet(tx, from, to);
@@ -150,7 +151,7 @@ export async function myMeals(tx: Tx, access: Access) {
 	const to = addDays(r.today, r.daysAhead - 1);
 	const served = await menu(tx, to);
 	const off = await holidaySet(tx, r.today, to);
-	const restDay = await restDayResolver(tx, [e.id], to);
+	const restDay = await workingRest(tx, [e.id], r.today, to);
 	const leave = await leaveSet(tx, r.today, to, [e.id]);
 	const prepared = await preparedSet(tx, r.today, to);
 	const orders = await tx
@@ -206,7 +207,7 @@ async function servable(tx: Tx, r: Rules, employeeId: string, date: string) {
 	if (!isOpen(r, date) || (await preparedSet(tx, date, date)).size)
 		throw new AppError('closed', `Changes for ${date} closed at ${r.cutoff.slice(0, 5)}.`, 409);
 	const working =
-		!(await holidaySet(tx, date, date)).size && !(await restDayResolver(tx, [employeeId], date))(employeeId, date);
+		!(await holidaySet(tx, date, date)).size && !(await workingRest(tx, [employeeId], date, date))(employeeId, date);
 	return { working, served: !working && r.workingDaysOnly ? [] : (await menu(tx, date))(date) };
 }
 
@@ -244,7 +245,7 @@ export async function skipMeals(m: Member, raw: Record<string, string>) {
 			throw new AppError('too_far', `Meals can be chosen up to ${MAX_AHEAD} days ahead.`, 400);
 		const served = await menu(tx, input.to);
 		const off = await holidaySet(tx, input.from, input.to);
-		const restDay = await restDayResolver(tx, [e.id], input.to);
+		const restDay = await workingRest(tx, [e.id], input.from, input.to);
 		const prepared = await preparedSet(tx, input.from, input.to);
 		const rows = datesBetween(input.from, input.to)
 			.filter((d) => isOpen(r, d) && !prepared.has(d) && employedOn(e, d))
@@ -293,9 +294,10 @@ export async function prepareMealDay(tx: Tx, tenantId: string, date: string) {
 			)
 		);
 	const holiday = (await holidaySet(tx, date, date)).size > 0;
-	const restDay = await restDayResolver(
+	const restDay = await workingRest(
 		tx,
 		people.map((p) => p.id),
+		date,
 		date
 	);
 	const leave = await leaveSet(

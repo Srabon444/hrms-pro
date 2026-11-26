@@ -70,6 +70,7 @@ export const workWeeks = pgTable(
 		...tenantBase(),
 		name: text().notNull(),
 		weekendDays: smallint().array().notNull(),
+		rosterMode: boolean().notNull().default(false),
 		active: boolean().notNull().default(true)
 	},
 	(t) => [
@@ -97,6 +98,60 @@ export const workWeekAssignments = pgTable(
 		tfk('work_week_assignments_employee_fk', t, t.employeeId, employees, 'restrict'),
 		tfk('work_week_assignments_week_fk', t, t.workWeekId, workWeeks, 'restrict'),
 		unique('work_week_assignments_from_uq').on(t.tenantId, t.employeeId, t.effectiveFrom)
+	]
+);
+
+export const ROSTER_KINDS = ['work', 'off'] as const;
+
+export const rosterEntries = pgTable(
+	'roster_entries',
+	{
+		...tenantBase(),
+		employeeId: uuid(),
+		date: date({ mode: 'string' }).notNull(),
+		shiftId: uuid(),
+		kind: text().notNull().default('work'),
+		status: text().notNull().default('draft'),
+		note: text(),
+		createdByUserId: uuid(),
+		publishedAt: tstz()
+	},
+	(t) => [
+		tenantKey('roster_entries', t),
+		tfk('roster_entries_employee_fk', t, t.employeeId, employees, 'restrict'),
+		tfk('roster_entries_shift_fk', t, t.shiftId, shifts, 'restrict'),
+		uniqueIndex('roster_entries_day_uq')
+			.on(t.tenantId, t.employeeId, t.date)
+			.where(sql`${t.employeeId} is not null`),
+		index('roster_entries_date_idx').on(t.tenantId, t.date),
+		check('roster_entries_kind_ck', sql`${t.kind} in ('work','off')`),
+		check('roster_entries_status_ck', sql`${t.status} in ('draft','published')`),
+		check('roster_entries_shift_ck', sql`(${t.kind} = 'work') = (${t.shiftId} is not null)`),
+		check('roster_entries_note_ck', sql`${t.note} is null or length(${t.note}) <= 200`)
+	]
+);
+
+export const availability = pgTable(
+	'availability',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		weekday: smallint(),
+		date: date({ mode: 'string' }),
+		fromTime: time().notNull(),
+		toTime: time().notNull(),
+		note: text()
+	},
+	(t) => [
+		tenantKey('availability', t),
+		tfk('availability_employee_fk', t, t.employeeId, employees, 'restrict'),
+		index('availability_employee_idx').on(t.tenantId, t.employeeId),
+		check(
+			'availability_when_ck',
+			sql`(${t.weekday} is null) <> (${t.date} is null) and (${t.weekday} is null or ${t.weekday} between 0 and 6)`
+		),
+		check('availability_times_ck', sql`${t.fromTime} < ${t.toTime}`),
+		check('availability_note_ck', sql`${t.note} is null or length(${t.note}) <= 200`)
 	]
 );
 

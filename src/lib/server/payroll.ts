@@ -147,6 +147,29 @@ export async function payrollClosedFrom(tx: Tx, employeeId: string, from: string
 	return run?.period ?? null;
 }
 
+export async function payrollClosedMonths(tx: Tx, employeeIds: string[], months: string[]) {
+	if (!employeeIds.length || !months.length) return new Set<string>();
+	const runs = await tx
+		.select({ period: payrollRuns.period, runType: payrollRuns.runType, employeeId: payrollRuns.employeeId })
+		.from(payrollRuns)
+		.where(
+			and(
+				inArray(payrollRuns.period, months),
+				or(
+					and(eq(payrollRuns.runType, 'regular'), inArray(payrollRuns.status, ['approved', 'paid'])),
+					and(
+						eq(payrollRuns.runType, 'final'),
+						ne(payrollRuns.status, 'void'),
+						inArray(payrollRuns.employeeId, employeeIds)
+					)
+				)
+			)
+		);
+	return new Set(
+		runs.flatMap((r) => (r.runType === 'regular' ? employeeIds : [r.employeeId!]).map((e) => `${e}:${r.period}`))
+	);
+}
+
 const among = (ids: string[]) => (col: PgColumn) => (ids.length ? inArray(col, ids) : sql`false`);
 
 export async function loadBonusInputs(tx: Tx, run: Run) {

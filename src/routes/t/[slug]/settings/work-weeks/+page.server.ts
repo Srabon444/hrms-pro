@@ -14,6 +14,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 const weekForm = (form: FormData) => ({
 	name: field(form, 'name'),
 	weekendDays: form.getAll('weekendDays').map(String),
+	rosterMode: field(form, 'rosterMode'),
 	active: field(form, 'active')
 });
 

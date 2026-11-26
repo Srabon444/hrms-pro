@@ -22,10 +22,11 @@ const weekSchema = z.object({
 		.array(z.string().regex(/^[0-6]$/, 'Pick weekend days from the list.'))
 		.transform((d) => [...new Set(d.map(Number))].sort())
 		.refine((d) => d.length <= 6, 'At least one working day is needed.'),
+	rosterMode: z.preprocess((v) => v === 'on' || v === true, z.boolean()),
 	active: z.preprocess((v) => v === 'on' || v === true, z.boolean())
 });
 
-type WeekForm = { name: string; weekendDays: string[]; active?: string };
+type WeekForm = { name: string; weekendDays: string[]; rosterMode?: string; active?: string };
 
 const duplicate = (err: unknown) => {
 	if (pgCode(err) === UNIQUE_VIOLATION)
@@ -62,10 +63,10 @@ export async function updateWorkWeek(ctx: TenantCtx, workWeekId: string, raw: We
 			.from(workWeekAssignments)
 			.where(eq(workWeekAssignments.workWeekId, w.id))
 			.limit(1);
-		if (used && input.weekendDays.join() !== w.weekendDays.join())
+		if (used && (input.weekendDays.join() !== w.weekendDays.join() || input.rosterMode !== w.rosterMode))
 			throw new AppError(
 				'in_use',
-				'People already follow this work week, so its days cannot change. Add a new work week and assign it instead.',
+				'People already follow this work week, so its days and roster setting cannot change. Add a new work week and assign it instead.',
 				409
 			);
 		await tx.update(workWeeks).set(input).where(eq(workWeeks.id, w.id)).catch(duplicate);

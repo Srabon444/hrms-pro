@@ -498,6 +498,13 @@
       "when": 1795728681664,
       "tag": "0070_work_weeks",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1795731939996,
+      "tag": "0071_schedule",
+      "breakpoints": true
     }
   ]
 }

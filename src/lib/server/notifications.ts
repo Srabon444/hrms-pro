@@ -16,7 +16,8 @@ export const NOTIFICATION_CATEGORIES = {
 	letters: 'Letters issued to you',
 	reports: 'Reports shared with you',
 	celebrations: 'Birthdays and work anniversaries in your team',
-	events: 'Reminders for events you said you will attend'
+	events: 'Reminders for events you said you will attend',
+	schedule: 'Published schedules'
 } as const;
 
 export type NotificationCategory = keyof typeof NOTIFICATION_CATEGORIES;

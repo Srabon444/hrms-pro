@@ -19,6 +19,12 @@ export const MODULES = {
 		on: true,
 		routes: ['events']
 	},
+	schedule: {
+		label: 'Schedule',
+		about: 'Weekly roster with draft and publish, availability and copying a week, on top of shifts and work weeks.',
+		on: true,
+		routes: ['schedule']
+	},
 	celebrations_birthdays: {
 		label: 'Birthdays',
 		about: 'People can choose to show their birthday (day and month only) in the directory and on the home page.',

@@ -23,7 +23,7 @@ import { lockEmployee } from './employees';
 import { notify, sendAll } from './notifications';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope } from './rbac/scope';
-import { restDayResolver } from './rest-days';
+import { workingRest } from './rest-days';
 import { withTenant, type Tx } from './tenancy';
 
 type Member = ReturnType<typeof requireMember>;
@@ -96,7 +96,7 @@ export async function requestAttendance(m: Member, raw: Record<string, string>) 
 				throw new AppError('future', 'Ask for overtime once the day has started.', 400);
 			if (input.kind === 'wfh') {
 				const [h] = await tx.select({ id: holidays.id }).from(holidays).where(eq(holidays.date, date));
-				if (h || (await restDayResolver(tx, [e.id], date))(e.id, date))
+				if (h || (await workingRest(tx, [e.id], date, date))(e.id, date))
 					throw new AppError('not_working_day', 'That day is a weekend or holiday.', 400);
 			}
 		}
