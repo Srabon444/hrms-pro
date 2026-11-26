@@ -1,7 +1,8 @@
 # HRMS Pro
 
 Multi-tenant HR system for running a software company: people, leave, attendance, timesheets, payroll with Bangladesh
-tax, loans, expenses, meal billing, recruitment, performance, helpdesk, letters, policies and shareable reports.
+tax, loans, expenses, meal billing, recruitment, performance, helpdesk, letters, policies, shareable reports and one
+search box for pages and records.
 
 SvelteKit (Svelte 5) · TypeScript · Postgres 17 with row-level security · drizzle-orm · Redis + BullMQ · MinIO ·
 Vitest · Playwright · Docker.
@@ -37,11 +38,14 @@ Vitest · Playwright · Docker.
   on the server.
 - **Files with access rules.** Attachments on 15+ record types (leave, resignations, candidates, offers, salary changes,
   projects, assets and more) live in MinIO and open only for people who may see the record.
+- **One search box.** `Ctrl K` (or `/`) finds menu pages and records across 12 modules: people, documents, letters,
+  policies, tickets, expenses, assets, projects, candidates, payroll runs and more. Each module answers through its own
+  access rule, so search never shows a row its page would hide; confidential tickets match only by number.
 - **Money in integer poisha.** Payroll, tax, loans and meal bills never touch floating point.
 - **Background work.** Email, meal bills and an hourly job for leave accrual, attendance and exits run on BullMQ
   workers backed by Redis.
 - **Audit trail.** Database triggers record every change, with sensitive fields masked.
-- **Tested.** 690+ unit, integration and end-to-end tests run against real Postgres, Redis and MinIO.
+- **Tested.** 710+ unit, integration and end-to-end tests run against real Postgres, Redis and MinIO.
 
 ## Run it locally
 
