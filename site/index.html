@@ -709,7 +709,8 @@ erDiagram
 					<div>
 						<h3>Time</h3>
 						<p>
-							attendance_days attendance_punches attendance_requests shifts shift_assignments timesheets work_plan_items
+							attendance_days attendance_punches attendance_requests shifts shift_assignments work_weeks
+							work_week_assignments timesheets work_plan_items
 						</p>
 					</div>
 					<div>
@@ -878,11 +879,15 @@ erDiagram
 							</tr>
 							<tr>
 								<td>Attendance</td>
-								<td>Punch in and out, request corrections with evidence, assign shifts, see late and absent days.</td>
+								<td>
+									Punch in and out, request corrections with evidence, assign shifts and work weeks, see late and absent
+									days.
+								</td>
 								<td>
 									Grace minutes per shift; each branch can set its own time zone and every day keeps the zone it was
 									computed in, so a transfer never counts a punch twice; days close automatically each hour; corrections
-									need a manager.
+									need a manager. A work week gives a person their own weekend, which attendance, leave days, payroll
+									working days and meals follow; it never changes a month whose payroll is approved.
 								</td>
 							</tr>
 							<tr>

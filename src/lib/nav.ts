@@ -76,6 +76,13 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 		about: 'Working hours, late grace and day lengths.'
 	},
 	{
+		href: 'work-weeks',
+		label: 'Work weeks',
+		group: 'Time',
+		perm: 'attendance.manage',
+		about: 'Different weekend days for some people.'
+	},
+	{
 		href: 'leave-types',
 		label: 'Leave types',
 		group: 'Time',

@@ -20,6 +20,7 @@ import { AppError } from './errors';
 import { log } from './log';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
+import { restDayResolver } from './rest-days';
 import { systemCtx, withTenant, type Tx } from './tenancy';
 
 type Member = ReturnType<typeof requireMember>;
@@ -33,7 +34,6 @@ async function rules(tx: Tx) {
 	const [s] = await tx
 		.select({
 			timeZone: tenantSettings.timezone,
-			weekendDays: tenantSettings.weekendDays,
 			cutoff: tenantSettings.mealCutoffTime,
 			mode: tenantSettings.mealMode,
 			workingDaysOnly: tenantSettings.mealWorkingDaysOnly,
@@ -45,7 +45,6 @@ async function rules(tx: Tx) {
 
 const cutoffAt = (r: Rules, date: string) => zonedInstant(`${date}T${r.cutoff.slice(0, 5)}`, r.timeZone);
 const isOpen = (r: Rules, date: string) => now() < cutoffAt(r, date);
-const weekend = (r: Rules, date: string) => r.weekendDays.includes(new Date(`${date}T00:00:00Z`).getUTCDay());
 
 const datesBetween = (from: string, to: string) => {
 	const out: string[] = [];
@@ -113,6 +112,28 @@ async function preparedSet(tx: Tx, from: string, to: string) {
 const employedOn = (e: { joinDate: string; exitDate: string | null }, date: string) =>
 	date >= e.joinDate && (!e.exitDate || date <= e.exitDate);
 
+async function kitchenDays(tx: Tx, from: string, to: string) {
+	const people = await tx
+		.select({ id: employees.id, joinDate: employees.joinDate, exitDate: employees.exitDate })
+		.from(employees)
+		.where(
+			and(
+				lte(employees.joinDate, to),
+				or(isNull(employees.exitDate), gte(employees.exitDate, from)),
+				sql`${employees.status} <> 'exited'`
+			)
+		);
+	const restDay = await restDayResolver(
+		tx,
+		people.map((p) => p.id),
+		to
+	);
+	const off = await holidaySet(tx, from, to);
+	return new Set(
+		datesBetween(from, to).filter((d) => !off.has(d) && people.some((p) => employedOn(p, d) && !restDay(p.id, d)))
+	);
+}
+
 async function self(tx: Tx, access: Access) {
 	if (!access.employeeId) throw new AppError('no_employee', 'Your account is not linked to an employee.', 403);
 	const [e] = await tx
@@ -129,6 +150,7 @@ export async function myMeals(tx: Tx, access: Access) {
 	const to = addDays(r.today, r.daysAhead - 1);
 	const served = await menu(tx, to);
 	const off = await holidaySet(tx, r.today, to);
+	const restDay = await restDayResolver(tx, [e.id], to);
 	const leave = await leaveSet(tx, r.today, to, [e.id]);
 	const prepared = await preparedSet(tx, r.today, to);
 	const orders = await tx
@@ -141,7 +163,7 @@ export async function myMeals(tx: Tx, access: Access) {
 		days: datesBetween(r.today, to)
 			.filter((date) => employedOn(e, date))
 			.map((date) => {
-				const working = !weekend(r, date) && !off.has(date);
+				const working = !restDay(e.id, date) && !off.has(date);
 				const fallback = defaultStatus(r, working, leave.has(`${e.id}:${date}`));
 				const open = isOpen(r, date) && !prepared.has(date);
 				return {
@@ -178,12 +200,13 @@ const choiceSchema = z.object({
 		.max(10, 'Guests must be 0 to 10.')
 });
 
-async function servable(tx: Tx, r: Rules, date: string) {
+async function servable(tx: Tx, r: Rules, employeeId: string, date: string) {
 	if (date > addDays(r.today, MAX_AHEAD))
 		throw new AppError('too_far', `Meals can be chosen up to ${MAX_AHEAD} days ahead.`, 400);
 	if (!isOpen(r, date) || (await preparedSet(tx, date, date)).size)
 		throw new AppError('closed', `Changes for ${date} closed at ${r.cutoff.slice(0, 5)}.`, 409);
-	const working = !weekend(r, date) && !(await holidaySet(tx, date, date)).size;
+	const working =
+		!(await holidaySet(tx, date, date)).size && !(await restDayResolver(tx, [employeeId], date))(employeeId, date);
 	return { working, served: !working && r.workingDaysOnly ? [] : (await menu(tx, date))(date) };
 }
 
@@ -192,7 +215,7 @@ export async function chooseMeal(m: Member, raw: Record<string, string>) {
 	await withTenant(userCtx(m), async (tx) => {
 		const e = await self(tx, m.access);
 		const r = await rules(tx);
-		const { served } = await servable(tx, r, input.date);
+		const { served } = await servable(tx, r, e.id, input.date);
 		if (!employedOn(e, input.date)) throw new AppError('not_employed', 'You are not employed on that day.', 409);
 		if (!served.some((t) => t.id === input.mealTypeId))
 			throw new AppError('not_served', 'That meal is not served on that day.', 409);
@@ -221,10 +244,11 @@ export async function skipMeals(m: Member, raw: Record<string, string>) {
 			throw new AppError('too_far', `Meals can be chosen up to ${MAX_AHEAD} days ahead.`, 400);
 		const served = await menu(tx, input.to);
 		const off = await holidaySet(tx, input.from, input.to);
+		const restDay = await restDayResolver(tx, [e.id], input.to);
 		const prepared = await preparedSet(tx, input.from, input.to);
 		const rows = datesBetween(input.from, input.to)
 			.filter((d) => isOpen(r, d) && !prepared.has(d) && employedOn(e, d))
-			.filter((d) => !r.workingDaysOnly || (!weekend(r, d) && !off.has(d)))
+			.filter((d) => !r.workingDaysOnly || (!restDay(e.id, d) && !off.has(d)))
 			.flatMap((date) =>
 				served(date).map((t) => ({
 					tenantId: m.tenant.id,
@@ -268,7 +292,12 @@ export async function prepareMealDay(tx: Tx, tenantId: string, date: string) {
 				sql`${employees.status} <> 'exited'`
 			)
 		);
-	const working = !weekend(r, date) && !(await holidaySet(tx, date, date)).size;
+	const holiday = (await holidaySet(tx, date, date)).size > 0;
+	const restDay = await restDayResolver(
+		tx,
+		people.map((p) => p.id),
+		date
+	);
 	const leave = await leaveSet(
 		tx,
 		date,
@@ -276,7 +305,7 @@ export async function prepareMealDay(tx: Tx, tenantId: string, date: string) {
 		people.map((p) => p.id)
 	);
 	const rows = people.flatMap((p) => {
-		const status = defaultStatus(r, working, leave.has(`${p.id}:${date}`));
+		const status = defaultStatus(r, !holiday && !restDay(p.id, date), leave.has(`${p.id}:${date}`));
 		return status
 			? served.map((t) => ({ tenantId, employeeId: p.id, date, mealTypeId: t.id, status, guestQty: 0 }))
 			: [];
@@ -305,7 +334,7 @@ export async function prepareMealDay(tx: Tx, tenantId: string, date: string) {
 export async function unlockedDays(tx: Tx, from: string, to: string) {
 	const r = await rules(tx);
 	const served = await menu(tx, to);
-	const off = await holidaySet(tx, from, to);
+	const working = await kitchenDays(tx, from, to);
 	const days = new Map(
 		(
 			await tx
@@ -315,7 +344,7 @@ export async function unlockedDays(tx: Tx, from: string, to: string) {
 		).map((d) => [d.date, d.locked])
 	);
 	return datesBetween(from, to).filter((d) =>
-		days.has(d) ? !days.get(d) : served(d).length > 0 && (!r.workingDaysOnly || (!weekend(r, d) && !off.has(d)))
+		days.has(d) ? !days.get(d) : served(d).length > 0 && (!r.workingDaysOnly || working.has(d))
 	);
 }
 

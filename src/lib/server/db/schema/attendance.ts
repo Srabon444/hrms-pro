@@ -64,6 +64,42 @@ export const shiftAssignments = pgTable(
 	]
 );
 
+export const workWeeks = pgTable(
+	'work_weeks',
+	{
+		...tenantBase(),
+		name: text().notNull(),
+		weekendDays: smallint().array().notNull(),
+		active: boolean().notNull().default(true)
+	},
+	(t) => [
+		tenantKey('work_weeks', t),
+		unique('work_weeks_name_uq').on(t.tenantId, t.name),
+		check('work_weeks_name_ck', sql`length(trim(${t.name})) between 1 and 60`),
+		check(
+			'work_weeks_days_ck',
+			sql`cardinality(${t.weekendDays}) <= 7 and ${t.weekendDays} <@ '{0,1,2,3,4,5,6}'::smallint[]`
+		)
+	]
+);
+
+export const workWeekAssignments = pgTable(
+	'work_week_assignments',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		workWeekId: uuid().notNull(),
+		effectiveFrom: date({ mode: 'string' }).notNull(),
+		createdByUserId: uuid()
+	},
+	(t) => [
+		tenantKey('work_week_assignments', t),
+		tfk('work_week_assignments_employee_fk', t, t.employeeId, employees, 'restrict'),
+		tfk('work_week_assignments_week_fk', t, t.workWeekId, workWeeks, 'restrict'),
+		unique('work_week_assignments_from_uq').on(t.tenantId, t.employeeId, t.effectiveFrom)
+	]
+);
+
 export const attendancePunches = pgTable(
 	'attendance_punches',
 	{

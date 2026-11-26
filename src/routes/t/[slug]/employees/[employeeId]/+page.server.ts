@@ -16,6 +16,7 @@ import { tenantToday } from '#lib/server/lifecycle.ts';
 import { addListEntry, profileLists, removeListEntry, updateOwnDetails } from '#lib/server/profile.ts';
 import { requireMember, requirePerm, userCtx, type Access } from '#lib/server/rbac/access.ts';
 import { assignShift, employeeShift, removeShiftAssignment } from '#lib/server/shifts.ts';
+import { assignWorkWeek, employeeWorkWeek, removeWorkWeekAssignment } from '#lib/server/work-weeks.ts';
 import { noticeTerms, ownResignation, submitResignation, withdrawResignation } from '#lib/server/resignations.ts';
 import { hiringFiles } from '#lib/server/recruitment.ts';
 import { withTenant, type Tx } from '#lib/server/tenancy/index.ts';
@@ -70,6 +71,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				m.access.employeeId === record.employee.id ? await ownResignationView(tx, m.access, record.employee.id) : null,
 			leave: await leaveBalances(tx, m.access, record.employee),
 			shift: await employeeShift(tx, m.access, record.employee, await tenantToday(tx)),
+			workWeek: await employeeWorkWeek(tx, m.access, record.employee, await tenantToday(tx)),
 			checklists,
 			taskFiles: Object.fromEntries(
 				await filesFor(
@@ -182,6 +184,24 @@ export const actions: Actions = {
 			return profileError(err, locals.requestId);
 		}
 		return { shiftSaved: true };
+	},
+	assignWorkWeek: async ({ request, locals, params }) => {
+		const m = requirePerm(locals, 'attendance.manage');
+		try {
+			await assignWorkWeek(m, params.employeeId, formFields(await request.formData()));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { workWeekSaved: true };
+	},
+	removeWorkWeek: async ({ request, locals, params }) => {
+		const m = requirePerm(locals, 'attendance.manage');
+		try {
+			await removeWorkWeekAssignment(m, params.employeeId, field(await request.formData(), 'assignmentId'));
+		} catch (err) {
+			return profileError(err, locals.requestId);
+		}
+		return { workWeekSaved: true };
 	},
 	task: async ({ request, locals }) => {
 		const m = requireMember(locals);

@@ -55,6 +55,7 @@ import { log } from './log';
 import { sendMail } from './mail';
 import { periodRange } from './meal-bills';
 import { renderPayslipPdf } from './payslip-pdf';
+import { restDays, workWeekRows } from './rest-days';
 import { scopesOf, userCtx, type Access, type requireMember } from './rbac/access';
 import { withTenant, type Tx } from './tenancy';
 import { tenantCurrency } from './settings';
@@ -127,6 +128,24 @@ const finalsIn = (tx: Tx, period: string) =>
 		.select({ id: payrollRuns.employeeId })
 		.from(payrollRuns)
 		.where(and(eq(payrollRuns.runType, 'final'), ne(payrollRuns.status, 'void'), eq(payrollRuns.period, period)));
+
+export async function payrollClosedFrom(tx: Tx, employeeId: string, from: string) {
+	const [run] = await tx
+		.select({ period: payrollRuns.period })
+		.from(payrollRuns)
+		.where(
+			and(
+				gte(payrollRuns.period, from.slice(0, 7)),
+				or(
+					and(eq(payrollRuns.runType, 'regular'), inArray(payrollRuns.status, ['approved', 'paid'])),
+					and(eq(payrollRuns.runType, 'final'), ne(payrollRuns.status, 'void'), eq(payrollRuns.employeeId, employeeId))
+				)
+			)
+		)
+		.orderBy(asc(payrollRuns.period))
+		.limit(1);
+	return run?.period ?? null;
+}
 
 const among = (ids: string[]) => (col: PgColumn) => (ids.length ? inArray(col, ids) : sql`false`);
 
@@ -330,6 +349,17 @@ export async function loadPayrollInputs(tx: Tx, run: Run) {
 		.from(holidays)
 		.where(and(gte(holidays.date, from), lte(holidays.date, to)))
 		.orderBy(asc(holidays.date));
+	const workWeeks = (
+		await workWeekRows(
+			tx,
+			people.map((p) => p.id),
+			to
+		)
+	).sort((a, b) =>
+		a.employeeId === b.employeeId
+			? a.effectiveFrom.localeCompare(b.effectiveFrom)
+			: a.employeeId.localeCompare(b.employeeId)
+	);
 	const attendance = await tx
 		.select({
 			id: attendanceDays.id,
@@ -497,6 +527,7 @@ export async function loadPayrollInputs(tx: Tx, run: Run) {
 		salaryLines,
 		names,
 		offDays: offDays.map((h) => h.date),
+		...(workWeeks.length ? { workWeeks } : {}),
 		attendance,
 		unpaidLeave,
 		overtime,
@@ -621,11 +652,12 @@ export function computeRun(inputs: Inputs, settle?: Settle) {
 	const { from, to } = periodRange(inputs.period);
 	const s = inputs.settings;
 	const holidaySet = new Set(inputs.offDays);
+	const restDay = restDays(s.weekendDays ?? [5, 6], inputs.workWeeks ?? []);
 	const all: string[] = [];
 	for (let d = from; d <= to; d = addDays(d, 1)) all.push(d);
-	const days =
+	const daysOf = (employeeId: string) =>
 		s.basis === 'working'
-			? all.filter((d) => isWorkingDay(d, { weekendDays: s.weekendDays, holidays: holidaySet }))
+			? all.filter((d) => isWorkingDay(d, { restDay: (x) => restDay(employeeId, x), holidays: holidaySet }))
 			: all;
 	const names = { ...LINE_NAMES, ...Object.fromEntries(inputs.names.map((n) => [n.code, n.name])) };
 	const byEmployee = <T extends { employeeId: string }>(rows: T[], id: string) =>
@@ -649,7 +681,7 @@ export function computeRun(inputs: Inputs, settle?: Settle) {
 		const ytd = inputs.ytd.find((x) => x.employeeId === p.id);
 		const category = (profile?.category ?? 'general') as TaxCategory;
 		const result = computePay({
-			days,
+			days: daysOf(p.id),
 			join: p.join,
 			exit: p.exit,
 			segments,

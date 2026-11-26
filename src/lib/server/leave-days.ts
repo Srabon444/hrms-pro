@@ -1,13 +1,15 @@
 import { addDays } from './dates';
 
 export type Session = 'full' | 'am' | 'pm';
-export type Calendar = { weekendDays: readonly number[]; holidays: ReadonlySet<string> };
+export type Calendar = { restDay: (isoDate: string) => boolean; holidays: ReadonlySet<string> };
 export type LeaveDay = { date: string; session: Session };
 
 const weekday = (isoDate: string) => new Date(`${isoDate}T00:00:00Z`).getUTCDay();
 
-export const isWorkingDay = (isoDate: string, cal: Calendar) =>
-	!cal.weekendDays.includes(weekday(isoDate)) && !cal.holidays.has(isoDate);
+export const fixedWeek = (weekendDays: readonly number[]) => (isoDate: string) =>
+	weekendDays.includes(weekday(isoDate));
+
+export const isWorkingDay = (isoDate: string, cal: Calendar) => !cal.restDay(isoDate) && !cal.holidays.has(isoDate);
 
 export function fiscalYearOf(isoDate: string, startMonth: number) {
 	const year = Number(isoDate.slice(0, 4));

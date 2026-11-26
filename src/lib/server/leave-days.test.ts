@@ -3,6 +3,7 @@ import {
 	dayValue,
 	fiscalYearOf,
 	fiscalYearRange,
+	fixedWeek,
 	isWorkingDay,
 	leaveDays,
 	monthlyCredits,
@@ -10,7 +11,7 @@ import {
 	type Calendar
 } from './leave-days';
 
-const cal: Calendar = { weekendDays: [5, 6], holidays: new Set(['2026-12-16']) };
+const cal: Calendar = { restDay: fixedWeek([5, 6]), holidays: new Set(['2026-12-16']) };
 const dates = (days: { date: string }[]) => days.map((d) => d.date);
 
 describe('working days', () => {
@@ -20,7 +21,7 @@ describe('working days', () => {
 		expect(isWorkingDay('2026-12-12', cal)).toBe(false);
 		expect(isWorkingDay('2026-12-13', cal)).toBe(true);
 		expect(isWorkingDay('2026-12-16', cal)).toBe(false);
-		expect(isWorkingDay('2026-12-13', { weekendDays: [0], holidays: new Set() })).toBe(false);
+		expect(isWorkingDay('2026-12-13', { restDay: fixedWeek([0]), holidays: new Set() })).toBe(false);
 	});
 });
 
