@@ -1,9 +1,9 @@
-import { and, asc, eq, lte } from 'drizzle-orm';
+import { and, asc, eq, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { weekStartOf } from '../domain/workplan/rollover';
 import { now } from './clock';
 import { addDays, dateIn } from './dates';
-import { employeeHistory, employees, memberships, tenantSettings } from './db/schema';
+import { counters, employeeHistory, employees, memberships, tenantSettings } from './db/schema';
 import { AppError } from './errors';
 import { notify, sendAll } from './notifications';
 import { userCtx, type Access, type requireMember } from './rbac/access';
@@ -16,6 +16,20 @@ type Member = ReturnType<typeof requireMember>;
 export async function tenantToday(tx: Tx): Promise<string> {
 	const [s] = await tx.select({ tz: tenantSettings.timezone }).from(tenantSettings);
 	return dateIn(now(), s?.tz ?? 'UTC');
+}
+
+export async function claimDay(tx: Tx, tenantId: string, name: string, today: string): Promise<boolean> {
+	const day = Number(today.replaceAll('-', ''));
+	const claimed = await tx
+		.insert(counters)
+		.values({ tenantId, name, value: day })
+		.onConflictDoUpdate({
+			target: [counters.tenantId, counters.name],
+			set: { value: day },
+			setWhere: sql`${counters.value} <> ${day}`
+		})
+		.returning({ id: counters.id });
+	return claimed.length > 0;
 }
 
 export async function tenantWeeks(tx: Tx) {

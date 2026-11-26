@@ -10,6 +10,37 @@ export function zoneFormat(timeZone: string, options: Intl.DateTimeFormatOptions
 export const dateIn = (at: Date, timeZone: string) =>
 	zoneFormat(timeZone, { year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
 
+const offsetMs = (at: number, timeZone: string) => {
+	const p = Object.fromEntries(
+		zoneFormat(
+			timeZone,
+			{
+				year: 'numeric',
+				month: '2-digit',
+				day: '2-digit',
+				hour: '2-digit',
+				minute: '2-digit',
+				second: '2-digit',
+				hourCycle: 'h23'
+			},
+			'en-US'
+		)
+			.formatToParts(new Date(at))
+			.map((x) => [x.type, x.value])
+	);
+	return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - at;
+};
+
+export function zonedUtc(date: string, time: string, timeZone: string): Date {
+	const wall = Date.parse(`${date}T${time.slice(0, 5)}:00Z`);
+	const first = wall - offsetMs(wall, timeZone);
+	const shifted = offsetMs(first, timeZone);
+	if (first + shifted === wall) return new Date(first);
+	const second = wall - shifted;
+	if (second + offsetMs(second, timeZone) === wall) return new Date(second);
+	return new Date(Math.max(first, second));
+}
+
 export const addDays = (isoDate: string, days: number) => {
 	const d = new Date(`${isoDate}T00:00:00Z`);
 	d.setUTCDate(d.getUTCDate() + days);
