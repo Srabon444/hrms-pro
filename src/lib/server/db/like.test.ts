@@ -8,5 +8,6 @@ describe('likeEscape', () => {
 	it('wraps a value for a contains match', () => {
 		expect(containsPattern('a%b')).toBe('%a\\%b%');
 		expect(containsPattern('plain')).toBe('%plain%');
+		expect(containsPattern('a\0b')).toBe('%ab%');
 	});
 });
