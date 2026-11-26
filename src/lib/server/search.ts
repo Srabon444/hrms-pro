@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
 import { alias, type PgColumn } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
+import { moduleOn } from '../modules';
 import { runName } from '../payroll';
 import type { Permission } from '../rbac/permissions';
 import { canRunAnnouncements, liveFor } from './announcements';
@@ -13,6 +14,7 @@ import {
 	candidates,
 	employeeDocuments,
 	employees,
+	events,
 	expenseClaims,
 	jobOpenings,
 	letters,
@@ -22,8 +24,11 @@ import {
 	ticketCategories,
 	tickets
 } from './db/schema';
+import { listedEvents } from './events';
 import { visibleTickets } from './helpdesk';
+import { tenantToday } from './lifecycle';
 import { log } from './log';
+import { moduleOverrides } from './modules';
 import { searchProviderFailures } from './metrics';
 import { canSeePayroll } from './payroll';
 import { canRunPolicies } from './policies';
@@ -38,6 +43,7 @@ export const SEARCH_KINDS = [
 	'letter',
 	'policy',
 	'announcement',
+	'event',
 	'ticket',
 	'expense',
 	'asset',
@@ -201,6 +207,26 @@ const PROVIDERS: Provider[] = [
 				title: r.title,
 				sub: r.publishOn,
 				href: 'announcements'
+			}));
+		}
+	},
+	{
+		kind: 'event',
+		allowed: ({ access, active }) => active && can(access, 'calendar.read'),
+		async find({ tx, access, match, rank }) {
+			if (!moduleOn(await moduleOverrides(tx), 'events')) return [];
+			const rows = await tx
+				.select({ id: events.id, title: events.title, startDate: events.startDate, location: events.location })
+				.from(events)
+				.where(and(await listedEvents(tx, access, await tenantToday(tx)), match(events.title, events.location)))
+				.orderBy(rank(events.title), asc(events.startDate))
+				.limit(PER_KIND);
+			return rows.map((r) => ({
+				kind: 'event',
+				id: r.id,
+				title: r.title,
+				sub: joined(r.startDate, r.location),
+				href: 'events'
 			}));
 		}
 	},

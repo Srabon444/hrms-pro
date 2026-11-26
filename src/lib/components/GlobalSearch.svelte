@@ -13,6 +13,7 @@
 		letter: 'Letters',
 		policy: 'Policies',
 		announcement: 'Announcements',
+		event: 'Events',
 		ticket: 'Tickets',
 		expense: 'Expenses',
 		asset: 'Assets',

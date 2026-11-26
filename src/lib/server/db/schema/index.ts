@@ -16,3 +16,4 @@ export * from './announcements';
 export * from './policies';
 export * from './letters';
 export * from './reports';
+export * from './calendar';

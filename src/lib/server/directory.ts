@@ -4,13 +4,13 @@ import { z } from 'zod';
 import { moduleOn } from '../modules';
 import { authPool } from './db';
 import { containsPattern } from './db/like';
-import { branches, counters, departments, designations, employees, memberships, tenants } from './db/schema';
+import { branches, departments, designations, employees, memberships, tenants } from './db/schema';
 import { log } from './log';
 import { moduleOverrides } from './modules';
 import { notify, sendAll } from './notifications';
 import type { Access } from './rbac/access';
 import { inScope, resolveScope } from './rbac/scope';
-import { tenantToday } from './lifecycle';
+import { claimDay, tenantToday } from './lifecycle';
 import { systemCtx, withTenant, type TenantCtx, type Tx } from './tenancy';
 
 export const LISTED_STATUSES = ['probation', 'active', 'notice'] as const;
@@ -220,17 +220,7 @@ const celebrationLine = (c: Celebration) =>
 export async function notifyCelebrations(tenantId: string, slug: string) {
 	const mails = await withTenant(systemCtx(tenantId), async (tx) => {
 		const today = await tenantToday(tx);
-		const day = Number(today.replaceAll('-', ''));
-		const [claimed] = await tx
-			.insert(counters)
-			.values({ tenantId, name: 'celebrations_day', value: day })
-			.onConflictDoUpdate({
-				target: [counters.tenantId, counters.name],
-				set: { value: day },
-				setWhere: sql`${counters.value} <> ${day}`
-			})
-			.returning({ id: counters.id });
-		if (!claimed) return [];
+		if (!(await claimDay(tx, tenantId, 'celebrations_day', today))) return [];
 		const s = await moduleOverrides(tx);
 		if (!moduleOn(s, 'directory')) return [];
 		const due = (await celebrations(tx, today, 1, moduleOn(s, 'celebrations_birthdays'))).filter((c) => c.managerId);

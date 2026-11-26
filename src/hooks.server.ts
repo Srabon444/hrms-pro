@@ -68,7 +68,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const started = performance.now();
 	event.locals.requestId = randomUUID();
 	const response = await withTestNow(event.request.headers.get('x-test-now'), () => route({ event, resolve }));
-	for (const [k, v] of Object.entries(securityHeaders)) response.headers.set(k, v);
+	for (const [k, v] of Object.entries(securityHeaders)) if (!response.headers.has(k)) response.headers.set(k, v);
 	response.headers.set('x-request-id', event.locals.requestId);
 	if (event.url.protocol === 'https:')
 		response.headers.set('strict-transport-security', 'max-age=31536000; includeSubDomains');
@@ -82,6 +82,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 export const handleError: HandleServerError = (input) => {
 	const { event } = input;
 	if (input.kind === 'unknown')
-		log.error({ err: input.error, requestId: event.locals.requestId, path: event.url.pathname }, 'unhandled error');
+		log.error(
+			{
+				err: input.error,
+				requestId: event.locals.requestId,
+				path: event.url.pathname.replace(/^\/ical\/.*/, '/ical/[file]')
+			},
+			'unhandled error'
+		);
 	return { requestId: event.locals.requestId };
 };

@@ -477,6 +477,13 @@
       "when": 1795709522216,
       "tag": "0067_directory_modules",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1795712995762,
+      "tag": "0068_calendar_events",
+      "breakpoints": true
     }
   ]
 }

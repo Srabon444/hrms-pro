@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import type { PgColumn } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { ANNOUNCEMENT_AUDIENCES, announcements, branches, departments, employees } from './db/schema';
 import type { AttachmentRules } from './attachments';
@@ -90,8 +91,10 @@ export async function deleteAnnouncement(m: Member, raw: Record<string, string>)
 	await discardFiles(keys);
 }
 
-async function audienceOf(tx: Tx, employeeId: string | null) {
-	if (!employeeId) return eq(announcements.audience, 'all');
+type AudienceColumns = { audience: PgColumn; departmentId: PgColumn; branchId: PgColumn };
+
+export async function audienceFilter(tx: Tx, employeeId: string | null, t: AudienceColumns) {
+	if (!employeeId) return eq(t.audience, 'all');
 	const ups = await tx.execute<{ id: string }>(sql`
 		with recursive up(id, depth) as (
 			select department_id, 0 from employees where id = ${employeeId}::uuid and department_id is not null
@@ -103,9 +106,9 @@ async function audienceOf(tx: Tx, employeeId: string | null) {
 	const [me] = await tx.select({ branchId: employees.branchId }).from(employees).where(eq(employees.id, employeeId));
 	const ids = ups.map((r) => r.id);
 	return or(
-		eq(announcements.audience, 'all'),
-		ids.length ? inArray(announcements.departmentId, ids) : undefined,
-		me?.branchId ? eq(announcements.branchId, me.branchId) : undefined
+		eq(t.audience, 'all'),
+		ids.length ? inArray(t.departmentId, ids) : undefined,
+		me?.branchId ? eq(t.branchId, me.branchId) : undefined
 	)!;
 }
 
@@ -127,7 +130,7 @@ export async function liveFor(tx: Tx, access: Access) {
 	return and(
 		lte(announcements.publishOn, today),
 		or(isNull(announcements.expiresOn), gte(announcements.expiresOn, today)),
-		await audienceOf(tx, access.employeeId)
+		await audienceFilter(tx, access.employeeId, announcements)
 	);
 }
 

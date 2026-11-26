@@ -42,3 +42,36 @@ describe('browser code never imports server modules', () => {
 		expect(readFileSync(file, 'utf8')).not.toMatch(/from\s+['"][^'"]*\/server\//);
 	});
 });
+
+describe('routes outside tenants and the sign-in pages are allowlisted', () => {
+	const PUBLIC: Record<string, string> = { 'src/routes/ical/[file]/+server.ts': 'src/lib/server/public/ical.ts' };
+	const OTHER = [
+		'src/routes/+page.server.ts',
+		'src/routes/account/security/+page.server.ts',
+		'src/routes/api/test/fixture/+server.ts',
+		'src/routes/healthz/+server.ts',
+		'src/routes/logout/+page.server.ts',
+		'src/routes/metrics/+server.ts',
+		'src/routes/platform/+layout.server.ts',
+		'src/routes/platform/+page.server.ts',
+		'src/routes/readyz/+server.ts'
+	];
+	const outside = globSync('src/routes/**/{+page.server.ts,+layout.server.ts,+server.ts}').filter(
+		(f) => !f.startsWith('src/routes/t/') && !f.startsWith('src/routes/(public)/')
+	);
+
+	it('lists every such route', () => {
+		expect(outside.sort()).toEqual([...Object.keys(PUBLIC), ...OTHER].sort());
+	});
+
+	it.each(Object.entries(PUBLIC))('%s goes through a rate limit and a token gate', (route, handler) => {
+		const src = readFileSync(route, 'utf8');
+		expect(src).toMatch(/from '#lib\/server\/public\//);
+		expect(src).not.toMatch(/#lib\/server\/(?!public\/)/);
+		const body = readFileSync(handler, 'utf8');
+		expect(body).toMatch(/\b(hit|hitOrLocal)\(/);
+		expect(body).toMatch(/\boverLimit\(/);
+		expect(body).toMatch(/\blookupToken\(/);
+		expect(body).toMatch(/\bactiveHolder\(/);
+	});
+});

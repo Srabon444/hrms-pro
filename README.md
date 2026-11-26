@@ -1,6 +1,7 @@
 # HRMS Pro
 
-Multi-tenant HR system for running a software company: people, directory and org chart, leave, attendance,
+Multi-tenant HR system for running a software company: people, directory and org chart, team calendar and
+events, leave, attendance,
 timesheets, payroll with Bangladesh tax, loans, expenses, meal billing, recruitment, performance, helpdesk, letters,
 policies, shareable reports and one search box for pages and records.
 
@@ -47,6 +48,11 @@ Vitest · Playwright · Docker.
 - **Directory and org chart.** Everyone can find colleagues, browse the reporting lines or departments and jump to
   their own place in the chart; work anniversaries and opt-in birthdays (day and month only) show on the home page.
   Optional parts like these are modules each organisation turns on or off.
+- **Team calendar and events.** A month view (an agenda list on phones) of who is out, holidays and events, plus a
+  private subscription link for Google Calendar, Outlook or Apple Calendar. The link is stored only as a hash, shows
+  other people's leave just as "Out", stops working when the member, user or organisation is switched off or the
+  password changes, and is rate limited per link and per address. Events go to everyone, a department or a branch;
+  people answer going, maybe or not going and get a reminder the day before.
 - **International by default.** A new company starts on UTC, USD, a January fiscal year and a Saturday–Sunday
   weekend, or on the time zone, currency, fiscal month and weekend days its creator picks. Payslips, letters and
   reports print names in Latin, Cyrillic, Greek, Vietnamese, Devanagari and Bengali script.

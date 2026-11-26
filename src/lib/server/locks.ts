@@ -8,7 +8,8 @@ export const LOCK = {
 	attendance: 5,
 	orgTree: 6,
 	helpdesk: 7,
-	letters: 8
+	letters: 8,
+	calendarFeed: 9
 } as const;
 
 export const advisoryLock = (tx: Tx, ns: (typeof LOCK)[keyof typeof LOCK], key: string) =>

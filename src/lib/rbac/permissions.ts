@@ -64,7 +64,9 @@ export const PERMISSIONS = [
 	'audit.read',
 	'audit.sensitive',
 	'data.export',
-	'directory.read'
+	'directory.read',
+	'calendar.read',
+	'event.manage'
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -133,6 +135,7 @@ const ROLES: SystemRole[] = [
 			'helpdesk.manage',
 			'helpdesk.confidential',
 			'announcement.manage',
+			'event.manage',
 			'policy.manage',
 			'letter.issue',
 			'report.headcount',
@@ -168,6 +171,7 @@ const ROLES: SystemRole[] = [
 			'interview.feedback',
 			'helpdesk.manage',
 			'announcement.manage',
+			'event.manage',
 			'letter.issue',
 			'report.headcount',
 			'report.attendance',
@@ -298,7 +302,7 @@ const ROLES: SystemRole[] = [
 	}
 ];
 
-export const EVERY_MEMBER_GRANTS: Grant[] = at('all', 'directory.read');
+export const EVERY_MEMBER_GRANTS: Grant[] = at('all', 'directory.read', 'calendar.read');
 
 export const SYSTEM_ROLES: SystemRole[] = ROLES.map((r) =>
 	r.key === 'owner' ? r : { ...r, grants: [...r.grants, ...EVERY_MEMBER_GRANTS] }

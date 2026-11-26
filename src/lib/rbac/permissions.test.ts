@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PERMISSIONS, SYSTEM_ROLES, isRestricted } from './permissions';
+import { EVERY_MEMBER_GRANTS, PERMISSIONS, SYSTEM_ROLES, isRestricted } from './permissions';
 
 describe('permission catalog', () => {
 	it('has no duplicates or wildcards', () => {
@@ -26,11 +26,13 @@ describe('permission catalog', () => {
 	it('never gives the employee role a restricted permission or a scope wider than own', () => {
 		const employee = SYSTEM_ROLES.find((r) => r.key === 'employee')!;
 		expect(employee.grants.filter(([p]) => isRestricted(p))).toEqual([]);
-		expect(employee.grants.filter(([p, s]) => s !== 'own' && p !== 'directory.read')).toEqual([]);
+		const shared = EVERY_MEMBER_GRANTS.map(([p]) => p);
+		expect(employee.grants.filter(([p, s]) => s !== 'own' && !shared.includes(p))).toEqual([]);
 	});
 
-	it('lets every role except the owner read the directory, which the owner has anyway', () => {
-		for (const r of SYSTEM_ROLES) expect(r.grants, r.key).toContainEqual(['directory.read', 'all']);
+	it('lets every role read the directory and the calendar', () => {
+		for (const r of SYSTEM_ROLES)
+			for (const p of ['directory.read', 'calendar.read']) expect(r.grants, `${r.key} ${p}`).toContainEqual([p, 'all']);
 	});
 
 	it('keeps payroll maker and checker in different roles', () => {
