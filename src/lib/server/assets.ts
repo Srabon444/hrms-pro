@@ -95,7 +95,7 @@ export const assetAttachments = {
 	}
 };
 
-async function visibleAssets(tx: Tx, access: Access): Promise<SQL> {
+export async function visibleAssets(tx: Tx, access: Access): Promise<SQL> {
 	const scope = await resolveScope(tx, access, 'asset.read');
 	if (scope.kind === 'all') return sql`true`;
 	return scope.ids.length

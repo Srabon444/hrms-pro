@@ -89,7 +89,7 @@ const agentPerm = (confidential: boolean): Permission => (confidential ? 'helpde
 const runsAll = (access: Access, p: Permission) => scopesOf(access, p).includes('all');
 export const canRunHelpdesk = (access: Access) => runsAll(access, 'helpdesk.manage');
 
-async function visibleTickets(tx: Tx, access: Access): Promise<SQL> {
+export async function visibleTickets(tx: Tx, access: Access): Promise<SQL> {
 	const [manage, secret] = await Promise.all([
 		resolveScope(tx, access, 'helpdesk.manage'),
 		resolveScope(tx, access, 'helpdesk.confidential')

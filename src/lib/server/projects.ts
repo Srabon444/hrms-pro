@@ -43,7 +43,7 @@ const onlyManagers = (access: Access) => {
 	if (!canRunProjects(access)) throw new AppError('forbidden', 'Only project managers can change projects.', 403);
 };
 
-const visible = (scope: ScopeSet) =>
+export const visibleProjects = (scope: ScopeSet) =>
 	scope.kind === 'all'
 		? sql`true`
 		: scope.ids.length
@@ -143,7 +143,7 @@ export async function projectList(tx: Tx, access: Access) {
 			members: sql<number>`(select count(*)::int from project_members pm where pm.project_id = projects.id)`
 		})
 		.from(projects)
-		.where(visible(scope))
+		.where(visibleProjects(scope))
 		.orderBy(asc(projects.status), asc(projects.code));
 }
 
@@ -153,7 +153,7 @@ export async function projectView(tx: Tx, access: Access, id: string) {
 	const [project] = await tx
 		.select()
 		.from(projects)
-		.where(and(eq(projects.id, id), visible(scope)));
+		.where(and(eq(projects.id, id), visibleProjects(scope)));
 	if (!project) return null;
 	const members = await tx
 		.select({
@@ -183,7 +183,7 @@ export const projectAttachments: AttachmentRules = {
 		const [p] = await tx
 			.select({ id: projects.id })
 			.from(projects)
-			.where(and(eq(projects.id, id), visible(scope)));
+			.where(and(eq(projects.id, id), visibleProjects(scope)));
 		return !!p;
 	},
 	canEdit: async (_tx, access) => canRunProjects(access)
