@@ -1,8 +1,13 @@
 <script lang="ts">
+	import Alert from '#lib/components/ui/Alert.svelte';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Field from '#lib/components/ui/Field.svelte';
 	import { money } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
+	const PDF_MIN = $derived(data.pdf.min);
+	const PDF_MAX = $derived(data.pdf.max);
 </script>
 
 <svelte:head><title>My payslips · {data.tenant.name}</title></svelte:head>
@@ -22,4 +27,51 @@
 	</ul>
 {:else}
 	<p class="mt-6 text-sm text-slate-500">No payslips yet. They appear here once payroll is paid.</p>
+{/if}
+
+{#if data.pdf.canSet}
+	<section class="mt-8 max-w-xl space-y-3 panel" aria-label="Payslip PDF password">
+		<h2 class="section-title">Payslip PDF password</h2>
+		<p class="text-sm text-slate-600">
+			{#if data.pdf.emailed}
+				Set a password and your payslip email will carry the PDF, locked with it. Without one you get the link only.
+			{:else}
+				Your organisation sends payslip emails with a link only. A password you set now is used if they start attaching
+				the PDF.
+			{/if}
+			Use {PDF_MIN} to {PDF_MAX} characters, different from your sign-in password. Downloads here are not locked.
+		</p>
+		<Alert message={form?.message} />
+		{#if form && 'pdfPasswordSaved' in form}<Alert tone="info" message="Payslip password saved." />{/if}
+		{#if form && 'pdfPasswordRemoved' in form}<Alert tone="info" message="Payslip password removed." />{/if}
+		<p class="text-sm font-medium text-slate-800" data-testid="pdf-password-state">
+			{data.pdf.passwordSet ? 'A payslip password is set.' : 'No payslip password yet.'}
+		</p>
+		<form method="POST" action="?/setPdfPassword" class="space-y-3">
+			<Field
+				label="New payslip password"
+				name="password"
+				type="password"
+				autocomplete="new-password"
+				required
+				minlength={PDF_MIN}
+				maxlength={PDF_MAX}
+			/>
+			<Field
+				label="Repeat it"
+				name="confirm"
+				type="password"
+				autocomplete="new-password"
+				required
+				minlength={PDF_MIN}
+				maxlength={PDF_MAX}
+			/>
+			<Button type="submit">{data.pdf.passwordSet ? 'Change password' : 'Set password'}</Button>
+		</form>
+		{#if data.pdf.passwordSet}
+			<form method="POST" action="?/removePdfPassword">
+				<Button type="submit" variant="secondary">Remove password</Button>
+			</form>
+		{/if}
+	</section>
 {/if}

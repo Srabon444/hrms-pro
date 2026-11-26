@@ -25,7 +25,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			arrearsLookbackMonths: s.arrearsLookbackMonths,
 			gratuityDaysPerYear: s.gratuityDaysPerYear,
 			gratuityMinYears: s.gratuityMinYears,
-			pfVestingMonths: s.pfVestingMonths
+			pfVestingMonths: s.pfVestingMonths,
+			payslipEmailPdf: s.payslipEmailPdf
 		}
 	};
 };

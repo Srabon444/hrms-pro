@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mailLink, waitForMail } from '../mailpit';
 import { fixture, signIn } from './fixtures';
 
@@ -21,7 +21,7 @@ test('payroll computes a month and a festival bonus that finance approves and pa
 		await page.goto(`${t}/${path}`);
 		await page.locator('html[data-hydrated]').waitFor({ state: 'attached' });
 	};
-	const status = (p: Page) => p.getByRole('status');
+	const status = (p: Page | Locator) => p.getByRole('status');
 
 	await as('adm', 'settings/tax');
 	await page.getByRole('button', { name: 'Set up tax year' }).click();
@@ -91,6 +91,15 @@ test('payroll computes a month and a festival bonus that finance approves and pa
 	const download = page.waitForEvent('download');
 	await slip.getByRole('link', { name: `Download PDF of ${period}` }).click();
 	expect((await download).suggestedFilename()).toBe(`payslip-${period}.pdf`);
+	const pdfPanel = page.getByRole('region', { name: 'Payslip PDF password' });
+	await pdfPanel.getByLabel('New payslip password').fill('river lantern 42 maple');
+	await pdfPanel.getByLabel('Repeat it').fill('river lantern 42 maple');
+	await pdfPanel.getByRole('button', { name: 'Set password' }).click();
+	await expect(status(pdfPanel)).toHaveText('Payslip password saved.');
+	await as('adm', 'settings/payroll');
+	await page.getByLabel('Attach the payslip PDF to the payslip email').check();
+	await page.getByRole('button', { name: 'Save payroll settings' }).click();
+	await expect(status(page)).toHaveText('Payroll settings saved.');
 
 	await as('po', 'payroll');
 	await page.getByLabel('What to pay').selectOption('bonus');
@@ -106,7 +115,9 @@ test('payroll computes a month and a festival bonus that finance approves and pa
 	await page.getByRole('button', { name: 'Mark paid' }).click();
 	await expect(status(page)).toHaveText('Payroll marked paid.');
 
-	await waitForMail(f.users.ana.email, 20_000, `Your Eid-ul-Adha bonus payslip for ${period}`);
+	const bonusMail = await waitForMail(f.users.ana.email, 20_000, `Your Eid-ul-Adha bonus payslip for ${period}`);
+	expect(bonusMail.attachments).toEqual([`bonus-${period}.pdf`]);
+	expect(bonusMail.text).toContain('The payslip PDF is attached.');
 	await as('ana', 'payslips');
 	await expect(slip).toHaveCount(2);
 	const bonus = slip.filter({ hasText: 'Eid-ul-Adha bonus' });

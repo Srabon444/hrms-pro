@@ -25,6 +25,13 @@ export const searchProviderFailures = new Counter({
 	registers: [registry]
 });
 
+export const payslipAttachmentsSkipped = new Counter({
+	name: 'hrms_payslip_attachments_skipped_total',
+	help: 'Payslip emails sent without the locked PDF',
+	labelNames: ['reason'],
+	registers: [registry]
+});
+
 export const lifecycleStepFailures = new Counter({
 	name: 'hrms_lifecycle_step_failures_total',
 	help: 'Hourly lifecycle steps that threw',

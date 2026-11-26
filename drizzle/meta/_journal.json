@@ -484,6 +484,13 @@
       "when": 1795712995762,
       "tag": "0068_calendar_events",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1795715832525,
+      "tag": "0069_payslip_pdf_password",
+      "breakpoints": true
     }
   ]
 }

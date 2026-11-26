@@ -25,6 +25,20 @@ export const calendarFeeds = pgTable(
 	]
 );
 
+export const memberSecrets = pgTable(
+	'member_secrets',
+	{
+		...tenantBase(),
+		membershipId: uuid().notNull(),
+		pdfPasswordEnc: text().notNull()
+	},
+	(t) => [
+		tenantKey('member_secrets', t),
+		tfk('member_secrets_membership_fk', t, t.membershipId, memberships, 'cascade'),
+		uniqueIndex('member_secrets_membership_uq').on(t.tenantId, t.membershipId)
+	]
+);
+
 export const EVENT_AUDIENCES = ['all', 'department', 'branch'] as const;
 export const RSVP_RESPONSES = ['yes', 'no', 'maybe'] as const;
 
