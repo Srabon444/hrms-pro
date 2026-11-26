@@ -241,6 +241,11 @@ export async function confirmTotpEnrolment(userId: string, code: string): Promis
 	return codes.map((c) => `${c.slice(0, 4)}-${c.slice(4, 8)}-${c.slice(8, 12)}-${c.slice(12)}`);
 }
 
+export async function matchesAccountPassword(userId: string, candidate: string): Promise<boolean> {
+	const user = await userById(userId);
+	return !!user && (await verifyPassword(user.passwordHash, candidate));
+}
+
 export async function disableTotp(userId: string, password: string): Promise<void> {
 	const user = await userById(userId);
 	if (!user || !(await verifyPassword(user.passwordHash, password)))

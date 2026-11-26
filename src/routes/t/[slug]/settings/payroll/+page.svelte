@@ -129,5 +129,14 @@
 			value={s.pfVestingMonths}
 		/>
 	</div>
+	<label class="flex items-start gap-2 text-sm text-slate-700">
+		<input type="checkbox" name="payslipEmailPdf" checked={s.payslipEmailPdf} class="mt-1" />
+		<span>
+			Attach the payslip PDF to the payslip email
+			<span class="block text-xs text-slate-500">
+				Locked with a password each employee sets on their Payslips page. People without one get the link only.
+			</span>
+		</span>
+	</label>
 	<Button type="submit">Save payroll settings</Button>
 </form>

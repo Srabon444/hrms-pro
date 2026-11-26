@@ -8,6 +8,7 @@ import { deliverMail, type Mail } from './mail';
 import { sendMealBill, sweepMealBills, type BillJob } from './meal-bills';
 import { runMeals } from './meal-orders';
 import { purgeCandidates } from './recruitment';
+import { withPayslip } from './payslip-mail';
 import { runSteps } from './steps';
 import type { QueueName } from './queue';
 
@@ -23,7 +24,7 @@ export const LIFECYCLE_STEPS: Record<string, () => Promise<unknown>> = {
 };
 
 export const processors: Record<QueueName, Processor> = {
-	mail: (job) => deliverMail(job.data as Mail),
+	mail: async (job) => deliverMail(await withPayslip(job.data as Mail)),
 	'meal-bills': (job) => sendMealBill(job.data as BillJob),
 	lifecycle: () => runSteps(LIFECYCLE_STEPS)
 };

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import {
@@ -993,7 +993,7 @@ export async function reopenRun(m: Member, form: Record<string, string>) {
 
 export async function payRun(m: Member, form: Record<string, string>) {
 	const { runId } = runSchema.parse(form);
-	const { period, name, recipients } = await withTenant(payrollCtx(m, 'payroll.approve'), async (tx) => {
+	const { period, name, recipients, emailPdf } = await withTenant(payrollCtx(m, 'payroll.approve'), async (tx) => {
 		const run = await lockedRun(tx, m, runId);
 		if (run.status !== 'approved') throw new AppError('locked', 'Only an approved run can be marked paid.', 409);
 		const now = new Date();
@@ -1029,12 +1029,18 @@ export async function payRun(m: Member, form: Record<string, string>) {
 				name: employees.fullName,
 				email: sql<
 					string | null
-				>`coalesce((select email from tenant_users where employee_id = ${payslips.employeeId} and membership_status = 'active' limit 1), ${employees.workEmail}, ${employees.personalEmail})`
+				>`coalesce((select email from tenant_users where employee_id = ${payslips.employeeId} and membership_status = 'active' limit 1), ${employees.workEmail}, ${employees.personalEmail})`,
+				membershipId: sql<
+					string | null
+				>`(select membership_id from tenant_users where employee_id = ${payslips.employeeId} and membership_status = 'active' limit 1)`,
+				locked: sql<boolean>`exists (select 1 from member_secrets s join tenant_users u on u.membership_id = s.membership_id
+					where u.employee_id = ${payslips.employeeId} and u.membership_status = 'active')`
 			})
 			.from(payslips)
 			.innerJoin(employees, eq(employees.id, payslips.employeeId))
 			.where(eq(payslips.runId, run.id));
-		return { period: run.period, name: slipName(run), recipients };
+		const [settings] = await tx.select({ pdf: tenantSettings.payslipEmailPdf }).from(tenantSettings);
+		return { period: run.period, name: slipName(run), recipients, emailPdf: !!settings?.pdf };
 	});
 	const link = `${config().APP_URL}/t/${m.tenant.slug}/payslips`;
 	await Promise.all(
@@ -1049,8 +1055,17 @@ export async function payRun(m: Member, form: Record<string, string>) {
 									`Hello ${r.name},`,
 									'',
 									`Your ${name ? `${name} ` : ''}payslip for ${period} from ${m.tenant.name} is ready.`,
-									`Open it here: ${link}`
-								].join('\n')
+									`Open it here: ${link}`,
+									...(emailPdf && r.membershipId && !r.locked
+										? ['', 'To get the PDF attached to this email, set a payslip password on the Payslips page.']
+										: [])
+								].join('\n'),
+								...(emailPdf &&
+									r.locked &&
+									r.membershipId && {
+										tenantId: m.tenant.id,
+										payslip: { payslipId: r.id, membershipId: r.membershipId }
+									})
 							},
 							`payslip-mail-${r.id}`
 						)
@@ -1221,46 +1236,52 @@ export async function myPayslips(m: Member) {
 	);
 }
 
-export async function openPayslipPdf(m: Member, payslipId: string) {
-	const valid = z.uuid().safeParse(payslipId).success;
-	return withTenant(userCtx(m), async (tx) => {
-		const [slip] = valid
-			? await tx
-					.select({
-						period: payrollRuns.period,
-						runType: payrollRuns.runType,
-						title: payrollRuns.title,
-						employee: employees.fullName,
-						code: employees.code,
-						paidDays: payslips.paidDays,
-						unpaidDays: payslips.unpaidDays,
-						gross: payslips.gross,
-						deductions: payslips.deductions,
-						rounding: payslips.rounding,
-						net: payslips.net,
-						notes: payslips.notes,
-						currency: runCurrency
-					})
-					.from(payslips)
-					.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
-					.innerJoin(employees, eq(employees.id, payslips.employeeId))
-					.where(and(eq(payslips.id, payslipId), paidSlip(m)))
-			: [];
-		if (!slip) throw new AppError('not_found', 'That payslip does not exist.', 404);
-		const lines = await tx
+export async function payslipPdfInput(tx: Tx, payslipId: string, where: SQL | undefined, company: string) {
+	const [slip] = await tx
+		.select({
+			period: payrollRuns.period,
+			runType: payrollRuns.runType,
+			title: payrollRuns.title,
+			employee: employees.fullName,
+			code: employees.code,
+			paidDays: payslips.paidDays,
+			unpaidDays: payslips.unpaidDays,
+			gross: payslips.gross,
+			deductions: payslips.deductions,
+			rounding: payslips.rounding,
+			net: payslips.net,
+			notes: payslips.notes,
+			currency: runCurrency
+		})
+		.from(payslips)
+		.innerJoin(payrollRuns, eq(payrollRuns.id, payslips.runId))
+		.innerJoin(employees, eq(employees.id, payslips.employeeId))
+		.where(and(eq(payslips.id, payslipId), where));
+	if (!slip) return null;
+	const [lines, [settings]] = await Promise.all([
+		tx
 			.select({ name: payslipLines.name, kind: payslipLines.kind, amount: payslipLines.amount })
 			.from(payslipLines)
 			.where(eq(payslipLines.payslipId, payslipId))
-			.orderBy(asc(payslipLines.seq));
-		const [settings] = await tx.select({ legalName: tenantSettings.legalName }).from(tenantSettings);
-		return {
-			fileName: `${slip.runType === 'regular' ? 'payslip' : slip.runType}-${slip.period}.pdf`,
-			body: await renderPayslipPdf({
-				...slip,
-				name: slipName(slip),
-				company: settings?.legalName ?? m.tenant.name,
-				lines: lines.map((l) => ({ ...l, kind: l.kind as PayLine['kind'] }))
-			})
-		};
+			.orderBy(asc(payslipLines.seq)),
+		tx.select({ legalName: tenantSettings.legalName }).from(tenantSettings)
+	]);
+	return {
+		fileName: `${slip.runType === 'regular' ? 'payslip' : slip.runType}-${slip.period}.pdf`,
+		pdf: {
+			...slip,
+			name: slipName(slip),
+			company: settings?.legalName ?? company,
+			lines: lines.map((l) => ({ ...l, kind: l.kind as PayLine['kind'] }))
+		}
+	};
+}
+
+export async function openPayslipPdf(m: Member, payslipId: string) {
+	const valid = z.uuid().safeParse(payslipId).success;
+	return withTenant(userCtx(m), async (tx) => {
+		const found = valid ? await payslipPdfInput(tx, payslipId, paidSlip(m), m.tenant.name) : null;
+		if (!found) throw new AppError('not_found', 'That payslip does not exist.', 404);
+		return { fileName: found.fileName, body: await renderPayslipPdf(found.pdf) };
 	});
 }

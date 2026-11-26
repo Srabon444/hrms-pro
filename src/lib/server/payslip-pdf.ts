@@ -25,8 +25,8 @@ const SECTIONS: [LineKind, string][] = [
 	['employer', 'Paid by the employer']
 ];
 
-export function renderPayslipPdf(slip: PayslipPdf): Promise<Uint8Array> {
-	const { doc, done } = pdfDoc(`Payslip ${slip.period}`);
+export function renderPayslipPdf(slip: PayslipPdf, password?: string): Promise<Uint8Array> {
+	const { doc, done } = pdfDoc(`Payslip ${slip.period}`, password);
 	doc.fontSize(16);
 	write(doc, slip.company, 48, 48);
 	doc.fontSize(12);

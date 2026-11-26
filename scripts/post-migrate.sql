@@ -171,6 +171,9 @@ begin
 
 		select format('employee_id = nullif(current_setting(''app.employee_id'', true), '''')::uuid or current_setting(''app.%s'', true) = ''on''', o.flag)
 		into access_expr from owner_row_tables o where o.table_name = t.table_name;
+		if t.table_name = 'member_secrets' then
+			access_expr := 'exists (select 1 from public.memberships m where m.id = membership_id and m.user_id = nullif(current_setting(''app.user_id'', true), '''')::uuid) or current_setting(''app.payroll_all'', true) = ''on''';
+		end if;
 
 		if t.table_name = 'audit_sensitive' then
 			execute format('create policy hrms_read on public.%I for select to hrms_app using (current_setting(''app.audit_sensitive'', true) = ''on'')', t.table_name);

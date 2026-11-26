@@ -133,7 +133,8 @@ export const payrollSettingsSchema = z.object({
 		.number()
 		.int('Enter whole months.')
 		.min(0, 'Provident fund vesting must be 0 to 120 months.')
-		.max(120, 'Provident fund vesting must be 0 to 120 months.')
+		.max(120, 'Provident fund vesting must be 0 to 120 months.'),
+	payslipEmailPdf: checkbox
 });
 
 export async function savePayrollSettings(ctx: TenantCtx, raw: Record<string, string>) {

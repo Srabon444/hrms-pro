@@ -4,6 +4,8 @@ import common from './common-passwords.json' with { type: 'json' };
 const blocked = new Set<string>(common);
 const OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
+export const isCommonPassword = (password: string) => blocked.has(password.toLowerCase());
+
 export const PASSWORD_MIN = 10;
 export const PASSWORD_MAX = 128;
 

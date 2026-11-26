@@ -202,6 +202,7 @@ export const tenantSettings = pgTable(
 		latePolicyPenalty: text().notNull().default('lop'),
 		require2faForSensitive: boolean().notNull().default(false),
 		allowSingleAdminApproval: boolean().notNull().default(false),
+		payslipEmailPdf: boolean().notNull().default(false),
 		retentionCandidatesDays: integer().notNull().default(365),
 		retentionTicketsDays: integer().notNull().default(730),
 		retentionAuditDays: integer().notNull().default(730),

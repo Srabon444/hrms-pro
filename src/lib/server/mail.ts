@@ -8,6 +8,9 @@ export type Mail = {
 	subject: string;
 	text: string;
 	attachments?: { filename: string; key: string; contentType: string }[];
+	inline?: { filename: string; contentType: string; content: Buffer }[];
+	tenantId?: string;
+	payslip?: { payslipId: string; membershipId: string };
 };
 
 let transport: Transporter | undefined;
@@ -21,7 +24,14 @@ export async function deliverMail(mail: Mail): Promise<void> {
 			content: Buffer.from(await getObject(a.key))
 		}))
 	);
-	await transport.sendMail({ from: config().MAIL_FROM, ...mail, attachments });
+	const { to, subject, text } = mail;
+	await transport.sendMail({
+		from: config().MAIL_FROM,
+		to,
+		subject,
+		text,
+		attachments: [...attachments, ...(mail.inline ?? [])]
+	});
 }
 
 export async function sendMail(mail: Mail, jobId?: string): Promise<void> {

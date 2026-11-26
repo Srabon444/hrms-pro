@@ -26,6 +26,15 @@ describe('key ring', () => {
 		expect(() => decrypt(encrypt('x', parseKeyRing(`z:${k()}`)), r)).toThrow();
 	});
 
+	it('binds a ciphertext to its additional data', () => {
+		const r = parseKeyRing(`a:${k()}`);
+		const blob = encrypt('secret', r, 'pdfpw:one');
+		expect(decrypt(blob, r, 'pdfpw:one')).toBe('secret');
+		expect(() => decrypt(blob, r, 'pdfpw:two')).toThrow();
+		expect(() => decrypt(blob, r)).toThrow();
+		expect(decrypt(encrypt('plain', r), r)).toBe('plain');
+	});
+
 	it('rejects malformed key specs', () => {
 		expect(() => parseKeyRing('a:c2hvcnQ=')).toThrow();
 		const key = k();
