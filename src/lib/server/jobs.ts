@@ -6,17 +6,20 @@ import { deliverMail, type Mail } from './mail';
 import { sendMealBill, sweepMealBills, type BillJob } from './meal-bills';
 import { runMeals } from './meal-orders';
 import { purgeCandidates } from './recruitment';
+import { runSteps } from './steps';
 import type { QueueName } from './queue';
+
+export const LIFECYCLE_STEPS: Record<string, () => Promise<unknown>> = {
+	exits: runLifecycle,
+	leaveAccrual: runLeaveAccrual,
+	attendance: runAttendance,
+	meals: runMeals,
+	mealBills: sweepMealBills,
+	candidates: purgeCandidates
+};
 
 export const processors: Record<QueueName, Processor> = {
 	mail: (job) => deliverMail(job.data as Mail),
 	'meal-bills': (job) => sendMealBill(job.data as BillJob),
-	lifecycle: async () => {
-		await runLifecycle();
-		await runLeaveAccrual();
-		await runAttendance();
-		await runMeals();
-		await sweepMealBills();
-		await purgeCandidates();
-	}
+	lifecycle: () => runSteps(LIFECYCLE_STEPS)
 };
