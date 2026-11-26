@@ -1,5 +1,5 @@
 import { and, count, eq, isNull } from 'drizzle-orm';
-import { NAV } from '#lib/nav.ts';
+import { allowedSettingsPages, NAV } from '#lib/nav.ts';
 import { notifications } from '#lib/server/db/schema/index.ts';
 import { can, requireMember, userCtx } from '#lib/server/rbac/access.ts';
 import { tenantCurrency } from '#lib/server/settings.ts';
@@ -20,13 +20,18 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	return {
 		tenant: { id: m.tenant.id, slug: m.tenant.slug, name: m.tenant.name },
 		membership: { status: locals.membership!.status },
-		user: { name: m.user.name, email: m.user.email },
+		user: { id: m.user.userId, name: m.user.name, email: m.user.email },
 		nav: NAV.filter(
 			(item) =>
 				(!item.self || m.access.employeeId) &&
 				(!item.active || locals.membership!.status === 'active') &&
 				(!item.perm || [item.perm].flat().some((p) => can(m.access, p)))
 		).map(({ href, label, group }) => ({ href, label, group })),
+		settingsMenu: allowedSettingsPages((perm) => can(m.access, perm)).map(({ href, label, group }) => ({
+			href,
+			label,
+			group
+		})),
 		unread,
 		currency
 	};

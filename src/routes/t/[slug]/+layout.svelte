@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
+	import GlobalSearch from '#lib/components/GlobalSearch.svelte';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -14,6 +15,15 @@
 		const deeper = data.nav.some((n) => n.href.startsWith(`${href}/`) && page.url.pathname.startsWith(hrefOf(n.href)));
 		return !deeper && (page.url.pathname === path || page.url.pathname.startsWith(`${path}/`));
 	};
+	let search = $state<ReturnType<typeof GlobalSearch>>();
+	const searchPages = $derived([
+		...data.nav.map((n) => ({ href: hrefOf(n.href), label: n.label, group: n.group })),
+		...data.settingsMenu.map((p) => ({
+			href: `${root}/settings/${p.href}`,
+			label: p.label,
+			group: `Settings · ${p.group}`
+		}))
+	]);
 	const groups = $derived(
 		data.nav.reduce<{ name: string; items: typeof data.nav }[]>((acc, item) => {
 			const last = acc.at(-1);
@@ -83,9 +93,10 @@
 		<header
 			class="sticky top-0 z-10 flex items-center gap-4 border-b border-slate-200 bg-white/90 px-4 py-2.5 backdrop-blur sm:px-6"
 		>
+			<GlobalSearch bind:this={search} {root} userId={data.user.id} pages={searchPages} />
 			<span class="ml-auto hidden truncate text-sm text-slate-600 sm:inline">{data.user.name}</span>
 			<a href="/account/security" class="ml-auto text-sm text-brand-700 hover:underline sm:ml-0">Security</a>
-			<form method="POST" action="/logout">
+			<form method="POST" action="/logout" onsubmit={() => search?.forget()}>
 				<button
 					type="submit"
 					class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
