@@ -230,7 +230,15 @@ export const tenantSettings = pgTable(
 		mealOrderDaysAhead: smallint().notNull().default(14),
 		loanMaxInstalments: smallint().notNull().default(60),
 		invitationValidDays: smallint().notNull().default(7),
-		reportShareDays: smallint().notNull().default(30)
+		reportShareDays: smallint().notNull().default(30),
+		modulesEnabled: text()
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		modulesDisabled: text()
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`)
 	},
 	(t) => [
 		tenantKey('tenant_settings', t),

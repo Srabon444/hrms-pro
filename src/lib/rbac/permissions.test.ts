@@ -26,7 +26,11 @@ describe('permission catalog', () => {
 	it('never gives the employee role a restricted permission or a scope wider than own', () => {
 		const employee = SYSTEM_ROLES.find((r) => r.key === 'employee')!;
 		expect(employee.grants.filter(([p]) => isRestricted(p))).toEqual([]);
-		expect(employee.grants.every(([, s]) => s === 'own')).toBe(true);
+		expect(employee.grants.filter(([p, s]) => s !== 'own' && p !== 'directory.read')).toEqual([]);
+	});
+
+	it('lets every role except the owner read the directory, which the owner has anyway', () => {
+		for (const r of SYSTEM_ROLES) expect(r.grants, r.key).toContainEqual(['directory.read', 'all']);
 	});
 
 	it('keeps payroll maker and checker in different roles', () => {
