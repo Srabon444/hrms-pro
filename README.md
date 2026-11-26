@@ -43,9 +43,13 @@ Vitest · Playwright · Docker.
   access rule, so search never shows a row its page would hide; confidential tickets match only by number.
 - **Money in integer poisha.** Payroll, tax, loans and meal bills never touch floating point.
 - **Background work.** Email, meal bills and an hourly job for leave accrual, attendance and exits run on BullMQ
-  workers backed by Redis.
+  workers backed by Redis. Each hourly step runs on its own, so one failure does not stop the others.
+- **International by default.** A new company starts on UTC, USD, a January fiscal year and a Saturday–Sunday
+  weekend, or on the time zone, currency, fiscal month and weekend days its creator picks. Payslips, letters and
+  reports print names in Latin, Cyrillic, Greek, Vietnamese, Devanagari and Bengali script.
 - **Audit trail.** Database triggers record every change, with sensitive fields masked.
-- **Tested.** 710+ unit, integration and end-to-end tests run against real Postgres, Redis and MinIO.
+- **Tested.** 720+ unit, integration and end-to-end tests run against real Postgres, Redis and MinIO; a shared leak
+  helper checks that reads stay inside each viewer's scope and tenant.
 
 ## Run it locally
 
