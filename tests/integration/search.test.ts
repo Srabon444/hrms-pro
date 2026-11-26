@@ -11,7 +11,7 @@ import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
 import { globalSearch, searchKinds, type SearchHit } from '../../src/lib/server/search';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 type Viewer = { m: Member; active: boolean };
@@ -81,8 +81,8 @@ const one = async (rows: Promise<{ id: string }[]>) => (await rows)[0].id;
 beforeAll(async () => {
 	a = await createTenant('sa');
 	b = await createTenant('sb');
-	await withTenant(systemCtx(a.id), (tx) => seedTenant(tx, a.id));
-	await withTenant(systemCtx(b.id), (tx) => seedTenant(tx, b.id));
+	await withTenant(systemCtx(a.id), (tx) => seedTenant(tx, a.id, TEST_LOCALE));
+	await withTenant(systemCtx(b.id), (tx) => seedTenant(tx, b.id, TEST_LOCALE));
 
 	emp.boss = await hire(a.id, 'Zebra Boss');
 	emp.ana = await hire(a.id, 'Zebra Ana', emp.boss);

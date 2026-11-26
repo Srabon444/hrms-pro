@@ -24,7 +24,7 @@ import { decideSalary, proposeSalary } from '../../src/lib/server/salaries';
 import { confirmTaxYear, startTaxYear } from '../../src/lib/server/tax';
 import { systemCtx, withTenant, type Tx } from '../../src/lib/server/tenancy';
 import { fiscalYearOf } from '../../src/lib/tax';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -78,7 +78,7 @@ async function pay(employeeId: string, from: string, basic: string) {
 
 beforeAll(async () => {
 	tenant = await createTenant('atkpay');
-	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	P = addMonths((await withTenant(systemCtx(tenant.id), tenantToday)).slice(0, 7), -1);
 	ids.ana = await hire('Ana');
 	ids.dan = await hire('Dan');

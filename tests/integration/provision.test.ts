@@ -13,6 +13,7 @@ import { closeQueues, startWorker } from '../../src/lib/server/queue';
 import { closeRedis } from '../../src/lib/server/redis';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
 import { mailLink, waitForMail } from '../mailpit';
+import { TEST_LOCALE } from './helpers';
 
 const worker = startWorker('mail', processors.mail);
 
@@ -44,6 +45,39 @@ describe('tenant provisioning', () => {
 		expect(mailLink(mail.text)).toContain(`/invite/${t.invitationToken}`);
 	});
 
+	it('gives a new organisation neutral defaults unless the creator picks its locale', async () => {
+		const plain = await provisionTenant(
+			{ slug: slug(), name: 'Plain', ownerEmail: `${randomUUID()}@test.local` },
+			null
+		);
+		const picked = await provisionTenant(
+			{
+				slug: slug(),
+				name: 'Picked',
+				ownerEmail: `${randomUUID()}@test.local`,
+				locale: { timezone: 'Europe/Berlin', currency: 'EUR', fiscalYearStartMonth: '4', weekendDays: ['6', '0', '6'] }
+			},
+			null
+		);
+		const rows = await ownerPool().sql`
+			select tenant_id, timezone, currency, fiscal_year_start_month as fy, weekend_days as weekend from tenant_settings
+			where tenant_id in (${plain.tenantId}, ${picked.tenantId})`;
+		const of = (id: string) => rows.find((r) => r.tenant_id === id);
+		expect(of(plain.tenantId)).toMatchObject({ timezone: 'UTC', currency: 'USD', fy: 1, weekend: [0, 6] });
+		expect(of(picked.tenantId)).toMatchObject({ timezone: 'Europe/Berlin', currency: 'EUR', fy: 4, weekend: [0, 6] });
+		await expect(
+			provisionTenant(
+				{
+					slug: slug(),
+					name: 'Bad',
+					ownerEmail: `${randomUUID()}@test.local`,
+					locale: { timezone: 'Mars/Base', currency: 'USD', fiscalYearStartMonth: 1, weekendDays: [] }
+				},
+				null
+			)
+		).rejects.toThrow();
+	});
+
 	it('refuses a taken slug and an invalid one', async () => {
 		const s = slug();
 		await provisionTenant({ slug: s, name: 'One', ownerEmail: `${randomUUID()}@test.local` }, null);
@@ -58,7 +92,7 @@ describe('tenant provisioning', () => {
 		await withTenant(systemCtx(t.tenantId), (tx) =>
 			tx.execute(sql`delete from role_permissions where role_id = (select id from roles where key = 'recruiter')`)
 		);
-		await withTenant(systemCtx(t.tenantId), (tx) => seedTenant(tx, t.tenantId));
+		await withTenant(systemCtx(t.tenantId), (tx) => seedTenant(tx, t.tenantId, TEST_LOCALE));
 		const [row] = await ownerPool().sql`
 			select count(*)::int as roles, (select count(*)::int from role_permissions rp join roles r on r.id = rp.role_id
 				where r.tenant_id = ${t.tenantId} and r.key = 'recruiter') as recruiter

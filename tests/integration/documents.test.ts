@@ -8,7 +8,7 @@ import { seedTenant } from '../../src/lib/server/platform/tenants';
 import type { Access } from '../../src/lib/server/rbac/access';
 import { getObject } from '../../src/lib/server/storage';
 import { withTenant, type TenantCtx } from '../../src/lib/server/tenancy';
-import { createTenant } from './helpers';
+import { createTenant, TEST_LOCALE } from './helpers';
 
 let ctx: TenantCtx;
 let alice: string;
@@ -31,7 +31,7 @@ const code = (p: Promise<unknown>) =>
 
 beforeAll(async () => {
 	const t = await createTenant('docs');
-	await withTenant({ tenantId: t.id, actor: 'system' }, (tx) => seedTenant(tx, t.id));
+	await withTenant({ tenantId: t.id, actor: 'system' }, (tx) => seedTenant(tx, t.id, TEST_LOCALE));
 	ctx = { tenantId: t.id, actor: 'user' };
 	[alice, bob] = await withTenant(ctx, async (tx) => {
 		const rows = await tx

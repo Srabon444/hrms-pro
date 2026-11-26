@@ -32,7 +32,7 @@ import {
 	timesheetApprovals,
 	timesheetView
 } from '../../src/lib/server/timesheets';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -96,7 +96,7 @@ const waiting = async (key: string) => (await read(key, timesheetApprovals)).map
 
 beforeAll(async () => {
 	tenant = await createTenant('timesheets');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.lea = await hire('Lea');
 	ids.ana = await hire('Ana', ids.lea);
 	ids.cal = await hire('Cal');

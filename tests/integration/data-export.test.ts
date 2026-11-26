@@ -19,7 +19,7 @@ import { listLeaveTypes } from '../../src/lib/server/leave-types';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -71,7 +71,7 @@ const codeOf = (id: string) =>
 
 beforeAll(async () => {
 	tenant = await createTenant('export');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.ana = await hire('Ana');
 	ids.boss = await hire('Boss');
 	await member('owner', ['owner'], ids.boss);

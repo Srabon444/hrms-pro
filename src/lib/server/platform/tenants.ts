@@ -18,6 +18,7 @@ import { createInvitation, invitationMail } from '../invitations';
 import { seedLeaveTypes } from '../leave-types';
 import { sendMail } from '../mail';
 import { seedPayComponents } from '../salaries';
+import { localeSchema, NEUTRAL_LOCALE, type Locale } from '../settings';
 import { seedShift } from '../shifts';
 import { seedTicketCategories } from '../helpdesk';
 import { seedLetterTemplates } from '../letters';
@@ -30,11 +31,15 @@ export const tenantInputSchema = z.object({
 		.toLowerCase()
 		.regex(/^[a-z0-9][a-z0-9-]{1,40}$/, 'Use 2-41 lowercase letters, digits or dashes'),
 	name: z.string().trim().min(1).max(120),
-	ownerEmail: emailSchema
+	ownerEmail: emailSchema,
+	locale: localeSchema.default(NEUTRAL_LOCALE)
 });
 
-export async function seedTenant(tx: Tx, tenantId: string): Promise<Record<string, string>> {
-	await tx.insert(tenantSettings).values({ tenantId }).onConflictDoNothing({ target: tenantSettings.tenantId });
+export async function seedTenant(tx: Tx, tenantId: string, locale: Locale): Promise<Record<string, string>> {
+	await tx
+		.insert(tenantSettings)
+		.values({ tenantId, ...locale })
+		.onConflictDoNothing({ target: tenantSettings.tenantId });
 	await seedLeaveTypes(tx, tenantId);
 	await seedShift(tx, tenantId);
 	await seedTicketCategories(tx, tenantId);
@@ -101,7 +106,7 @@ export async function provisionTenant(
 		.returning({ id: tenants.id });
 	if (!t) throw new AppError('slug_taken', 'That organisation URL is already taken', 409);
 	const invite = await withTenant(systemCtx(t.id), async (tx) => {
-		const roleIds = await seedTenant(tx, t.id);
+		const roleIds = await seedTenant(tx, t.id, input.locale);
 		return createInvitation(tx, { tenantId: t.id, email: input.ownerEmail, roleIds: [roleIds.owner] });
 	});
 	await authPool()

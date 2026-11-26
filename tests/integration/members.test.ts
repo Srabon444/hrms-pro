@@ -17,7 +17,7 @@ import { resolveTenantAccess } from '../../src/lib/server/tenancy/resolve';
 import { createInvitation } from '../../src/lib/server/invitations';
 import { registerFromInvitation } from '../../src/lib/server/auth/service';
 import { findUserByEmail } from '../../src/lib/server/auth/users';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 let tenant: { id: string; slug: string };
 let roleIds: Record<string, string>;
@@ -40,7 +40,7 @@ const code = (p: Promise<unknown>) => p.then(() => 'ok').catch((e: { code?: stri
 
 beforeAll(async () => {
 	tenant = await createTenant('members');
-	roleIds = await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+	roleIds = await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 });
 
 afterAll(closePools);
@@ -91,7 +91,7 @@ describe('member management guards', () => {
 
 	it('two owners removing each other at once cannot leave the organisation without an owner', async () => {
 		const own = await createTenant('owners');
-		await withTenant(systemCtx(own.id), (tx) => seedTenant(tx, own.id));
+		await withTenant(systemCtx(own.id), (tx) => seedTenant(tx, own.id, TEST_LOCALE));
 		const mk = async () => {
 			const u = await createUser();
 			const id = await withTenant(systemCtx(own.id), (tx) => addMember(tx, own.id, u.id, ['owner']));

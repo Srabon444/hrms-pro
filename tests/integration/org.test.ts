@@ -8,7 +8,7 @@ import { seedTenant } from '../../src/lib/server/platform/tenants';
 import { readSettings, saveSection, saveSettings, type SettingsInput } from '../../src/lib/server/settings';
 import { SETTING_SECTIONS, type SectionId } from '../../src/lib/settings-sections';
 import { withTenant, type TenantCtx } from '../../src/lib/server/tenancy';
-import { createTenant } from './helpers';
+import { createTenant, TEST_LOCALE } from './helpers';
 
 let a: TenantCtx;
 let b: TenantCtx;
@@ -21,7 +21,7 @@ const code = (p: Promise<unknown>) =>
 beforeAll(async () => {
 	for (const prefix of ['org-a', 'org-b']) {
 		const t = await createTenant(prefix);
-		await withTenant({ tenantId: t.id, actor: 'system' }, (tx) => seedTenant(tx, t.id));
+		await withTenant({ tenantId: t.id, actor: 'system' }, (tx) => seedTenant(tx, t.id, TEST_LOCALE));
 		const ctx: TenantCtx = { tenantId: t.id, actor: 'system' };
 		if (prefix === 'org-a') a = ctx;
 		else b = ctx;

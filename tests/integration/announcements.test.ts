@@ -15,7 +15,7 @@ import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
 import { getObject } from '../../src/lib/server/storage';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -86,7 +86,7 @@ const idOf = async (title: string) => (await admin()).rows.find((r) => r.title =
 beforeAll(async () => {
 	tenant = await createTenant('announce');
 	await withTenant(sys(), async (tx) => {
-		await seedTenant(tx, tenant.id);
+		await seedTenant(tx, tenant.id, TEST_LOCALE);
 		const [eng] = await tx.insert(departments).values({ tenantId: tenant.id, name: 'Eng' }).returning();
 		const [be] = await tx
 			.insert(departments)

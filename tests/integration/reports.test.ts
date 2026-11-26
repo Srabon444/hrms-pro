@@ -52,7 +52,7 @@ import {
 import { getObject } from '../../src/lib/server/storage';
 import type { Report } from '../../src/lib/server/reports/types';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 import type { Permission } from '../../src/lib/rbac/permissions';
 
 let tenant: { id: string; slug: string };
@@ -121,7 +121,7 @@ const names = (r: Report, key: string) => table(r, key).map((c) => c.name);
 beforeAll(async () => {
 	tenant = await createTenant('reports');
 	await withTenant(sys(), async (tx) => {
-		await seedTenant(tx, tenant.id);
+		await seedTenant(tx, tenant.id, TEST_LOCALE);
 		for (const name of ['Engineering', 'Operations'])
 			[{ id: dept[name] }] = await tx
 				.insert(departments)

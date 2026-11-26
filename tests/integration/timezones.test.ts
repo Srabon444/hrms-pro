@@ -9,7 +9,7 @@ import { addOrgItem, updateOrgItem } from '../../src/lib/server/org';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -70,7 +70,7 @@ const codeOf = (id: string) =>
 
 beforeAll(async () => {
 	tenant = await createTenant('zones');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.home = await addOrgItem(ctx(), 'branch', { name: 'Dhaka HQ' });
 	ids.gulf = await addOrgItem(ctx(), 'branch', { name: 'Dubai', timezone: 'Asia/Dubai' });
 	ids.york = await addOrgItem(ctx(), 'branch', { name: 'New York', timezone: 'America/New_York' });

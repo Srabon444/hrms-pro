@@ -24,7 +24,7 @@ import {
 	salaryCtx
 } from '../../src/lib/server/salaries';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -93,7 +93,7 @@ const salaries = (employeeId: string) =>
 
 beforeAll(async () => {
 	tenant = await createTenant('salaries');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.ana = await hire('Ana');
 	ids.ben = await hire('Ben', '2026-03-01');
 	ids.fin = await hire('Fin');

@@ -5,7 +5,7 @@ import { can, loadAccess } from '../../src/lib/server/rbac/access';
 import { setMemberRoles, type Actor } from '../../src/lib/server/rbac/members';
 import { createRole, deleteRole, parseGrants, updateRole } from '../../src/lib/server/rbac/roles';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 let tenant: { id: string; slug: string };
 let roleIds: Record<string, string>;
@@ -45,7 +45,7 @@ let roleAdmin: Actor;
 
 beforeAll(async () => {
 	tenant = await createTenant('roles');
-	roleIds = await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+	roleIds = await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	const own = await actorFor(await ownerMember());
 	const adminRole = await createRole(own, { name: 'Role admin' });
 	await updateRole(own, adminRole, {

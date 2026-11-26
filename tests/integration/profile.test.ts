@@ -15,7 +15,7 @@ import {
 } from '../../src/lib/server/profile';
 import type { Access } from '../../src/lib/server/rbac/access';
 import { withTenant, type TenantCtx } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 let ctx: TenantCtx;
 const ids: Record<string, string> = {};
@@ -56,7 +56,7 @@ const lists = (a: Access, id: string) =>
 
 beforeAll(async () => {
 	const t = await createTenant('profile');
-	await withTenant({ tenantId: t.id, actor: 'system' }, (tx) => seedTenant(tx, t.id));
+	await withTenant({ tenantId: t.id, actor: 'system' }, (tx) => seedTenant(tx, t.id, TEST_LOCALE));
 	ctx = { tenantId: t.id, actor: 'user' };
 	for (const name of ['me', 'peer', 'gone']) ids[name] = await createEmployee(ctx, hr, person(`${name} person`));
 	await withTenant(ctx, (tx) =>

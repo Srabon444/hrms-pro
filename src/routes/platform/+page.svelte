@@ -3,6 +3,7 @@
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
+	import LocaleFields from '#lib/components/LocaleFields.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -37,6 +38,11 @@
 				type="email"
 				required
 				value={form && 'ownerEmail' in form ? form.ownerEmail : ''}
+			/>
+			<LocaleFields
+				value={form && 'locale' in form ? (form.locale as typeof data.locale) : data.locale}
+				timezones={data.timezones}
+				currencies={data.currencies}
 			/>
 			<div class="sm:col-span-3"><Button type="submit">Create and invite owner</Button></div>
 		</form>

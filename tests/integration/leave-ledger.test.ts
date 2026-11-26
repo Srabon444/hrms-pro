@@ -9,7 +9,7 @@ import { listLeaveTypes, updateLeaveType } from '../../src/lib/server/leave-type
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -95,8 +95,8 @@ const typeForm = (t: Awaited<ReturnType<typeof typeId>>, extra: Record<string, s
 beforeAll(async () => {
 	tenant = await createTenant('ledger');
 	other = await createTenant('ledger-other');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
-	await withTenant(sys(other.id), (tx) => seedTenant(tx, other.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
+	await withTenant(sys(other.id), (tx) => seedTenant(tx, other.id, TEST_LOCALE));
 	await withTenant(sys(), (tx) => tx.update(tenantSettings).set({ fiscalYearStartMonth: month }));
 	await updateLeaveType(
 		{ tenantId: tenant.id, actor: 'user' },

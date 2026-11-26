@@ -9,7 +9,7 @@ import { decideLeave, requestLeave } from '../../src/lib/server/leave-requests';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -51,7 +51,7 @@ async function member(key: string, roleKeys: string[], employeeId: string | null
 beforeAll(async () => {
 	tenant = await createTenant('leaveguard');
 	await withTenant(sys(), async (tx) => {
-		await seedTenant(tx, tenant.id);
+		await seedTenant(tx, tenant.id, TEST_LOCALE);
 		await tx.update(tenantSettings).set({ fiscalYearStartMonth: month });
 		for (const t of await tx.select().from(leaveTypes)) type[t.code] = t.id;
 	});

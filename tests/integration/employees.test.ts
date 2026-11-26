@@ -14,7 +14,7 @@ import { seedTenant } from '../../src/lib/server/platform/tenants';
 import type { Access } from '../../src/lib/server/rbac/access';
 import { resolveScope } from '../../src/lib/server/rbac/scope';
 import { withTenant, type TenantCtx } from '../../src/lib/server/tenancy';
-import { createTenant } from './helpers';
+import { createTenant, TEST_LOCALE } from './helpers';
 
 let ctx: TenantCtx;
 let other: TenantCtx;
@@ -61,7 +61,7 @@ const visible = async (a: Access) =>
 beforeAll(async () => {
 	for (const prefix of ['emp-a', 'emp-b']) {
 		const t = await createTenant(prefix);
-		await withTenant({ tenantId: t.id, actor: 'system' }, (tx) => seedTenant(tx, t.id));
+		await withTenant({ tenantId: t.id, actor: 'system' }, (tx) => seedTenant(tx, t.id, TEST_LOCALE));
 		if (prefix === 'emp-a') ctx = { tenantId: t.id, actor: 'user' };
 		else other = { tenantId: t.id, actor: 'user' };
 	}

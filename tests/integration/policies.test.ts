@@ -19,7 +19,7 @@ import { acknowledgePolicy, openPolicy, policyList, policyReport, savePolicy } f
 import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
 import { s3 } from '../../src/lib/server/storage';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -93,7 +93,7 @@ const objects = async () =>
 
 beforeAll(async () => {
 	tenant = await createTenant('policies');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.bo = await hire('Bo');
 	ids.sa = await hire('Sa');
 	ids.ex = await hire('Ex');

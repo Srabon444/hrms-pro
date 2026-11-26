@@ -9,7 +9,7 @@ import { decideProbation, probationDue } from '../../src/lib/server/lifecycle';
 import { seedTenant } from '../../src/lib/server/platform/tenants';
 import type { Access, requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -45,7 +45,7 @@ const row = (id: string) =>
 
 beforeAll(async () => {
 	tenant = await createTenant('life');
-	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(systemCtx(tenant.id), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	userId = (await createUser()).id;
 	const ctx = { tenantId: tenant.id, actor: 'user' as const };
 	ids.boss = await createEmployee(ctx, hr, person('Boss', { status: 'active' }));

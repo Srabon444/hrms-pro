@@ -16,7 +16,7 @@ import {
 	updateShift
 } from '../../src/lib/server/shifts';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -79,8 +79,8 @@ const current = (employeeId: string, date: string) => withTenant(sys(), (tx) => 
 beforeAll(async () => {
 	tenant = await createTenant('shifts');
 	other = await createTenant('shifts-other');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
-	await withTenant(sys(other.id), (tx) => seedTenant(tx, other.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
+	await withTenant(sys(other.id), (tx) => seedTenant(tx, other.id, TEST_LOCALE));
 	ids.boss = await hire('Boss');
 	ids.staff = await hire('Staff', { managerId: ids.boss });
 	ids.peer = await hire('Peer');
@@ -95,7 +95,7 @@ afterAll(closePools);
 
 describe('shifts', () => {
 	it('seeds one active default shift per tenant', async () => {
-		await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+		await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 		expect((await shifts()).map((s) => [s.name, s.startTime, s.endTime, s.isDefault, s.active])).toEqual([
 			['General', '09:00:00', '18:00:00', true, true]
 		]);

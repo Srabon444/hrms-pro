@@ -8,7 +8,7 @@ import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
 import { systemCtx, withTenant } from '../../src/lib/server/tenancy';
 import { addItem, removeItem, rolloverWeek, setItemStatus, workPlan } from '../../src/lib/server/work-plans';
-import { createTenant, createUser } from './helpers';
+import { createTenant, createUser, TEST_LOCALE } from './helpers';
 
 type Member = ReturnType<typeof requireMember>;
 let tenant: { id: string; slug: string };
@@ -64,7 +64,7 @@ const titles = async (key: string, week: string | null = null) =>
 
 beforeAll(async () => {
 	tenant = await createTenant('workplan');
-	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id));
+	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
 	ids.lea = await hire('Lea');
 	ids.ana = await hire('Ana', ids.lea);
 	ids.ben = await hire('Ben');
