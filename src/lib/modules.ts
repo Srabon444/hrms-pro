@@ -7,6 +7,18 @@ export const MODULES = {
 		on: true,
 		routes: ['directory']
 	},
+	calendar: {
+		label: 'Team calendar',
+		about: 'Month view of who is out, holidays and events, plus a private feed for Google, Outlook or Apple calendars.',
+		on: true,
+		routes: ['calendar']
+	},
+	events: {
+		label: 'Events',
+		about: 'Company and team events with RSVP and a reminder the day before.',
+		on: true,
+		routes: ['events']
+	},
 	celebrations_birthdays: {
 		label: 'Birthdays',
 		about: 'People can choose to show their birthday (day and month only) in the directory and on the home page.',

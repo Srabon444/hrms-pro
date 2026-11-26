@@ -38,6 +38,15 @@ export const hitOrLocal = (bucket: string, id: string, limit: number, windowMs: 
 		return localHit(bucket, id, limit, windowMs);
 	});
 
+export async function overLimit(bucket: string, id: string, limit: number): Promise<boolean> {
+	try {
+		return Number((await (await redisReady()).get(rkey('rl', bucket, id))) ?? 0) >= limit;
+	} catch {
+		const w = local.get(`${bucket}:${id}`);
+		return !!w && w.resetAt > Date.now() && w.count >= limit;
+	}
+}
+
 export async function downloadLimit(userId: string): Promise<Response | null> {
 	const r = await hitOrLocal('download', userId, config().RL_DOWNLOADS_PER_USER_MIN, 60_000);
 	if (r.ok) return null;

@@ -316,6 +316,37 @@ end $$;
 revoke all on function public.auth_accept_invitation(text, uuid) from public;
 grant execute on function public.auth_accept_invitation(text, uuid) to hrms_auth;
 
+create or replace function public.public_token_lookup(p_kind text, p_hash text) returns table (tenant_id uuid, id uuid)
+language plpgsql stable security definer
+set search_path = pg_catalog, public, pg_temp
+as $$
+begin
+	if p_kind = 'calendar_feed' then
+		return query select f.tenant_id, f.id from public.calendar_feeds f where f.token_hash = p_hash and f.revoked_at is null;
+	else
+		raise exception 'unknown_token_kind' using errcode = 'P0001';
+	end if;
+end $$;
+
+revoke all on function public.public_token_lookup(text, text) from public;
+grant execute on function public.public_token_lookup(text, text) to hrms_auth;
+
+create or replace function public.revoke_user_calendar_feeds(p_user_id uuid) returns integer
+language plpgsql security definer
+set search_path = pg_catalog, public, pg_temp
+as $$
+declare
+	n integer;
+begin
+	update public.calendar_feeds f set revoked_at = now()
+	where f.revoked_at is null and f.membership_id in (select m.id from public.memberships m where m.user_id = p_user_id);
+	get diagnostics n = row_count;
+	return n;
+end $$;
+
+revoke all on function public.revoke_user_calendar_feeds(uuid) from public;
+grant execute on function public.revoke_user_calendar_feeds(uuid) to hrms_auth;
+
 update letter_templates set body = replace(body, 'BDT {{salary.', '{{salary.currency}} {{salary.') where body like '%BDT {{salary.%';
 
 update attendance_days d set time_zone = s.timezone from tenant_settings s where s.tenant_id = d.tenant_id and d.time_zone is null;

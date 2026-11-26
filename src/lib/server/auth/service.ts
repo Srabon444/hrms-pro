@@ -22,6 +22,7 @@ import { createSession, deleteUserSessions, refreshUserSessions } from './sessio
 import { checkLogin, loginFailed, loginSucceeded, releaseLogin, stepUpRequired } from './throttle';
 import { matchTotp, newTotpSecret, otpauthUri, base32Encode } from './totp';
 import { createUser, emailSchema, findUserByEmail } from './users';
+import { revokeUserFeeds } from '../public/tokens';
 
 const TOTP_CHALLENGE_MS = 5 * 60_000;
 const STEP_UP_CHALLENGE_MS = 10 * 60_000;
@@ -248,6 +249,7 @@ export async function disableTotp(userId: string, password: string): Promise<voi
 		.db.update(users)
 		.set({ totpSecretEnc: null, totpEnabled: false, totpLastStep: null, recoveryCodes: [] })
 		.where(eq(users.id, userId));
+	await revokeUserFeeds(userId);
 	await refreshUserSessions(userId);
 }
 
@@ -303,6 +305,7 @@ export async function resetPassword(token: string, password: string): Promise<vo
 		return true;
 	});
 	if (!claimed) throw new AppError('invalid_token', 'This reset link is invalid or has expired');
+	await revokeUserFeeds(row.userId);
 	await deleteUserSessions(row.userId);
 }
 
@@ -321,6 +324,7 @@ export async function changePassword(
 		.db.update(users)
 		.set({ passwordHash: await hashPassword(next) })
 		.where(eq(users.id, userId));
+	await revokeUserFeeds(userId);
 	await deleteUserSessions(userId);
 	return createSession(userId, meta);
 }

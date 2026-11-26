@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { discardFiles, insertFiles, prepareFiles, type AttachmentRules } from './attachments';
 import { recomputeAttendance } from './attendance';
+import { calendarEntries } from './calendar';
 import { addDays } from './dates';
 import {
 	departments,
@@ -22,7 +23,7 @@ import { dayValue, fiscalYearOf, fiscalYearRange, leaveDays, type Calendar, type
 import { tenantToday } from './lifecycle';
 import { notify, sendAll } from './notifications';
 import { userCtx, type Access, type requireMember } from './rbac/access';
-import { inScope, resolveScope, scopeWhere } from './rbac/scope';
+import { inScope, resolveScope } from './rbac/scope';
 import { withTenant, type Tx } from './tenancy';
 import type { ApprovalItem } from './approvals';
 
@@ -422,43 +423,8 @@ export async function myLeave(tx: Tx, access: Access) {
 }
 
 export async function whoIsOut(tx: Tx, access: Access, from: string, to: string) {
-	const [seen, detail] = await Promise.all([
-		resolveScope(tx, access, 'employee.read'),
-		resolveScope(tx, access, 'leave.read')
-	]);
-	const [me] = access.employeeId
-		? await tx.select({ dept: employees.departmentId }).from(employees).where(eq(employees.id, access.employeeId))
-		: [];
-	const rows = await tx
-		.select({
-			date: leaveRequestDays.date,
-			session: leaveRequestDays.session,
-			employeeId: employees.id,
-			name: employees.fullName,
-			type: leaveTypes.name
-		})
-		.from(leaveRequestDays)
-		.innerJoin(leaveRequests, eq(leaveRequests.id, leaveRequestDays.requestId))
-		.innerJoin(employees, eq(employees.id, leaveRequestDays.employeeId))
-		.innerJoin(leaveTypes, eq(leaveTypes.id, leaveRequests.leaveTypeId))
-		.where(
-			and(
-				eq(leaveRequestDays.status, 'approved'),
-				gte(leaveRequestDays.date, from),
-				lte(leaveRequestDays.date, to),
-				me?.dept
-					? or(scopeWhere(seen, employees.id), eq(employees.departmentId, me.dept))
-					: scopeWhere(seen, employees.id)
-			)
-		)
-		.orderBy(asc(leaveRequestDays.date), asc(employees.fullName))
-		.limit(500);
-	return rows.map((r) => ({
-		date: r.date,
-		session: r.session,
-		name: r.name,
-		type: inScope(detail, r.employeeId) ? r.type : 'Out'
-	}));
+	const { rows } = await calendarEntries(tx, access, from, to, { cap: 500 });
+	return rows.map(({ date, session, name, type }) => ({ date, session, name, type }));
 }
 
 export async function leaveApprovals(tx: Tx, access: Access): Promise<ApprovalItem[]> {

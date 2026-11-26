@@ -163,6 +163,7 @@ export const NAV: NavItem[] = [
 	{ href: '', label: 'Home', group: 'Workspace' },
 	{ href: 'notifications', label: 'Notifications', group: 'Workspace' },
 	{ href: 'approvals', label: 'Approvals', group: 'Workspace' },
+	{ href: 'calendar', label: 'Calendar', group: 'Workspace', perm: 'calendar.read', module: 'calendar' },
 	{ href: 'tasks', label: 'Tasks', group: 'Workspace' },
 	{ href: 'letters', label: 'Letters', group: 'Workspace' },
 	{
@@ -172,6 +173,7 @@ export const NAV: NavItem[] = [
 		perm: ['helpdesk.submit', 'helpdesk.manage', 'helpdesk.confidential']
 	},
 	{ href: 'announcements', label: 'Announcements', group: 'Communicate', active: true },
+	{ href: 'events', label: 'Events', group: 'Communicate', perm: 'calendar.read', module: 'events' },
 	{ href: 'directory', label: 'Directory', group: 'Communicate', perm: 'directory.read', module: 'directory' },
 	{ href: 'leave', label: 'Leave', group: 'My work', perm: 'leave.request' },
 	{ href: 'attendance', label: 'Attendance', group: 'My work', perm: 'attendance.read' },

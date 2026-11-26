@@ -127,6 +127,9 @@ beforeAll(async () => {
 
 	await sql()`insert into announcements (tenant_id, title, body, publish_on) values
 		(${a.id}, 'Zebra party', 'b', '2026-11-20'), (${a.id}, 'Zebra future', 'b', '2026-12-20')`;
+	await sql()`insert into events (tenant_id, title, location, start_date, end_date, audience) values
+		(${a.id}, 'Zebra picnic', 'Park', '2026-12-05', '2026-12-05', 'all'),
+		(${a.id}, 'Zebra retro', '', '2026-11-02', '2026-11-02', 'all')`;
 
 	const plain = await one(sql()`
 		insert into ticket_categories (tenant_id, name, sla_hours) values (${a.id}, 'Zebra IT', 8) returning id`);
@@ -207,6 +210,12 @@ describe('global search visibility', () => {
 		expect(await titles('owner', 'announcement')).toEqual(['Zebra future', 'Zebra party']);
 	});
 
+	it('shows staff upcoming events and managers recent ones too', async () => {
+		expect(await titles('ana', 'event')).toEqual(['Zebra picnic']);
+		expect(await titles('owner', 'event')).toEqual(['Zebra picnic', 'Zebra retro']);
+		expect(await titles('ana', 'event', 'park')).toEqual(['Zebra picnic']);
+	});
+
 	it('never matches a confidential ticket by subject and masks it when found by number', async () => {
 		expect(await titles('ana', 'ticket')).toEqual([]);
 		expect(await titles('bob', 'ticket')).toEqual(['#7001 Zebra laptop broken']);
@@ -241,7 +250,7 @@ describe('global search visibility', () => {
 
 	it('gives an ex-employee only their own record and nothing that needs an active membership', async () => {
 		const kinds = new Set((await search('ex', 'zebra')).map((h) => h.kind));
-		expect(kinds.has('policy') || kinds.has('announcement')).toBe(false);
+		expect(kinds.has('policy') || kinds.has('announcement') || kinds.has('event')).toBe(false);
 		expect(await titles('ex', 'employee')).toEqual(['Zebra Exy']);
 	});
 
