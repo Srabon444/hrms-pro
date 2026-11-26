@@ -35,7 +35,7 @@ const creator = {
 	isOwner: false
 };
 
-const hire = (tenantId: string, fullName: string, managerId = '') =>
+export const hire = (tenantId: string, fullName: string, managerId = '') =>
 	withTestNow(NOW, () =>
 		createEmployee({ tenantId, actor: 'user' }, creator as never, {
 			...blanks,
