@@ -17,6 +17,7 @@ import {
 } from './db/schema';
 import { ImportFailed, MAX_EXPORT_ROWS, unformula, type ImportRowError } from './csv';
 import { FK_VIOLATION, pgCode, UNIQUE_VIOLATION } from './db/errors';
+import { containsPattern } from './db/like';
 import { startChecklists } from './checklists';
 import { accrue } from './leave';
 import { AppError } from './errors';
@@ -319,7 +320,7 @@ async function listFilter(tx: Tx, access: Access, f: z.infer<typeof listSchema>)
 	const scope = await resolveScope(tx, access, 'employee.read');
 	const where: SQL[] = [scopeWhere(scope, employees.id)];
 	if (f.q) {
-		const like = `%${f.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+		const like = containsPattern(f.q);
 		where.push(or(ilike(employees.fullName, like), ilike(employees.code, like), ilike(employees.workEmail, like))!);
 	}
 	if (f.department) where.push(eq(employees.departmentId, f.department));
