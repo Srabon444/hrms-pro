@@ -4,7 +4,7 @@ import { addDays } from '#lib/server/dates.ts';
 import { pickFiles } from '#lib/server/http/attachments.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
-import { ownBalances } from '#lib/server/leave.ts';
+import { leaveHistory, ownBalances } from '#lib/server/leave.ts';
 import { cancelLeave, myLeave, requestLeave, whoIsOut } from '#lib/server/leave-requests.ts';
 import { tenantToday } from '#lib/server/lifecycle.ts';
 import { requirePerm, userCtx } from '#lib/server/rbac/access.ts';
@@ -20,6 +20,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			today,
 			fy,
 			balances: rows,
+			history: m.access.employeeId ? await leaveHistory(tx, m.access.employeeId, fy) : [],
 			requests: await myLeave(tx, m.access),
 			out: await whoIsOut(tx, m.access, today, addDays(today, 30))
 		};

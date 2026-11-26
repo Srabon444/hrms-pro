@@ -30,6 +30,18 @@ test('an employee sees their leave balance and HR adjusts it', async ({ page, br
 	await expect(own.getByTestId('leave-balance').filter({ hasText: 'Casual leave' })).toContainText('12 days');
 	await expect(own.getByTestId('leave-balance').filter({ hasText: 'Unpaid leave' })).toContainText('no limit');
 	await expect(own.getByRole('button', { name: 'Adjust balance' })).toHaveCount(0);
+	await leave.getByLabel('Leave type').selectOption({ label: 'Casual leave' });
+	await leave.getByLabel(/Days to add/).fill('1');
+	await leave.getByLabel('Reason').fill('W'.repeat(480));
+	await leave.getByRole('button', { name: 'Adjust balance' }).click();
+	await expect(page.getByRole('status')).toHaveText('Leave balance adjusted.');
+	await ela.setViewportSize({ width: 390, height: 800 });
+	await ela.goto(`/t/${f.tenant!.slug}/leave`);
+	await ela.locator('html[data-hydrated]').waitFor({ state: 'attached' });
+	const card = ela.getByTestId('leave-balance').filter({ hasText: 'Casual leave' });
+	await card.getByText('History').click();
+	await expect(card.getByTestId('leave-entry').first()).toContainText('Changed by HR: WWW');
+	expect(await ela.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 	await ctx.close();
 });
 
@@ -88,6 +100,21 @@ test('an employee asks for leave, the manager approves it and the employee cance
 	await expect(casual).toContainText('8 days left');
 	await expect(casual).not.toContainText('pending');
 	await expect(mine).toHaveText([/2 days · approved/]);
+	const numbers = casual.getByTestId('leave-numbers');
+	await expect(numbers).toContainText('Balance today 10 days');
+	await expect(numbers).toContainText('After approved leave still to come 8 days');
+	await expect(casual.getByTestId('leave-rule')).toHaveText(
+		'10 days a year, added at the start of the year, less for people who join mid-year. Unused days lapse at year end.'
+	);
+	await page.setViewportSize({ width: 390, height: 800 });
+	await casual.getByText('History').click();
+	const entries = casual.getByRole('list', { name: 'Casual leave history' }).getByTestId('leave-entry');
+	await expect(entries.first()).toContainText(`Leave ${from} to ${to}`);
+	await expect(entries.first()).toContainText('-2');
+	await expect(entries.first()).toContainText('balance 8');
+	await expect(entries.last()).toContainText('Added for the year');
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+	await page.setViewportSize({ width: 1280, height: 800 });
 	await expect(page.getByRole('region', { name: 'Who is out' }).getByTestId('out')).toHaveText([
 		new RegExp(`${from} · .* · Casual leave`),
 		new RegExp(`${to} · .* · Casual leave`)

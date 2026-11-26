@@ -13,6 +13,26 @@
 			: r.startDate === r.endDate
 				? r.startDate
 				: `${r.startDate} to ${r.endDate}`;
+	type Entry = PageProps['data']['history'][number];
+	const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+	const span = (h: Entry) => (h.from === h.to ? h.from : `${h.from} to ${h.to}`);
+	const entry = (h: Entry) =>
+		h.kind === 'taken'
+			? `${h.days < 0 ? 'Leave' : 'Leave given back'} ${span(h)}`
+			: h.kind === 'accrual'
+				? h.period?.includes('-')
+					? `Added for ${h.period}`
+					: 'Added for the year'
+				: h.kind === 'adjustment'
+					? `Changed by HR${h.note ? `: ${h.note}` : ''}`
+					: h.kind === 'carry'
+						? 'Carried over from last year'
+						: h.kind === 'expiry'
+							? 'Lapsed'
+							: h.kind === 'encash'
+								? 'Paid out'
+								: 'Earned for extra work';
+	const historyOf = (id: string) => data.history.filter((h) => h.leaveTypeId === id);
 </script>
 
 <svelte:head><title>Leave · {data.tenant.name}</title></svelte:head>
@@ -28,16 +48,58 @@
 	<h2 class="section-title">
 		My balance <span class="text-sm font-normal text-slate-500">FY {data.fy}</span>
 	</h2>
-	<dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+	<div class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
 		{#each data.balances as b (b.id)}
-			<div class="flex justify-between gap-3 rounded-md bg-slate-50 px-3 py-2" data-testid="leave-balance">
-				<dt class="text-slate-600">{b.name}</dt>
-				<dd class="font-medium text-slate-900">
-					{b.unlimited ? 'no limit' : `${days(b.available)} left`}{b.pending ? ` · ${b.pending} pending` : ''}
-				</dd>
-			</div>
+			<article class="min-w-0 rounded-md bg-slate-50 px-3 py-3" aria-label={b.name} data-testid="leave-balance">
+				<div class="flex justify-between gap-3">
+					<h3 class="text-slate-600">{b.name}</h3>
+					<p class="font-medium text-slate-900">
+						{b.unlimited ? 'no limit' : `${days(b.available)} left`}{b.pending ? ` · ${b.pending} pending` : ''}
+					</p>
+				</div>
+				{#if !b.unlimited}
+					<dl class="mt-2 grid grid-cols-[1fr_auto] gap-x-3 text-xs text-slate-600" data-testid="leave-numbers">
+						<dt>Balance today</dt>
+						<dd>{days(b.balance + b.booked)}</dd>
+						{#if b.booked}
+							<dt>After approved leave still to come</dt>
+							<dd>{days(b.balance)}</dd>
+						{/if}
+						{#if b.pending}
+							<dt>After pending requests</dt>
+							<dd>{days(b.available)}</dd>
+						{/if}
+					</dl>
+				{/if}
+				<p class="mt-2 text-xs text-slate-500" data-testid="leave-rule">{b.rule}</p>
+				{#if historyOf(b.id).length}
+					<details class="mt-2">
+						<summary class="cursor-pointer text-xs text-brand-700">History</summary>
+						<ul class="mt-1 divide-y divide-slate-200 text-xs" aria-label="{b.name} history">
+							{#each historyOf(b.id) as h (h.id)}
+								<li class="flex flex-wrap items-baseline gap-x-2 py-1" data-testid="leave-entry">
+									<span class="text-slate-500">{h.on}</span>
+									<span class="min-w-0 flex-1 [overflow-wrap:anywhere] text-slate-800">
+										{entry(h)}
+										{#if h.requestId && h.files}
+											· <a
+												href="/t/{data.tenant.slug}/approvals/leave/{h.requestId}"
+												class="text-brand-700 hover:underline"
+											>
+												{h.files} file{h.files === 1 ? '' : 's'}
+											</a>
+										{/if}
+									</span>
+									<span class="font-medium text-slate-900">{signed(h.days)}</span>
+									{#if !b.unlimited}<span class="text-slate-500">balance {h.after}</span>{/if}
+								</li>
+							{/each}
+						</ul>
+					</details>
+				{/if}
+			</article>
 		{/each}
-	</dl>
+	</div>
 </section>
 
 {#if data.balances.length}

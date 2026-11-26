@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, ne, sql, sum } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, sql, sum } from 'drizzle-orm';
 import { z } from 'zod';
 import { expireCompOff } from './comp-off';
 import { csvRecords, ImportFailed, type ImportRowError } from './csv';
@@ -30,6 +30,22 @@ export const appliesTo = (t: Pick<LeaveType, 'gender'>, e: { gender: string | nu
 	!t.gender || t.gender === e.gender;
 
 const unlimited = (t: Pick<LeaveType, 'quota' | 'accrual'>) => t.quota === null && t.accrual === 'none';
+
+const plural = (n: number) => `${n} day${n === 1 ? '' : 's'}`;
+
+export function leaveRule(t: LeaveType): string {
+	const unpaid = t.paid ? '' : ' Unpaid.';
+	if (unlimited(t)) return `No limit.${unpaid}`;
+	if (t.code === 'compensatory') return `Earned by working on a weekend or holiday.${unpaid}`;
+	if (t.accrual === 'none' || t.quota === null) return `Added by HR.${unpaid}`;
+	const credit =
+		t.accrual === 'monthly'
+			? `${plural(t.quota!)} a year, added month by month`
+			: `${plural(t.quota!)} a year, added at the start of the year`;
+	const joiners = t.proRata ? ', less for people who join mid-year' : '';
+	const carry = t.carryCap > 0 ? ` Up to ${plural(t.carryCap)} carry over.` : ' Unused days lapse at year end.';
+	return `${credit}${joiners}.${carry}${unpaid}`;
+}
 
 export async function fiscalStartMonth(tx: Tx) {
 	const [s] = await tx.select({ m: tenantSettings.fiscalYearStartMonth }).from(tenantSettings);
@@ -130,10 +146,13 @@ export async function balanceRows(tx: Tx, e: { id: string; gender: string | null
 		.from(leaveLedger)
 		.where(and(eq(leaveLedger.employeeId, e.id), eq(leaveLedger.fiscalYear, fy)))
 		.groupBy(leaveLedger.leaveTypeId);
-	const pending = await tx
+	const today = await tenantToday(tx);
+	const size = sql`case when ${leaveRequestDays.session} = 'full' then 1 else 0.5 end`;
+	const requested = await tx
 		.select({
 			leaveTypeId: leaveRequests.leaveTypeId,
-			days: sql<string>`sum(case when ${leaveRequestDays.session} = 'full' then 1 else 0.5 end)`
+			pending: sql<string>`sum(case when ${leaveRequestDays.status} = 'pending' then ${size} else 0 end)`,
+			booked: sql<string>`sum(case when ${leaveRequestDays.status} = 'approved' and ${leaveRequestDays.date} > ${today} then ${size} else 0 end)`
 		})
 		.from(leaveRequestDays)
 		.innerJoin(leaveRequests, eq(leaveRequests.id, leaveRequestDays.requestId))
@@ -141,12 +160,13 @@ export async function balanceRows(tx: Tx, e: { id: string; gender: string | null
 			and(
 				eq(leaveRequestDays.employeeId, e.id),
 				eq(leaveRequestDays.fiscalYear, fy),
-				eq(leaveRequestDays.status, 'pending')
+				inArray(leaveRequestDays.status, ['pending', 'approved'])
 			)
 		)
 		.groupBy(leaveRequests.leaveTypeId);
 	const by = new Map(sums.map((s) => [s.leaveTypeId, Number(s.days)]));
-	const held = new Map(pending.map((s) => [s.leaveTypeId, Number(s.days)]));
+	const held = new Map(requested.map((s) => [s.leaveTypeId, Number(s.pending)]));
+	const ahead = new Map(requested.map((s) => [s.leaveTypeId, Number(s.booked)]));
 	return types
 		.filter((t) => appliesTo(t, e))
 		.map((t) => ({
@@ -156,8 +176,43 @@ export async function balanceRows(tx: Tx, e: { id: string; gender: string | null
 			unlimited: unlimited(t),
 			balance: by.get(t.id) ?? 0,
 			pending: held.get(t.id) ?? 0,
-			available: (by.get(t.id) ?? 0) - (held.get(t.id) ?? 0)
+			booked: ahead.get(t.id) ?? 0,
+			available: (by.get(t.id) ?? 0) - (held.get(t.id) ?? 0),
+			rule: leaveRule(t)
 		}));
+}
+
+export const HISTORY_LIMIT = 500;
+
+const carriedFirst = sql`case when ${leaveLedger.kind} = 'carry' then 0 else 1 end`;
+
+export async function leaveHistory(tx: Tx, employeeId: string, fy: number) {
+	return tx
+		.select({
+			id: leaveLedger.id,
+			leaveTypeId: leaveLedger.leaveTypeId,
+			kind: leaveLedger.kind,
+			days: leaveLedger.days,
+			period: leaveLedger.period,
+			note: leaveLedger.note,
+			on: sql<string>`to_char(${leaveLedger.createdAt} at time zone coalesce((select timezone from tenant_settings), 'UTC'), 'YYYY-MM-DD')`,
+			requestId: leaveRequests.id,
+			from: leaveRequests.startDate,
+			to: leaveRequests.endDate,
+			files:
+				sql<number>`(select count(*) from files f where f.owner_type = 'leave_request' and f.owner_id = ${leaveRequests.id})`.mapWith(
+					Number
+				),
+			after:
+				sql<number>`sum(${leaveLedger.days}) over (partition by ${leaveLedger.leaveTypeId} order by ${leaveLedger.createdAt}, ${carriedFirst}, ${leaveLedger.period}, ${leaveLedger.id})`.mapWith(
+					Number
+				)
+		})
+		.from(leaveLedger)
+		.leftJoin(leaveRequests, and(eq(leaveLedger.kind, 'taken'), eq(leaveRequests.id, leaveLedger.refId)))
+		.where(and(eq(leaveLedger.employeeId, employeeId), eq(leaveLedger.fiscalYear, fy)))
+		.orderBy(desc(leaveLedger.createdAt), desc(carriedFirst), desc(leaveLedger.period), desc(leaveLedger.id))
+		.limit(HISTORY_LIMIT);
 }
 
 export async function ownBalances(tx: Tx, access: Access) {
