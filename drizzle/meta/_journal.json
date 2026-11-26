@@ -456,6 +456,13 @@
       "when": 1795531596896,
       "tag": "0064_attach_certificates",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1795675762677,
+      "tag": "0065_search_trigram",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, date, index, integer, pgTable, smallint, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { citext, tenantBase, tenantKey, tfk, tstz } from './_helpers';
+import { citext, tfk, tenantBase, tenantKey, trigramIndex, tstz } from './_helpers';
 import { memberships } from './core';
 import { departments, designations, employees } from './org';
 
@@ -89,6 +89,7 @@ export const candidates = pgTable(
 		tfk('candidates_stage_fk', t, t.stageId, pipelineStages, 'restrict'),
 		tfk('candidates_employee_fk', t, t.employeeId, employees, 'restrict'),
 		index('candidates_opening_idx').on(t.tenantId, t.openingId, t.stageId),
+		trigramIndex('candidates_search_idx', t, t.fullName, t.email),
 		uniqueIndex('candidates_email_uq')
 			.on(t.tenantId, t.openingId, t.email)
 			.where(sql`${t.email} is not null`),

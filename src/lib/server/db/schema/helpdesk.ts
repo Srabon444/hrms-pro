@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
-import { citext, tenantBase, tenantKey, tfk, tstz } from './_helpers';
+import { citext, tfk, tenantBase, tenantKey, trigramIndex, tstz } from './_helpers';
 import { memberships } from './core';
 import { employees } from './org';
 
@@ -47,6 +47,7 @@ export const tickets = pgTable(
 		tfk('tickets_assignee_fk', t, t.assigneeMembershipId, memberships),
 		index('tickets_status_idx').on(t.tenantId, t.status),
 		index('tickets_requester_idx').on(t.tenantId, t.requesterEmployeeId),
+		trigramIndex('tickets_search_idx', t, t.subject),
 		check('tickets_number_ck', sql`${t.number} > 0`),
 		check('tickets_subject_ck', sql`length(trim(${t.subject})) between 1 and 160`),
 		check('tickets_description_ck', sql`length(trim(${t.description})) between 1 and 5000`),
