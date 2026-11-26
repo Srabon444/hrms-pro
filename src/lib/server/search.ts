@@ -49,15 +49,22 @@ export const SEARCH_KINDS = [
 export type SearchKind = (typeof SEARCH_KINDS)[number];
 export type SearchHit = { kind: SearchKind; id: string; title: string; sub: string | null; href: string };
 
-export const searchQuery = z.string().trim().min(2).max(80);
+export const searchQuery = z
+	.string()
+	.trim()
+	.min(2)
+	.max(80)
+	.refine((v) => !/\p{Cc}/u.test(v));
 
 const PER_KIND = 5;
 const DEADLINE_MS = 2500;
+const STATEMENT_MS = 800;
 
 type Find = {
 	tx: Tx;
 	access: Access;
 	q: string;
+	number: number | null;
 	scope: (permission: Permission) => Promise<ScopeSet>;
 	match: (...columns: (PgColumn | SQL)[]) => SQL;
 	rank: (column: PgColumn | SQL) => SQL;
@@ -132,7 +139,7 @@ const PROVIDERS: Provider[] = [
 	{
 		kind: 'letter',
 		allowed: () => true,
-		async find({ tx, access, q, scope, match, rank }) {
+		async find({ tx, access, number, scope, match, rank }) {
 			const me = access.employeeId;
 			const rows = await tx
 				.select({ id: letters.id, number: letters.number, subject: letters.subject, name: employees.fullName })
@@ -144,7 +151,7 @@ const PROVIDERS: Provider[] = [
 							me ? eq(letters.employeeId, me) : undefined,
 							scopeWhere(await scope('letter.issue'), letters.employeeId)
 						),
-						or(match(letters.subject), sql`${letters.number}::text = ${q}`)
+						number === null ? match(letters.subject) : or(match(letters.subject), eq(letters.number, number))
 					)
 				)
 				.orderBy(rank(sql`${letters.number}::text`), rank(letters.subject), desc(letters.number))
@@ -200,7 +207,7 @@ const PROVIDERS: Provider[] = [
 	{
 		kind: 'ticket',
 		allowed: () => true,
-		async find({ tx, access, q, match, rank }) {
+		async find({ tx, access, number, match, rank }) {
 			const rows = await tx
 				.select({
 					id: tickets.id,
@@ -218,7 +225,7 @@ const PROVIDERS: Provider[] = [
 						await visibleTickets(tx, access),
 						or(
 							and(eq(ticketCategories.confidential, false), match(tickets.subject)),
-							sql`${tickets.number}::text = ${q.replace(/^#/, '')}`
+							number === null ? undefined : eq(tickets.number, number)
 						)
 					)
 				)
@@ -406,6 +413,7 @@ export async function globalSearch(tx: Tx, viewer: Viewer, raw: string): Promise
 		tx,
 		access: viewer.access,
 		q,
+		number: /^#?\d{1,9}$/.test(q) ? Number(q.replace('#', '')) : null,
 		scope: (p: Permission) => {
 			if (!scopes.has(p)) scopes.set(p, resolveScope(tx, viewer.access, p));
 			return scopes.get(p)!;
@@ -414,7 +422,6 @@ export async function globalSearch(tx: Tx, viewer: Viewer, raw: string): Promise
 		rank: (c: PgColumn | SQL) =>
 			sql`case when lower(${c}::text) = ${lower} then 0 when ${c}::text ilike ${prefix} then 1 else 2 end`
 	};
-	await tx.execute(sql`set local statement_timeout = '800ms'`);
 	const started = Date.now();
 	return PROVIDERS.filter((p) => p.allowed(viewer)).reduce<Promise<SearchHit[]>>(
 		(prior, p) => prior.then(async (hits) => hits.concat(await searchOne(p, find, started))),
@@ -423,12 +430,16 @@ export async function globalSearch(tx: Tx, viewer: Viewer, raw: string): Promise
 }
 
 async function searchOne(p: Provider, find: Find, started: number): Promise<SearchHit[]> {
-	if (Date.now() - started > DEADLINE_MS) {
+	const left = Math.min(STATEMENT_MS, DEADLINE_MS - (Date.now() - started));
+	if (left < 50) {
 		searchProviderFailures.inc({ kind: p.kind, reason: 'deadline' });
 		return [];
 	}
 	try {
-		return await find.tx.transaction((sp) => p.find({ ...find, tx: sp }));
+		return await find.tx.transaction(async (sp) => {
+			await sp.execute(sql.raw(`set local statement_timeout = ${Math.floor(left)}`));
+			return p.find({ ...find, tx: sp });
+		});
 	} catch (err) {
 		searchProviderFailures.inc({ kind: p.kind, reason: 'error' });
 		log.warn({ kind: p.kind, err: (err as Error).message }, 'search provider failed');

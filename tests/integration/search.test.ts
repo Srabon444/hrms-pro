@@ -188,9 +188,10 @@ describe('global search visibility', () => {
 	it('shows own letters plus letters in the issue scope', async () => {
 		expect(await titles('ana', 'letter')).toEqual(['#901 Zebra letter Ana']);
 		expect(await titles('owner', 'letter')).toEqual(['#901 Zebra letter Ana', '#902 Zebra letter Bob']);
-		expect((await search('owner', '902')).filter((h) => h.kind === 'letter').map((h) => h.title)).toEqual([
-			'#902 Zebra letter Bob'
-		]);
+		for (const q of ['902', '#902'])
+			expect((await search('owner', q)).filter((h) => h.kind === 'letter').map((h) => h.title)).toEqual([
+				'#902 Zebra letter Bob'
+			]);
 	});
 
 	it('hides inactive policies from staff and links them to the file, not the manager page', async () => {
@@ -254,6 +255,7 @@ describe('global search visibility', () => {
 		expect(await search('owner', '__')).toEqual([]);
 		await expect(search('owner', 'z')).rejects.toThrow();
 		await expect(search('owner', 'z'.repeat(81))).rejects.toThrow();
+		await expect(search('owner', 'ze\u0000bra')).rejects.toThrow();
 	});
 
 	it('ranks an exact code match first and has a case for every provider', async () => {
