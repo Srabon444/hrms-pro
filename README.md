@@ -53,6 +53,10 @@ Vitest · Playwright · Docker.
   other people's leave just as "Out", stops working when the member, user or organisation is switched off or the
   password changes, and is rate limited per link and per address. Events go to everyone, a department or a branch;
   people answer going, maybe or not going and get a reminder the day before.
+- **Leave balance cards.** The Leave page shows one card per leave type: days left, the balance today, after
+  approved leave still to come and after pending requests, the accrual rule in plain words, and a history of every
+  credit, leave, adjustment and lapse with the balance after it and links to attached files. The numbers come
+  straight from the leave ledger.
 - **Locked payslip PDFs by email.** An organisation can attach the payslip PDF to the payslip email. Each person
   sets their own payslip password (12 to 64 characters, not their sign-in password) and the attached PDF is locked
   with AES-256; without a password they get the link only. Downloads inside the app stay unlocked.
@@ -60,7 +64,7 @@ Vitest · Playwright · Docker.
   weekend, or on the time zone, currency, fiscal month and weekend days its creator picks. Payslips, letters and
   reports print names in Latin, Cyrillic, Greek, Vietnamese, Devanagari and Bengali script.
 - **Audit trail.** Database triggers record every change, with sensitive fields masked.
-- **Tested.** 790+ unit, integration and end-to-end tests run against real Postgres, Redis and MinIO; a shared leak
+- **Tested.** 800+ unit, integration and end-to-end tests run against real Postgres, Redis and MinIO; a shared leak
   helper checks that reads stay inside each viewer's scope and tenant.
 
 ## Run it locally
