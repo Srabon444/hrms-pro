@@ -38,21 +38,23 @@ export function parseKeyRing(spec: string): KeyRing {
 let ring: KeyRing | undefined;
 const keyRing = (): KeyRing => (ring ??= parseKeyRing(config().APP_ENC_KEYS));
 
-export function encrypt(plain: string, r: KeyRing = keyRing()): string {
+export function encrypt(plain: string, r: KeyRing = keyRing(), aad?: string): string {
 	const iv = randomBytes(12);
 	const cipher = createCipheriv('aes-256-gcm', r.keys.get(r.active)!, iv);
+	if (aad) cipher.setAAD(Buffer.from(aad, 'utf8'));
 	const ct = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
 	return [r.active, iv.toString('base64url'), cipher.getAuthTag().toString('base64url'), ct.toString('base64url')].join(
 		':'
 	);
 }
 
-export function decrypt(blob: string, r: KeyRing = keyRing()): string {
+export function decrypt(blob: string, r: KeyRing = keyRing(), aad?: string): string {
 	const [kid, iv, tag, ct] = blob.split(':');
 	const key = r.keys.get(kid ?? '');
 	if (!key || !iv || !tag || ct === undefined) throw new Error('ciphertext key or format unknown');
 	const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'));
 	decipher.setAuthTag(Buffer.from(tag, 'base64url'));
+	if (aad) decipher.setAAD(Buffer.from(aad, 'utf8'));
 	return Buffer.concat([decipher.update(Buffer.from(ct, 'base64url')), decipher.final()]).toString('utf8');
 }
 

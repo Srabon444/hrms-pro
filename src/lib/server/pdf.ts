@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -41,8 +42,29 @@ export function fontRuns(text: string): { font: string; text: string }[] {
 	return runs;
 }
 
-export function pdfDoc(title: string) {
-	const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: title } });
+const locked = (password: string) => ({
+	pdfVersion: '1.7ext3' as const,
+	userPassword: password,
+	ownerPassword: randomBytes(32).toString('base64url'),
+	permissions: { printing: 'highResolution' as const, copying: true }
+});
+
+export function canLockPdf(password: string): boolean {
+	try {
+		new PDFDocument(locked(password));
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export function pdfDoc(title: string, password?: string) {
+	const doc = new PDFDocument({
+		size: 'A4',
+		margin: 48,
+		info: { Title: title },
+		...(password && locked(password))
+	});
 	for (const face of FACES) doc.registerFont(face.name, face.file);
 	const chunks: Buffer[] = [];
 	doc.on('data', (c: Buffer) => chunks.push(c));
