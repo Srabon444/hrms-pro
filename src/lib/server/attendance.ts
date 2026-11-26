@@ -25,6 +25,7 @@ import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { systemCtx, withTenant, type Tx } from './tenancy';
 import type { Shift } from './shifts';
+import { restDayResolver } from './rest-days';
 
 type Member = ReturnType<typeof requireMember>;
 type DayRow = typeof attendanceDays.$inferInsert;
@@ -36,11 +37,10 @@ export async function calendar(tx: Tx, employeeId?: string | null) {
 		.select({
 			tz: employeeId
 				? sql<string>`coalesce((select b.timezone from employees e join branches b on b.id = e.branch_id where e.id = ${employeeId}), tenant_settings.timezone)`
-				: tenantSettings.timezone,
-			weekendDays: tenantSettings.weekendDays
+				: tenantSettings.timezone
 		})
 		.from(tenantSettings);
-	return { timeZone: s?.tz ?? 'UTC', weekendDays: s?.weekendDays ?? [5, 6] };
+	return { timeZone: s?.tz ?? 'UTC' };
 }
 
 export async function punchDay(tx: Tx, employeeId: string, at: Date) {
@@ -65,7 +65,6 @@ const dates = (from: string, to: string) => {
 };
 
 export async function recomputeAttendance(tx: Tx, tenantId: string, from: string, to: string, employeeIds?: string[]) {
-	const { weekendDays } = await calendar(tx);
 	const at = now();
 	const people = (
 		await tx
@@ -98,6 +97,7 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 				)
 		).map((d) => [`${d.employeeId}:${d.date}`, d.zone])
 	);
+	const restDay = await restDayResolver(tx, ids, last);
 	const allShifts = new Map((await tx.select().from(shifts)).map((s) => [s.id, s]));
 	const fallback = [...allShifts.values()].find((s) => s.isDefault);
 	const assignments = await tx
@@ -187,7 +187,7 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 							timeZone,
 							punches: own,
 							until,
-							weekend: weekendDays.includes(new Date(`${date}T00:00:00Z`).getUTCDay()),
+							weekend: restDay(p.id, date),
 							holiday: off.has(date),
 							leave: leave.get(`${p.id}:${date}`) ?? null,
 							wfh: wfh.has(`${p.id}:${date}`),

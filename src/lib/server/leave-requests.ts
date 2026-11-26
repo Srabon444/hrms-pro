@@ -12,8 +12,7 @@ import {
 	leaveLedger,
 	leaveRequestDays,
 	leaveRequests,
-	leaveTypes,
-	tenantSettings
+	leaveTypes
 } from './db/schema';
 import { AppError } from './errors';
 import { lockEmployee } from './employees';
@@ -24,6 +23,7 @@ import { tenantToday } from './lifecycle';
 import { notify, sendAll } from './notifications';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope } from './rbac/scope';
+import { restDayResolver } from './rest-days';
 import { withTenant, type Tx } from './tenancy';
 import type { ApprovalItem } from './approvals';
 
@@ -39,13 +39,16 @@ const note = z
 	.max(500, 'Keep the note under 500 characters.')
 	.transform((v) => v || null);
 
-async function calendar(tx: Tx, start: string, end: string): Promise<Calendar> {
-	const [s] = await tx.select({ weekendDays: tenantSettings.weekendDays }).from(tenantSettings);
-	const rows = await tx
-		.select({ date: holidays.date })
-		.from(holidays)
-		.where(and(gte(holidays.date, start), lte(holidays.date, end)));
-	return { weekendDays: s?.weekendDays ?? [5, 6], holidays: new Set(rows.map((r) => r.date)) };
+async function calendars(tx: Tx, employeeIds: string[], start: string, end: string) {
+	const [restDay, rows] = await Promise.all([
+		restDayResolver(tx, employeeIds, end),
+		tx
+			.select({ date: holidays.date })
+			.from(holidays)
+			.where(and(gte(holidays.date, start), lte(holidays.date, end)))
+	]);
+	const off = new Set(rows.map((r) => r.date));
+	return (employeeId: string): Calendar => ({ restDay: (d) => restDay(employeeId, d), holidays: off });
 }
 
 const byYear = (days: { fiscalYear: number; session: string }[]) => {
@@ -99,7 +102,7 @@ export async function requestLeave(m: Member, raw: Record<string, string>, attac
 			input.startDate,
 			input.endDate,
 			input.session,
-			await calendar(tx, input.startDate, input.endDate),
+			(await calendars(tx, [e.id], input.startDate, input.endDate))(e.id),
 			t.sandwich
 		);
 		if (!list.length) throw new AppError('no_working_days', 'Those dates are all weekends or holidays.', 400);
@@ -352,27 +355,67 @@ export async function dropHolidaysFromLeave(tx: Tx, dates: string[]) {
 		.selectDistinct({ id: leaveRequestDays.requestId })
 		.from(leaveRequestDays)
 		.where(and(inArray(leaveRequestDays.date, ahead), inArray(leaveRequestDays.status, ACTIVE)));
-	const ids = hit.map((h) => h.id);
+	await recountLeave(
+		tx,
+		hit.map((h) => h.id),
+		today,
+		false
+	);
+}
+
+export async function recountEmployeeLeave(tx: Tx, employeeId: string, from: string) {
+	const hit = await tx
+		.select({ id: leaveRequests.id })
+		.from(leaveRequests)
+		.where(
+			and(
+				eq(leaveRequests.employeeId, employeeId),
+				gte(leaveRequests.endDate, from),
+				inArray(leaveRequests.status, ACTIVE)
+			)
+		);
+	await recountLeave(
+		tx,
+		hit.map((h) => h.id),
+		from,
+		true
+	);
+}
+
+async function recountLeave(tx: Tx, ids: string[], from: string, refuseNewDays: boolean) {
+	if (!ids.length) return;
 	const requests = await tx
 		.select({ r: leaveRequests, sandwich: leaveTypes.sandwich })
 		.from(leaveRequests)
 		.innerJoin(leaveTypes, eq(leaveTypes.id, leaveRequests.leaveTypeId))
 		.where(inArray(leaveRequests.id, ids))
 		.for('update', { of: leaveRequests });
-	const days = await tx
-		.select()
-		.from(leaveRequestDays)
-		.where(and(inArray(leaveRequestDays.requestId, ids), inArray(leaveRequestDays.status, ACTIVE)));
-	const cal = await calendar(
+	const known = await tx.select().from(leaveRequestDays).where(inArray(leaveRequestDays.requestId, ids));
+	const days = known.filter((d) => ACTIVE.includes(d.status));
+	const calOf = await calendars(
 		tx,
-		requests.reduce((a, x) => (x.r.startDate < a ? x.r.startDate : a), ahead[0]),
-		requests.reduce((a, x) => (x.r.endDate > a ? x.r.endDate : a), ahead[ahead.length - 1])
+		[...new Set(requests.map((x) => x.r.employeeId))],
+		requests.reduce((a, x) => (x.r.startDate < a ? x.r.startDate : a), from),
+		requests.reduce((a, x) => (x.r.endDate > a ? x.r.endDate : a), from)
 	);
 	const dropped: typeof days = [];
+	const added: string[] = [];
 	for (const { r, sandwich } of requests) {
-		const keep = new Set(leaveDays(r.startDate, r.endDate, r.session as Session, cal, sandwich).map((d) => d.date));
-		dropped.push(...days.filter((d) => d.requestId === r.id && !keep.has(d.date)));
+		const mine = days.filter((d) => d.requestId === r.id);
+		const keep = new Set(
+			leaveDays(r.startDate, r.endDate, r.session as Session, calOf(r.employeeId), sandwich)
+				.map((d) => d.date)
+				.filter((d) => d >= from)
+		);
+		dropped.push(...mine.filter((d) => d.date >= from && !keep.has(d.date)));
+		added.push(...[...keep].filter((d) => !known.some((x) => x.requestId === r.id && x.date === d)));
 	}
+	if (refuseNewDays && added.length)
+		throw new AppError(
+			'leave_conflict',
+			`Leave already covers days that would become working days: ${[...new Set(added)].sort().join(', ')}. Change that leave first.`,
+			409
+		);
 	await tx
 		.update(leaveRequestDays)
 		.set({ status: 'cancelled' })

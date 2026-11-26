@@ -1,9 +1,10 @@
 <script lang="ts">
+	import { WEEKDAYS } from '#lib/day-month.ts';
+
 	type Locale = { timezone: string; currency: string; fiscalYearStartMonth: number; weekendDays: number[] };
 
 	let { value, timezones, currencies }: { value: Locale; timezones: string[]; currencies: string[] } = $props();
 
-	const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 	const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleString('en', { month: 'long' }));
 </script>
 
@@ -33,7 +34,7 @@
 <fieldset class="sm:col-span-full">
 	<legend class="text-sm font-medium text-slate-700">Weekend days</legend>
 	<div class="mt-2 flex flex-wrap gap-4">
-		{#each DAYS as day, i (day)}
+		{#each WEEKDAYS as day, i (day)}
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" name="weekendDays" value={i} checked={value.weekendDays.includes(i)} />{day}
 			</label>

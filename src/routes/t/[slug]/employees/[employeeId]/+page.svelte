@@ -3,6 +3,7 @@
 	import Attachments from '#lib/components/Attachments.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
+	import { weekendText } from '#lib/day-month.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -516,6 +517,64 @@
 				</label>
 				<div class="flex flex-wrap items-end"><Button type="submit" variant="secondary">Assign shift</Button></div>
 			</form>
+		{/if}
+	</section>
+{/if}
+
+{#if data.workWeek}
+	{@const ww = data.workWeek}
+	<section class="mt-6 max-w-3xl panel" aria-label="Work week">
+		<h2 class="section-title">Work week</h2>
+		{#if form && 'workWeekSaved' in form}<Alert tone="info" message="Work week saved." />{/if}
+		<p class="mt-2 text-sm text-slate-700" data-testid="current-work-week">
+			{ww.current.name ?? 'Company weekend'} · Weekend: {weekendText(ww.current.weekendDays)}
+		</p>
+		{#if ww.history.length}
+			<ul class="mt-3 divide-y divide-slate-100 text-sm">
+				{#each ww.history as a (a.id)}
+					<li class="flex flex-wrap items-center gap-3 py-2" data-testid="work-week-assignment">
+						<span class="min-w-0 text-slate-800 [overflow-wrap:anywhere]">
+							From {a.effectiveFrom}: {a.name} ({weekendText(a.weekendDays)})
+						</span>
+						{#if ww.canManage && a.effectiveFrom >= ww.today}
+							<form method="POST" action="?/removeWorkWeek" class="ml-auto">
+								<input type="hidden" name="assignmentId" value={a.id} />
+								<button
+									type="submit"
+									class="text-red-700 hover:underline"
+									aria-label="Remove work week from {a.effectiveFrom}"
+								>
+									Remove
+								</button>
+							</form>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		{#if ww.canManage && ww.choices.length}
+			<form method="POST" action="?/assignWorkWeek" class="mt-4 grid gap-3 sm:grid-cols-3">
+				<label class="text-sm text-slate-700">
+					Work week
+					<select name="workWeekId" required class="{field} mt-1 block w-full">
+						{#each ww.choices as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+					</select>
+				</label>
+				<label class="text-sm text-slate-700">
+					Starting
+					<input
+						name="effectiveFrom"
+						type="date"
+						required
+						min={e.joinDate > ww.today ? e.joinDate : ww.today}
+						max={e.exitDate ?? undefined}
+						class="{field} mt-1 block w-full"
+					/>
+				</label>
+				<div class="flex flex-wrap items-end"><Button type="submit" variant="secondary">Assign work week</Button></div>
+			</form>
+		{:else if ww.canManage}
+			<p class="mt-3 text-sm text-slate-600">Add a work week in Settings to give this person different weekend days.</p>
 		{/if}
 	</section>
 {/if}
