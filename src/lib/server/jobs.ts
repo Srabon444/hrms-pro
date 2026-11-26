@@ -2,6 +2,7 @@ import type { Processor } from 'bullmq';
 import { runAttendance } from './attendance';
 import { runLifecycle } from './exits';
 import { runLeaveAccrual } from './leave';
+import { runCelebrations } from './directory';
 import { deliverMail, type Mail } from './mail';
 import { sendMealBill, sweepMealBills, type BillJob } from './meal-bills';
 import { runMeals } from './meal-orders';
@@ -15,7 +16,8 @@ export const LIFECYCLE_STEPS: Record<string, () => Promise<unknown>> = {
 	attendance: runAttendance,
 	meals: runMeals,
 	mealBills: sweepMealBills,
-	candidates: purgeCandidates
+	candidates: purgeCandidates,
+	celebrations: runCelebrations
 };
 
 export const processors: Record<QueueName, Processor> = {
