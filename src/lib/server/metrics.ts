@@ -17,3 +17,10 @@ export const rateLimited = new Counter({
 	labelNames: ['bucket'],
 	registers: [registry]
 });
+
+export const searchProviderFailures = new Counter({
+	name: 'hrms_search_provider_failures_total',
+	help: 'Global search providers that failed or ran out of time',
+	labelNames: ['kind', 'reason'],
+	registers: [registry]
+});

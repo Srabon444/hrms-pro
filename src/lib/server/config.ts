@@ -42,6 +42,7 @@ const schema = z
 		RL_INVITE_PER_IP_HOUR: int(10),
 		RL_MUTATIONS_PER_USER_MIN: int(120),
 		RL_DOWNLOADS_PER_USER_MIN: int(60),
+		RL_SEARCH_PER_USER_MIN: int(60),
 		TOTP_FAILS_PER_15MIN: int(10)
 	})
 	.refine((c) => !(c.TEST_MODE && c.NODE_ENV === 'production'), {

@@ -14,7 +14,7 @@ import {
 	uuid,
 	type PgTableExtraConfigValue
 } from 'drizzle-orm/pg-core';
-import { citext, tenantBase, tenantKey, tfk, tstz } from './_helpers';
+import { citext, tfk, tenantBase, tenantKey, trigramIndex, tstz } from './_helpers';
 
 const nameCheck = (table: string, col: unknown) =>
 	check(`${table}_name_ck`, sql`length(trim(${col})) between 1 and 120`);
@@ -111,6 +111,7 @@ export const employees = pgTable(
 		index('employees_department_idx').on(t.tenantId, t.departmentId),
 		index('employees_manager_idx').on(t.tenantId, t.managerId),
 		index('employees_status_idx').on(t.tenantId, t.status),
+		trigramIndex('employees_search_idx', t, t.fullName, t.code, t.workEmail),
 		check('employees_name_ck', sql`length(trim(${t.fullName})) between 1 and 160`),
 		check('employees_not_own_manager_ck', sql`${t.managerId} is distinct from ${t.id}`),
 		check('employees_status_ck', inList(t.status, EMPLOYEE_STATUSES)),
@@ -161,6 +162,7 @@ export const employeeDocuments = pgTable(
 		tfk('employee_documents_employee_fk', t, t.employeeId, employees, 'restrict'),
 		unique('employee_documents_key_uq').on(t.storageKey),
 		index('employee_documents_employee_idx').on(t.tenantId, t.employeeId),
+		trigramIndex('employee_documents_search_idx', t, t.title),
 		check(
 			'employee_documents_category_ck',
 			sql`${t.category} in ('identity','contract','certificate','letter','other')`

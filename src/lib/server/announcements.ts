@@ -122,7 +122,7 @@ const fields = {
 	target: sql<string | null>`coalesce(${departments.name}, ${branches.name})`
 };
 
-async function liveFor(tx: Tx, access: Access) {
+export async function liveFor(tx: Tx, access: Access) {
 	const today = await tenantToday(tx);
 	return and(
 		lte(announcements.publishOn, today),

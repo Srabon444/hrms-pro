@@ -238,6 +238,8 @@ describe('asset import', () => {
 			])
 		).toBe(2);
 		expect(await listed('it', { q: 'IMP-' })).toEqual(['IMP-1 available -', 'IMP-2 available -']);
+		expect(await listed('it', { q: '%' })).toEqual([]);
+		expect(await listed('it', { q: 'IMP_1' })).toEqual([]);
 		const imported = (await read('it', (tx, a) => assetList(tx, a, { q: 'IMP-1' })))[0];
 		expect((await read('it', (tx, a) => assetView(tx, a, imported.id)))?.asset).toMatchObject({
 			name: 'Desk',

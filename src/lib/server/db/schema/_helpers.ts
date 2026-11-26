@@ -1,4 +1,14 @@
-import { customType, foreignKey, timestamp, unique, uuid, type AnyPgColumn, type PgColumn } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import {
+	customType,
+	foreignKey,
+	index,
+	timestamp,
+	unique,
+	uuid,
+	type AnyPgColumn,
+	type PgColumn
+} from 'drizzle-orm/pg-core';
 import { tenants } from './tenants';
 
 export const citext = customType<{ data: string }>({ dataType: () => 'citext' });
@@ -42,3 +52,6 @@ export function tfk(
 		foreignColumns: [parent.tenantId, parent.id]
 	}).onDelete(onDelete);
 }
+
+export const trigramIndex = (name: string, t: { tenantId: PgColumn }, ...columns: PgColumn[]) =>
+	index(name).using('gin', t.tenantId, ...columns.map((c) => sql`(${c}::text) gin_trgm_ops`));

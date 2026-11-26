@@ -77,4 +77,24 @@ describe('schema catalog', () => {
 			expect(r.public_exec, r.proname).toBe(false);
 		}
 	});
+	it('every searched column has a trigram index led by tenant_id', async () => {
+		const searched: Record<string, string[]> = {
+			employees: ['full_name', 'code', 'work_email'],
+			employee_documents: ['title'],
+			letters: ['subject'],
+			tickets: ['subject'],
+			expense_claims: ['title'],
+			assets: ['tag', 'name', 'serial'],
+			candidates: ['full_name', 'email']
+		};
+		const rows = await ownerPool().sql<{ tablename: string; indexdef: string }[]>`
+			select tablename, indexdef from pg_indexes
+			where schemaname = 'public' and indexname = tablename || '_search_idx'`;
+		const defs = Object.fromEntries(rows.map((r) => [r.tablename, r.indexdef]));
+		for (const [table, columns] of Object.entries(searched)) {
+			expect(defs[table], table).toMatch(/USING gin \(tenant_id, /);
+			for (const c of columns)
+				expect(defs[table], `${table}.${c}`).toMatch(new RegExp(`${c}\\)?(::text\\))? gin_trgm_ops`));
+		}
+	});
 });

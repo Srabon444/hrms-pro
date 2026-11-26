@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, date, index, integer, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { tenantBase, tenantKey, tfk } from './_helpers';
+import { tfk, tenantBase, tenantKey, trigramIndex } from './_helpers';
 import { employees } from './org';
 
 export const ASSET_STATUSES = ['available', 'assigned', 'repair', 'retired', 'lost'] as const;
@@ -25,6 +25,7 @@ export const assets = pgTable(
 		tenantKey('assets', t),
 		unique('assets_tag_uq').on(t.tenantId, t.tag),
 		index('assets_status_idx').on(t.tenantId, t.status),
+		trigramIndex('assets_search_idx', t, t.tag, t.name, t.serial),
 		check('assets_tag_ck', sql`${t.tag} ~ '^[A-Z0-9][A-Z0-9-]{1,19}$'`),
 		check('assets_name_ck', sql`length(trim(${t.name})) between 1 and 120`),
 		check('assets_category_ck', sql`length(trim(${t.category})) between 1 and 60`),

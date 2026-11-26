@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, date, index, integer, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
-import { tenantBase, tenantKey, tfk, tstz } from './_helpers';
+import { tfk, tenantBase, tenantKey, trigramIndex, tstz } from './_helpers';
 import { employees } from './org';
 import { payrollRuns } from './payroll';
 
@@ -47,6 +47,7 @@ export const expenseClaims = pgTable(
 		tfk('expense_claims_run_fk', t, t.payrollRunId, payrollRuns),
 		index('expense_claims_employee_idx').on(t.tenantId, t.employeeId),
 		index('expense_claims_status_idx').on(t.tenantId, t.status),
+		trigramIndex('expense_claims_search_idx', t, t.title),
 		check('expense_claims_title_ck', sql`length(trim(${t.title})) between 1 and 120`),
 		check('expense_claims_status_ck', sql`${t.status} in ('submitted','approved','rejected','paid','cancelled')`),
 		check('expense_claims_pay_via_ck', sql`${t.payVia} is null or ${t.payVia} in ('payroll','direct')`),

@@ -126,6 +126,9 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 	}
 ];
 
+export const allowedSettingsPages = (allowed: (perm: Permission) => boolean): SettingsPage[] =>
+	SETTINGS_PAGES.filter((p) => [p.perm].flat().some(allowed));
+
 export type NavItem = {
 	href: string;
 	label: string;

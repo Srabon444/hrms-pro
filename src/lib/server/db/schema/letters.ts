@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, date, index, integer, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
-import { citext, tenantBase, tenantKey, tfk } from './_helpers';
+import { citext, tfk, tenantBase, tenantKey, trigramIndex } from './_helpers';
 import { employees } from './org';
 
 export const LETTER_KINDS = [
@@ -62,6 +62,7 @@ export const letters = pgTable(
 		tfk('letters_employee_fk', t, t.employeeId, employees, 'restrict'),
 		tfk('letters_template_fk', t, t.templateId, letterTemplates, 'restrict'),
 		index('letters_employee_idx').on(t.tenantId, t.employeeId),
+		trigramIndex('letters_search_idx', t, t.subject),
 		kindCheck('letters', t.kind),
 		check('letters_number_ck', sql`${t.number} > 0`),
 		check('letters_subject_ck', sql`length(trim(${t.subject})) between 1 and 160`),

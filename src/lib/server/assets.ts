@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { poishaOf } from '../money';
 import { csvRecords, ImportFailed, type ImportRowError } from './csv';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
+import { containsPattern } from './db/like';
 import { ASSET_CONDITIONS, ASSET_OUTCOMES, assetAssignments, assets, employees } from './db/schema';
 import { AppError } from './errors';
 import { tenantToday } from './lifecycle';
@@ -94,7 +95,7 @@ export const assetAttachments = {
 	}
 };
 
-async function visibleAssets(tx: Tx, access: Access): Promise<SQL> {
+export async function visibleAssets(tx: Tx, access: Access): Promise<SQL> {
 	const scope = await resolveScope(tx, access, 'asset.read');
 	if (scope.kind === 'all') return sql`true`;
 	return scope.ids.length
@@ -276,10 +277,10 @@ export async function assetList(tx: Tx, access: Access, filter: { q?: string | n
 				status.success ? eq(assets.status, status.data) : undefined,
 				q
 					? or(
-							ilike(assets.tag, `%${q}%`),
-							ilike(assets.name, `%${q}%`),
-							ilike(assets.serial, `%${q}%`),
-							ilike(assets.category, `%${q}%`)
+							ilike(assets.tag, containsPattern(q)),
+							ilike(assets.name, containsPattern(q)),
+							ilike(assets.serial, containsPattern(q)),
+							ilike(assets.category, containsPattern(q))
 						)
 					: undefined
 			)

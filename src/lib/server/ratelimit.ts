@@ -43,3 +43,9 @@ export async function downloadLimit(userId: string): Promise<Response | null> {
 	if (r.ok) return null;
 	return new Response('Too many downloads', { status: 429, headers: { 'retry-after': String(r.retryAfter) } });
 }
+
+export async function searchLimit(membershipId: string): Promise<Response | null> {
+	const r = await hitOrLocal('search', membershipId, config().RL_SEARCH_PER_USER_MIN, 60_000);
+	if (r.ok) return null;
+	return new Response('Too many searches', { status: 429, headers: { 'retry-after': String(r.retryAfter) } });
+}

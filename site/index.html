@@ -450,7 +450,7 @@
 					<div><strong>96</strong><span>Postgres tables</span></div>
 					<div><strong>89</strong><span>with forced row-level security</span></div>
 					<div><strong>178 × 4</strong><span>permissions × scopes in RBAC</span></div>
-					<div><strong>690</strong><span>automated tests (unit, integration, e2e)</span></div>
+					<div><strong>716</strong><span>automated tests (unit, integration, e2e)</span></div>
 				</div>
 			</header>
 
@@ -958,6 +958,20 @@ erDiagram
 								</td>
 								<td>A report only shows rows the viewer's scope allows; shares respect the recipient's own access.</td>
 							</tr>
+							<tr>
+								<td>Search</td>
+								<td>
+									Press Ctrl K, / or the header button to find menu pages and records: employees by name, code or email,
+									documents, letters, policies, announcements, tickets, expenses, assets, projects, openings, candidates
+									and payroll runs; open any hit with the keyboard; recently opened pages come back first.
+								</td>
+								<td>
+									Every module answers through the same visibility rule as its own page; confidential tickets match only
+									by number and show no subject; each module query has an 800 ms limit inside a 2.5 s budget, so one
+									slow module never blocks the rest; 60 searches a minute per user; trigram indexes keep contains-search
+									fast.
+								</td>
+							</tr>
 						</tbody>
 					</table>
 				</div>
@@ -990,13 +1004,13 @@ erDiagram
 					<div class="panel">
 						<h3>Tests</h3>
 						<ul class="plain">
-							<li><strong>278</strong> unit tests with Vitest for money, dates, tax, parsing and PDFs.</li>
+							<li><strong>282</strong> unit tests with Vitest for money, dates, tax, parsing and PDFs.</li>
 							<li>
-								<strong>343</strong> integration tests against a real Postgres, Redis and MinIO, including cross-tenant
+								<strong>359</strong> integration tests against a real Postgres, Redis and MinIO, including cross-tenant
 								and scope attacks.
 							</li>
 							<li>
-								<strong>69</strong> Playwright end-to-end tests that drive the built app, read the emails it sends and
+								<strong>75</strong> Playwright end-to-end tests that drive the built app, read the emails it sends and
 								check phone layouts.
 							</li>
 						</ul>
