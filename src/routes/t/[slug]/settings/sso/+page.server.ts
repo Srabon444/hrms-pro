@@ -3,13 +3,16 @@ import { z } from 'zod';
 import { API_REAUTH_MINUTES } from '#lib/server/api-keys.ts';
 import { confirmRecentAuth } from '#lib/server/auth/service.ts';
 import { recentlyAuthed } from '#lib/server/auth/session.ts';
+import { config } from '#lib/server/config.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { requirePerm, userCtx } from '#lib/server/rbac/access.ts';
 import {
 	addSsoDomain,
+	createScimToken,
 	loadSso,
 	removeSsoDomain,
+	revokeScimToken,
 	saveSsoConnection,
 	setSsoState,
 	verifySsoDomain
@@ -21,6 +24,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const m = requirePerm(locals, 'sso.manage');
 	return {
 		...(await withTenant(userCtx(m), loadSso)),
+		scimUrl: new URL('/api/scim/v2', config().APP_URL).toString(),
 		recent: await recentlyAuthed(m.user.sessionId, API_REAUTH_MINUTES),
 		totp: m.user.totpEnabled
 	};
@@ -83,6 +87,23 @@ export const actions: Actions = {
 		return run(async () => {
 			await setSsoState(m, { active: flag('active'), enforce: flag('enforce') });
 			return { done: 'Company sign-in updated.' };
+		}, locals.requestId);
+	},
+	scim: async ({ locals }) => {
+		const m = requirePerm(locals, 'sso.manage');
+		return run(
+			async () => ({
+				scimToken: await createScimToken(m),
+				done: 'Provisioning token created. Copy it now; it is not shown again.'
+			}),
+			locals.requestId
+		);
+	},
+	scimRevoke: async ({ locals }) => {
+		const m = requirePerm(locals, 'sso.manage');
+		return run(async () => {
+			await revokeScimToken(m);
+			return { done: 'Provisioning token revoked.' };
 		}, locals.requestId);
 	}
 };

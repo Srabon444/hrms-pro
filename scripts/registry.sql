@@ -10,7 +10,7 @@ create table if not exists owner_row_tables (
 );
 
 insert into audit_registry (table_name, mode, plain_columns) values
-	('memberships', 'plain', '{id,tenant_id,user_id,employee_id,status,ex_access_until,last_used_at}'),
+	('memberships', 'plain', '{id,tenant_id,user_id,employee_id,status,ex_access_until,last_used_at,disabled_by}'),
 	('roles', 'plain', '{id,tenant_id,key,name,description,is_system,locked}'),
 	('role_permissions', 'plain', '{id,tenant_id,role_id,permission,scope}'),
 	('system_grants', 'plain', '{id,tenant_id,role_key,permission,scope}'),
