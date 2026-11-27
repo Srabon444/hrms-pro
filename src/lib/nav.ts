@@ -53,6 +53,13 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 		perm: 'settings.manage',
 		about: SETTING_SECTIONS.security.intro
 	},
+	{
+		href: 'ai',
+		label: 'AI',
+		group: 'Access',
+		perm: 'ai.manage',
+		about: 'AI provider, API key, model, monthly budget and which AI features are on.'
+	},
 	{ href: 'audit', label: 'Audit log', group: 'Access', perm: 'audit.read', about: 'Who changed what, and when.' },
 	{
 		href: 'data-export',

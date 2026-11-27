@@ -42,6 +42,15 @@ Vitest · Playwright · Docker.
 - **One search box.** `Ctrl K` (or `/`) finds menu pages and records across 12 modules: people, documents, letters,
   policies, tickets, expenses, assets, projects, candidates, payroll runs and more. Each module answers through its own
   access rule, so search never shows a row its page would hide; confidential tickets match only by number.
+- **AI with the company's own key.** Settings → AI lets an owner turn AI on (with an explicit consent that data is
+  sent to the provider), pick Google Gemini, OpenAI or Anthropic Claude, paste the company's API key, pick a model and
+  set a monthly token budget. A key is tested with one small call before it is saved, stored encrypted and bound to
+  the organisation, and never shown, logged or audited; only its last four characters are. Calls go through a model
+  chain that skips models the key cannot see and falls through on rate limits, outages and timeouts. Every call is
+  rate limited per person and per organisation, reserved against the budget before it runs, recorded in a usage
+  table kept for 13 months, and never made while a database transaction is open. Without a key, a platform Gemini
+  key can be used if the operator sets `AI_PLATFORM_GEMINI=1` (only with a paid key) and has not switched AI off for
+  that organisation on the platform page.
 - **Money in integer poisha.** Payroll, tax, loans and meal bills never touch floating point.
 - **Background work.** Email, meal bills and an hourly job for leave accrual, attendance and exits run on BullMQ
   workers backed by Redis. Each hourly step runs on its own, so one failure does not stop the others.

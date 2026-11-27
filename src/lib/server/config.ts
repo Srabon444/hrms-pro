@@ -3,7 +3,7 @@ import { z } from 'zod';
 const bool = z
 	.string()
 	.optional()
-	.transform((v) => v === '1' || v === 'true');
+	.transform((v) => ['1', 'true', 'on', 'yes'].includes(v?.trim().toLowerCase() ?? ''));
 
 const int = (fallback: number) =>
 	z
@@ -12,7 +12,7 @@ const int = (fallback: number) =>
 		.transform((v) => (v ? Number.parseInt(v, 10) : fallback))
 		.pipe(z.number().int().positive());
 
-const schema = z
+export const configSchema = z
 	.object({
 		NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 		DATABASE_URL: z.string().url(),
@@ -43,19 +43,33 @@ const schema = z
 		RL_MUTATIONS_PER_USER_MIN: int(120),
 		RL_DOWNLOADS_PER_USER_MIN: int(60),
 		RL_SEARCH_PER_USER_MIN: int(60),
-		TOTP_FAILS_PER_15MIN: int(10)
+		TOTP_FAILS_PER_15MIN: int(10),
+		AI_FAKE: bool,
+		AI_PLATFORM_GEMINI: bool,
+		GEMINI_API_KEY: z.string().optional(),
+		AI_PLATFORM_MONTHLY_TOKENS: int(200_000),
+		AI_PLATFORM_DAILY_TOKENS: int(2_000_000),
+		AI_DEADLINE_MS: int(45_000),
+		AI_CALL_TIMEOUT_MS: int(30_000),
+		RL_AI_PER_USER_MIN: int(20),
+		RL_AI_PER_USER_DAY: int(300),
+		RL_AI_PER_TENANT_MIN: int(200),
+		RL_AI_ADMIN_PER_MIN: int(10)
 	})
 	.refine((c) => !(c.TEST_MODE && c.NODE_ENV === 'production'), {
 		message: 'TEST_MODE must never be enabled with NODE_ENV=production'
+	})
+	.refine((c) => !c.AI_FAKE || (c.TEST_MODE && c.NODE_ENV !== 'production'), {
+		message: 'AI_FAKE needs TEST_MODE and must never be enabled with NODE_ENV=production'
 	});
 
-export type Config = z.infer<typeof schema>;
+export type Config = z.infer<typeof configSchema>;
 
 let cached: Config | undefined;
 
 export function config(): Config {
 	if (cached) return cached;
-	const parsed = schema.safeParse(process.env);
+	const parsed = configSchema.safeParse(process.env);
 	if (!parsed.success) {
 		const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
 		throw new Error(`Invalid environment configuration: ${issues}`);

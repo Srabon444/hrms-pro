@@ -133,6 +133,18 @@ export async function setTenantStatus(tenantId: string, status: 'active' | 'susp
 		.values({ actorUserId, action: `tenant.${status}`, target: tenantId });
 }
 
+export async function setTenantAi(tenantId: string, on: boolean, actorUserId: string) {
+	const [row] = await authPool()
+		.db.update(tenants)
+		.set({ aiPlatform: on })
+		.where(eq(tenants.id, tenantId))
+		.returning({ id: tenants.id });
+	if (!row) throw new AppError('tenant_not_found', 'Organisation not found', 404);
+	await authPool()
+		.db.insert(platformAudit)
+		.values({ actorUserId, action: on ? 'tenant.ai_platform_on' : 'tenant.ai_platform_off', target: tenantId });
+}
+
 const grantKey = (g: { roleKey: string; permission: string; scope: string }) =>
 	`${g.roleKey}|${g.permission}|${g.scope}`;
 
