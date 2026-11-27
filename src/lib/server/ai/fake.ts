@@ -1,7 +1,7 @@
 import { setTimeout as wait } from 'node:timers/promises';
 import type { AiProvider } from '../db/schema';
 import { DEFAULT_CHAINS, type Lister, type Transport } from './models';
-import { AiError } from './providers';
+import { AiError, type AiRequest } from './providers';
 
 type Schema = { type?: string; properties?: Record<string, Schema>; items?: Schema; enum?: unknown[] };
 
@@ -33,6 +33,35 @@ const CANNED: Record<string, unknown> = {
 	transcribe: 'Night shift allowance is paid with the monthly salary.'
 };
 
+const ASK_WORDS: [string, string, string][] = [
+	['balance', 'my_leave_balances', ''],
+	['my leave', 'my_leave_requests', ''],
+	['attendance', 'my_attendance', ''],
+	['holiday', 'holidays', ''],
+	['payslip', 'my_payslip', ''],
+	['who is out', 'who_is_out', ''],
+	['ignore', 'delete_everything', '']
+];
+
+function fakeAsk(req: AiRequest) {
+	const all = req.parts.map((p) => ('text' in p ? p.text : '')).join('\n');
+	const results = all.split('TOOL RESULT ').slice(1);
+	if (results.length) {
+		const last = results[results.length - 1]
+			.split('\n')
+			.slice(1)
+			.filter((l) => !l.startsWith('Sources: '))
+			.join(' ');
+		const cites = [...all.matchAll(/\[(c\d+)\]/g)].map((x) => x[1]);
+		return { action: 'answer', tool: 'none', arg: '', answer: last.slice(0, 400), cites: [...cites, 'c99'] };
+	}
+	const q = (/^Question: (.*)$/m.exec(all)?.[1] ?? '').toLowerCase();
+	const steer = /^use (\w+)\((.*)\)$/.exec(q);
+	if (steer) return { action: 'tool', tool: steer[1], arg: steer[2], answer: '', cites: [] };
+	const hit = ASK_WORDS.find(([w]) => q.includes(w));
+	return { action: 'tool', tool: hit?.[1] ?? 'search_policies', arg: hit ? hit[2] : q, answer: '', cites: [] };
+}
+
 const refuse = (key: string) => {
 	if (key.includes('bad')) throw new AiError('key_invalid', 'key');
 	if (key.includes('quota')) throw new AiError('quota', 'key');
@@ -51,7 +80,7 @@ export const fakeTransport: Transport = async (model, key, req, signal) => {
 	if (key.includes('slow')) await wait(600_000, undefined, { signal }).catch(() => undefined);
 	if (signal.aborted) throw new AiError('timeout', 'model', 60_000);
 	if (key.includes('busy') && model.includes('neon')) throw new AiError('rate_limited', 'model', 60_000);
-	const canned = req.task ? CANNED[req.task] : undefined;
+	const canned = req.task === 'ask' ? fakeAsk(req) : req.task ? CANNED[req.task] : undefined;
 	const json = req.schema ? (canned ?? sampleOf(req.schema as Schema)) : undefined;
 	const text = json !== undefined ? JSON.stringify(json) : typeof canned === 'string' ? canned : 'OK';
 	const input = Math.ceil(

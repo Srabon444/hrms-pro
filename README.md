@@ -42,6 +42,13 @@ Vitest · Playwright · Docker.
 - **One search box.** `Ctrl K` (or `/`) finds menu pages and records across 12 modules: people, documents, letters,
   policies, tickets, expenses, assets, projects, candidates, payroll runs and more. Each module answers through its own
   access rule, so search never shows a row its page would hide; confidential tickets match only by number.
+- **Ask HR.** With AI on, Home and the Ask HR page answer questions about the asker's own leave balances and
+  requests, attendance, company holidays, who is out (for people who may see the team calendar), payslips (only when
+  the company shares payroll with AI) and company policies, including the text inside policy files. The model only
+  picks from seven read-only lookups, each run with the asker's own access in its own short transaction, for at
+  most four rounds and 45 seconds; it never writes anything. Answers link only to pages the lookups returned, never
+  to links in model text, and say "I don't know" when nothing fits. The last six turns (8,000 characters at most)
+  are kept in the browser only, and every round counts against the AI limits and budget as "ask".
 - **Search inside policy files and CVs.** After a policy PDF or a resume is uploaded, a background job reads its
   text and search matches words inside the file, showing the matching line under the hit. Text-layer PDFs and Word
   resumes are read locally at no AI cost; scanned PDFs (or ones whose only text is a watermark) and resume images

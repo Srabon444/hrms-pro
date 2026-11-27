@@ -357,7 +357,7 @@ export const formOf = (request: Request) =>
 		throw new AppError('invalid', 'Send the form again.', 400);
 	});
 
-export async function assistJson(run: () => Promise<Assist>): Promise<Response> {
+export async function assistJson<T>(run: () => Promise<T>): Promise<Response> {
 	try {
 		return json(await run(), { headers });
 	} catch (err) {
