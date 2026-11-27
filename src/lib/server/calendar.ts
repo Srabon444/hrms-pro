@@ -11,6 +11,8 @@ import {
 	leaveRequestDays,
 	leaveRequests,
 	leaveTypes,
+	rosterEntries,
+	shifts,
 	tenantSettings
 } from './db/schema';
 import { eventsBetween } from './events';
@@ -106,6 +108,30 @@ export const holidaysBetween = (tx: Tx, from: string, to: string) =>
 		.where(and(gte(holidays.date, from), lte(holidays.date, to)))
 		.orderBy(asc(holidays.date));
 
+async function myShifts(tx: Tx, access: Access, from: string, to: string) {
+	if (!access.employeeId || !moduleOn(await moduleOverrides(tx), 'schedule')) return [];
+	return tx
+		.select({
+			id: rosterEntries.id,
+			date: rosterEntries.date,
+			name: shifts.name,
+			start: sql<string>`to_char(${shifts.startTime}, 'HH24:MI')`,
+			end: sql<string>`to_char(${shifts.endTime}, 'HH24:MI')`
+		})
+		.from(rosterEntries)
+		.innerJoin(shifts, eq(shifts.id, rosterEntries.shiftId))
+		.where(
+			and(
+				eq(rosterEntries.employeeId, access.employeeId),
+				eq(rosterEntries.status, 'published'),
+				eq(rosterEntries.kind, 'work'),
+				gte(rosterEntries.date, from),
+				lte(rosterEntries.date, to)
+			)
+		)
+		.orderBy(asc(rosterEntries.date));
+}
+
 const daysBetween = (from: string, to: string) => (Date.parse(to) - Date.parse(from)) / 86_400_000;
 
 export async function calendarMonth(tx: Tx, access: Access, raw: string | null) {
@@ -116,15 +142,17 @@ export async function calendarMonth(tx: Tx, access: Access, raw: string | null) 
 	const start = weeks.of(first);
 	const dates = Array.from({ length: Math.ceil((daysBetween(start, last) + 1) / 7) * 7 }, (_, i) => addDays(start, i));
 	const end = dates.at(-1)!;
-	const [leave, holidayRows, eventRows] = await Promise.all([
+	const [leave, holidayRows, eventRows, shiftRows] = await Promise.all([
 		calendarEntries(tx, access, start, end),
 		holidaysBetween(tx, start, end),
-		eventsBetween(tx, access, start, end)
+		eventsBetween(tx, access, start, end),
+		myShifts(tx, access, start, end)
 	]);
 	const byDate = <T extends { date: string }>(rows: T[]) =>
 		rows.reduce((acc, r) => acc.set(r.date, [...(acc.get(r.date) ?? []), r]), new Map<string, T[]>());
 	const out = byDate(leave.rows);
 	const hol = byDate(holidayRows);
+	const mine = byDate(shiftRows);
 	return {
 		month,
 		today: weeks.today,
@@ -136,6 +164,7 @@ export async function calendarMonth(tx: Tx, access: Access, raw: string | null) 
 			inMonth: date.startsWith(month),
 			out: (out.get(date) ?? []).map(({ name, type, session }) => ({ name, type, session })),
 			holidays: (hol.get(date) ?? []).map((h) => h.name),
+			shifts: (mine.get(date) ?? []).map(({ name, start, end }) => ({ name, start, end })),
 			events: eventRows
 				.filter((e) => e.startDate <= date && e.endDate >= date)
 				.map((e) => ({ id: e.id, title: e.title, startTime: e.startTime }))
@@ -217,10 +246,11 @@ export async function feedIcs(holder: TokenHolder): Promise<string | null> {
 		const today = await tenantToday(tx);
 		const from = addDays(today, -FEED_DAYS_BACK);
 		const to = addDays(today, FEED_DAYS_AHEAD);
-		const [leave, holidayRows, eventRows] = await Promise.all([
+		const [leave, holidayRows, eventRows, shiftRows] = await Promise.all([
 			calendarEntries(tx, access, from, to, { otherLeaveAsOut: true, shiftTimes: true }),
 			holidaysBetween(tx, from, to),
-			eventsBetween(tx, access, from, to)
+			eventsBetween(tx, access, from, to),
+			myShifts(tx, access, from, to)
 		]);
 		await tx
 			.update(calendarFeeds)
@@ -255,6 +285,12 @@ export async function feedIcs(holder: TokenHolder): Promise<string | null> {
 				location: e.location || undefined,
 				start: e.startTime ? { utc: zonedUtc(e.startDate, e.startTime, zone).toISOString() } : { date: e.startDate },
 				end: e.endTime ? { utc: zonedUtc(e.endDate, e.endTime, zone).toISOString() } : { date: addDays(e.endDate, 1) }
+			})),
+			...shiftRows.map((r) => ({
+				uid: `shift-${r.id}@hrms-pro`,
+				summary: `Shift: ${r.name} ${r.start}–${r.end}`,
+				start: { utc: zonedUtc(r.date, r.start, zone).toISOString() },
+				end: { utc: zonedUtc(r.end <= r.start ? addDays(r.date, 1) : r.date, r.end, zone).toISOString() }
 			}))
 		];
 		return icsCalendar(`${holder.tenantName} team calendar`, now(), items);

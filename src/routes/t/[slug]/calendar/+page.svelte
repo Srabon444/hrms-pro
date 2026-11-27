@@ -10,7 +10,9 @@
 		new Date(`${cal.month}-01T00:00:00Z`).toLocaleDateString('en', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 	);
 	const SESSION: Record<string, string> = { full: '', am: ' (morning)', pm: ' (afternoon)' };
-	const busy = $derived(cal.days.filter((d) => d.inMonth && (d.out.length || d.holidays.length || d.events.length)));
+	const busy = $derived(
+		cal.days.filter((d) => d.inMonth && (d.out.length || d.holidays.length || d.events.length || d.shifts.length))
+	);
 	const feedUrl = $derived(form && 'feedUrl' in form ? form.feedUrl : null);
 </script>
 
@@ -50,6 +52,10 @@
 			>
 				<div class="font-medium">{Number(d.date.slice(8))}</div>
 				{#each d.holidays as h (h)}<div class="truncate text-emerald-700" title={h}>🎉 {h}</div>{/each}
+				{#each d.shifts as s, i (i)}<div class="truncate text-amber-800" title="My shift: {s.name}">
+						{s.start}–{s.end}
+						{s.name}
+					</div>{/each}
 				{#each d.events as e (e.id)}<div class="truncate text-brand-700" title={e.title}>
 						{e.startTime ? `${e.startTime} ` : ''}{e.title}
 					</div>{/each}
@@ -68,6 +74,7 @@
 			<div class="text-sm font-semibold text-slate-900">{weekday(d.date, 'long')}, {d.date}</div>
 			<ul class="mt-1 space-y-0.5 text-sm">
 				{#each d.holidays as h (h)}<li class="text-emerald-700">🎉 {h}</li>{/each}
+				{#each d.shifts as s, i (i)}<li class="text-amber-800">My shift: {s.name} {s.start}–{s.end}</li>{/each}
 				{#each d.events as e (e.id)}<li class="text-brand-700">
 						{e.startTime ? `${e.startTime} ` : ''}{e.title}
 					</li>{/each}

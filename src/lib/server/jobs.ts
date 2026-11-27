@@ -9,6 +9,7 @@ import { sendMealBill, sweepMealBills, type BillJob } from './meal-bills';
 import { runMeals } from './meal-orders';
 import { purgeCandidates } from './recruitment';
 import { withPayslip } from './payslip-mail';
+import { expireSwaps } from './shift-swaps';
 import { runSteps } from './steps';
 import type { QueueName } from './queue';
 
@@ -20,7 +21,8 @@ export const LIFECYCLE_STEPS: Record<string, () => Promise<unknown>> = {
 	mealBills: sweepMealBills,
 	candidates: purgeCandidates,
 	celebrations: runCelebrations,
-	eventReminders: runEventReminders
+	eventReminders: runEventReminders,
+	swaps: expireSwaps
 };
 
 export const processors: Record<QueueName, Processor> = {

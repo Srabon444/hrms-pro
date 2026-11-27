@@ -33,6 +33,28 @@
 		};
 	};
 	const published = $derived(form && 'published' in form ? form.published : null);
+	const mySwappable = $derived(
+		(w.rows.find((r) => r.id === data.me)?.cells ?? []).flatMap((c) =>
+			c.entry && c.entry.status === 'published' && c.entry.kind === 'work' && c.date > w.today
+				? [{ id: c.entry.id, label: `${day(c.date)} · ${c.entry.shift}` }]
+				: []
+		)
+	);
+	let colleagueId = $state('');
+	const theirs = $derived(data.colleagues.find((c) => c.id === colleagueId)?.entries ?? []);
+	const STATUS: Record<string, string> = {
+		asked: 'Waiting for colleague',
+		accepted: 'Waiting for approval',
+		approved: 'Approved',
+		declined: 'Declined',
+		rejected: 'Not approved',
+		cancelled: 'Cancelled',
+		expired: 'Expired',
+		pending: 'Waiting for approval',
+		withdrawn: 'Withdrawn'
+	};
+	const tone = (s: string) =>
+		s === 'approved' ? 'approved' : ['asked', 'accepted', 'pending'].includes(s) ? 'pending' : 'rejected';
 </script>
 
 <svelte:head><title>Schedule · {data.tenant.name}</title></svelte:head>
@@ -58,6 +80,22 @@
 	{/if}
 	{#if form && 'availabilitySaved' in form}<Alert tone="info" message="Unavailable time added." />{/if}
 	{#if form && 'availabilityRemoved' in form}<Alert tone="info" message="Unavailable time removed." />{/if}
+	{#if form && 'openPosted' in form}<Alert tone="info" message="Open shift posted." />{/if}
+	{#if form && 'openRemoved' in form}<Alert tone="info" message="Open shift removed." />{/if}
+	{#if form && 'claimed' in form}<Alert tone="info" message="Request sent to your approver." />{/if}
+	{#if form && 'withdrawn' in form}<Alert tone="info" message="Request withdrawn." />{/if}
+	{#if form && 'swapAsked' in form}<Alert tone="info" message="Swap request sent." />{/if}
+	{#if form && 'answered' in form}<Alert tone="info" message="Answer sent." />{/if}
+	{#if form && 'cancelled' in form}<Alert tone="info" message="Swap cancelled." />{/if}
+	{#if form && 'decided' in form}<Alert tone="info" message="Decision saved." />{/if}
+	{#if form && 'swapStatus' in form}<Alert
+			tone="info"
+			message={form.swapStatus === 'approved'
+				? 'Swap approved and the schedule updated.'
+				: form.swapStatus === 'rejected'
+					? 'Swap not approved.'
+					: 'Your approval is saved. The other approver still has to approve.'}
+		/>{/if}
 </div>
 
 <nav class="mt-4 flex flex-wrap items-center gap-2 text-sm" aria-label="Week">
@@ -177,6 +215,187 @@
 				<Button type="submit" variant="secondary">Remove from schedule</Button>
 			</form>
 		{/if}
+	</section>
+{/if}
+
+<section id="trades" class="mt-6 max-w-3xl panel" aria-label="Open shifts">
+	<h2 class="section-title">Open shifts</h2>
+	<ul class="mt-3 space-y-2 text-sm">
+		{#each data.open as o (o.id)}
+			<li class="flex flex-wrap items-center gap-2">
+				<span>
+					{day(o.date)} · {o.shift}{#if o.note}<span class="text-slate-500"> · {o.note}</span>{/if}
+				</span>
+				{#if o.claims}<span class="text-xs text-slate-500">{o.claims} asked</span>{/if}
+				{#if o.claimed}<Badge status="pending" label="You asked" />{:else if o.canClaim && data.me}
+					<form method="POST" action={act('claim')} use:enhance>
+						<input type="hidden" name="entryId" value={o.id} />
+						<Button type="submit" variant="secondary">Ask for this shift</Button>
+					</form>
+				{/if}
+				{#if o.canRemove}
+					<form method="POST" action={act('removeOpen')} use:enhance>
+						<input type="hidden" name="entryId" value={o.id} />
+						<Button type="submit" variant="secondary">Remove</Button>
+					</form>
+				{/if}
+			</li>
+		{:else}
+			<li class="text-slate-500">No open shifts this week.</li>
+		{/each}
+	</ul>
+	{#if w.canManage}
+		<form method="POST" action={act('postOpen')} use:enhance class="mt-4 grid gap-3 sm:grid-cols-3">
+			<label class="text-sm text-slate-700">
+				Day
+				<select name="date" required class="input mt-1 block w-full">
+					{#each w.days.filter((d) => d.date > w.today) as d (d.date)}<option value={d.date}>
+							{day(d.date)}
+						</option>{/each}
+				</select>
+			</label>
+			<label class="text-sm text-slate-700">
+				Open shift
+				<select name="shiftId" required class="input mt-1 block w-full">
+					{#each w.shifts as s (s.id)}<option value={s.id}>{s.name}</option>{/each}
+				</select>
+			</label>
+			<label class="text-sm text-slate-700">
+				Note
+				<input name="note" maxlength={200} class="input mt-1 block w-full" />
+			</label>
+			<div class="sm:col-span-3"><Button type="submit">Post open shift</Button></div>
+		</form>
+	{/if}
+</section>
+
+{#if data.toDecide.swaps.length || data.toDecide.claims.length}
+	<section class="mt-6 max-w-3xl panel" aria-label="Shift requests to approve">
+		<h2 class="section-title">Shift requests to approve</h2>
+		<ul class="mt-3 space-y-3 text-sm">
+			{#each data.toDecide.swaps as s (s.id)}
+				<li class="flex flex-wrap items-center gap-2">
+					<span>
+						{s.giveAway
+							? `${s.requester} gives ${day(s.date)} ${s.shift} to ${s.counterpart}`
+							: `${s.requester} swaps ${day(s.date)} ${s.shift} for ${s.counterpart}'s ${day(s.takeDate ?? s.date)} ${s.takeShift ?? ''}`}
+					</span>
+					{#each ['approve', 'reject'] as d (d)}
+						<form method="POST" action={act('decideSwap')} use:enhance>
+							<input type="hidden" name="swapId" value={s.id} />
+							<input type="hidden" name="decision" value={d} />
+							<Button type="submit" variant={d === 'approve' ? 'primary' : 'secondary'}>
+								{d === 'approve' ? 'Approve' : 'Reject'}
+							</Button>
+						</form>
+					{/each}
+				</li>
+			{/each}
+			{#each data.toDecide.claims as c (c.id)}
+				<li class="flex flex-wrap items-center gap-2">
+					<span>{c.name} asks for the open shift on {day(c.date)}</span>
+					{#each ['approve', 'reject'] as d (d)}
+						<form method="POST" action={act('decideClaim')} use:enhance>
+							<input type="hidden" name="claimId" value={c.id} />
+							<input type="hidden" name="decision" value={d} />
+							<Button type="submit" variant={d === 'approve' ? 'primary' : 'secondary'}>
+								{d === 'approve' ? 'Approve' : 'Reject'}
+							</Button>
+						</form>
+					{/each}
+				</li>
+			{/each}
+		</ul>
+	</section>
+{/if}
+
+{#if data.me && data.colleagues.length}
+	<section class="mt-6 max-w-3xl panel" aria-label="Swap a shift">
+		<h2 class="section-title">Swap a shift</h2>
+		{#if mySwappable.length}
+			<form method="POST" action={act('requestSwap')} use:enhance class="mt-3 grid gap-3 sm:grid-cols-2">
+				<label class="text-sm text-slate-700">
+					My shift
+					<select name="entryId" required class="input mt-1 block w-full">
+						{#each mySwappable as e (e.id)}<option value={e.id}>{e.label}</option>{/each}
+					</select>
+				</label>
+				<label class="text-sm text-slate-700">
+					Colleague
+					<select name="counterpartId" required bind:value={colleagueId} class="input mt-1 block w-full">
+						<option value="" disabled>Choose a colleague</option>
+						{#each data.colleagues as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+					</select>
+				</label>
+				<label class="text-sm text-slate-700">
+					Their shift
+					<select name="counterpartEntryId" class="input mt-1 block w-full">
+						<option value="">None, they take mine</option>
+						{#each theirs as e (e.id)}<option value={e.id}>{day(e.date)}</option>{/each}
+					</select>
+				</label>
+				<label class="text-sm text-slate-700">
+					Note
+					<input name="note" maxlength={200} class="input mt-1 block w-full" />
+				</label>
+				<div class="sm:col-span-2"><Button type="submit">Ask to swap</Button></div>
+			</form>
+		{:else}
+			<p class="mt-1 text-sm text-slate-600">You have no published shifts from tomorrow onwards this week.</p>
+		{/if}
+	</section>
+{/if}
+
+{#if data.trades.swaps.length || data.trades.claims.length}
+	<section class="mt-6 max-w-3xl panel" aria-label="My shift requests">
+		<h2 class="section-title">My shift requests</h2>
+		<ul class="mt-3 space-y-3 text-sm">
+			{#each data.trades.swaps as s (s.id)}
+				<li class="flex flex-wrap items-center gap-2">
+					<span>
+						{s.mine
+							? s.giveAway
+								? `I give ${day(s.date)} to ${s.counterpart}`
+								: `I swap ${day(s.date)} with ${s.counterpart}`
+							: s.giveAway
+								? `${s.requester} asks me to take ${day(s.date)}`
+								: `${s.requester} asks to swap ${day(s.date)} with me`}
+					</span>
+					<Badge
+						status={tone(s.status)}
+						label={!s.mine && s.status === 'asked' ? 'Waiting for you' : STATUS[s.status]}
+					/>
+					{#if s.mine && ['asked', 'accepted'].includes(s.status)}
+						<form method="POST" action={act('cancelSwap')} use:enhance>
+							<input type="hidden" name="swapId" value={s.id} />
+							<Button type="submit" variant="secondary">Cancel</Button>
+						</form>
+					{:else if !s.mine && s.status === 'asked'}
+						{#each ['accept', 'decline'] as a (a)}
+							<form method="POST" action={act('answerSwap')} use:enhance>
+								<input type="hidden" name="swapId" value={s.id} />
+								<input type="hidden" name="answer" value={a} />
+								<Button type="submit" variant={a === 'accept' ? 'primary' : 'secondary'}>
+									{a === 'accept' ? 'Accept' : 'Decline'}
+								</Button>
+							</form>
+						{/each}
+					{/if}
+				</li>
+			{/each}
+			{#each data.trades.claims as c (c.id)}
+				<li class="flex flex-wrap items-center gap-2">
+					<span>Open shift on {day(c.date)}</span>
+					<Badge status={tone(c.status)} label={STATUS[c.status]} />
+					{#if c.status === 'pending'}
+						<form method="POST" action={act('withdrawClaim')} use:enhance>
+							<input type="hidden" name="claimId" value={c.id} />
+							<Button type="submit" variant="secondary">Withdraw</Button>
+						</form>
+					{/if}
+				</li>
+			{/each}
+		</ul>
 	</section>
 {/if}
 
