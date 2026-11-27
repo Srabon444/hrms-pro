@@ -138,6 +138,14 @@ Vitest · Playwright · Docker.
   keys cannot read anything. A punch in a month whose payroll is already approved is kept and listed under "Punches
   to check" so HR can run arrears; web and kiosk punches in a closed month are listed too. 60 requests a minute per
   device, 256 KB per request.
+- **Company sign-in.** Settings → Company sign-in (owner only, after a password check) connects one Google Workspace
+  or Microsoft Entra app per organisation. Only email domains proven with a DNS TXT record can sign in, and a domain
+  belongs to one organisation. People link their company account once under Account → Security after a password
+  check, or accept an invitation with it; accounts are matched by the provider's subject (Entra directory and object
+  ID), never by email, so a company account only opens the organisation that linked it. A company sign-in opens that
+  organisation only: no platform admin, no other organisations, no password or 2FA changes. The owner can require
+  it for everyone but the owner, who keeps password and 2FA sign-in as the way back in (2FA must be on first). The flow uses PKCE, a nonce, a state
+  kept 10 minutes in Redis and a cookie that ties it to the browser.
 - **Schedule.** The Schedule page is a weekly roster: a manager puts people on a shift or gives them a day off
   for each day, copies last week as drafts, and publishes the week, which tells each person. Staff only see
   published days. A published shift makes a weekend a working day for attendance and meals, a published day off
