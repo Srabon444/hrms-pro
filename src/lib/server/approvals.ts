@@ -6,6 +6,7 @@ import { loanApprovals } from './loans';
 import { payrollApprovals } from './payroll';
 import { resignationApprovals } from './resignations';
 import { salaryApprovals } from './salaries';
+import { scheduleApprovals } from './shift-swaps';
 import { timesheetApprovals } from './timesheets';
 import type { Access } from './rbac/access';
 import type { Tx } from './tenancy';
@@ -23,7 +24,8 @@ const SOURCES: ApprovalSource[] = [
 	resignationApprovals,
 	salaryApprovals,
 	payrollApprovals,
-	timesheetApprovals
+	timesheetApprovals,
+	scheduleApprovals
 ];
 
 export async function pendingApprovals(tx: Tx, access: Access): Promise<ApprovalItem[]> {

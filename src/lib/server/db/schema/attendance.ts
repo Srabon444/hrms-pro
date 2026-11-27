@@ -131,6 +131,64 @@ export const rosterEntries = pgTable(
 	]
 );
 
+export const CLAIM_STATUSES = ['pending', 'approved', 'rejected', 'withdrawn'] as const;
+
+export const openShiftClaims = pgTable(
+	'open_shift_claims',
+	{
+		...tenantBase(),
+		rosterEntryId: uuid().notNull(),
+		employeeId: uuid().notNull(),
+		status: text().notNull().default('pending'),
+		decidedByUserId: uuid(),
+		decidedAt: tstz()
+	},
+	(t) => [
+		tenantKey('open_shift_claims', t),
+		tfk('open_shift_claims_entry_fk', t, t.rosterEntryId, rosterEntries, 'cascade'),
+		tfk('open_shift_claims_employee_fk', t, t.employeeId, employees, 'restrict'),
+		unique('open_shift_claims_uq').on(t.tenantId, t.rosterEntryId, t.employeeId),
+		index('open_shift_claims_status_ix').on(t.tenantId, t.status),
+		check('open_shift_claims_status_ck', sql`${t.status} in ('pending','approved','rejected','withdrawn')`)
+	]
+);
+
+export const SWAP_STATUSES = ['asked', 'accepted', 'approved', 'declined', 'rejected', 'cancelled', 'expired'] as const;
+
+export const shiftSwaps = pgTable(
+	'shift_swaps',
+	{
+		...tenantBase(),
+		requesterId: uuid().notNull(),
+		requesterEntryId: uuid().notNull(),
+		counterpartId: uuid().notNull(),
+		counterpartEntryId: uuid(),
+		status: text().notNull().default('asked'),
+		note: text(),
+		requesterApprovedByUserId: uuid(),
+		counterpartApprovedByUserId: uuid(),
+		decidedByUserId: uuid(),
+		decidedAt: tstz()
+	},
+	(t) => [
+		tenantKey('shift_swaps', t),
+		tfk('shift_swaps_requester_fk', t, t.requesterId, employees, 'restrict'),
+		tfk('shift_swaps_counterpart_fk', t, t.counterpartId, employees, 'restrict'),
+		tfk('shift_swaps_requester_entry_fk', t, t.requesterEntryId, rosterEntries, 'cascade'),
+		tfk('shift_swaps_counterpart_entry_fk', t, t.counterpartEntryId, rosterEntries, 'cascade'),
+		index('shift_swaps_status_ix').on(t.tenantId, t.status),
+		uniqueIndex('shift_swaps_requester_open_uq')
+			.on(t.tenantId, t.requesterEntryId)
+			.where(sql`${t.status} in ('asked','accepted')`),
+		check(
+			'shift_swaps_status_ck',
+			sql`${t.status} in ('asked','accepted','approved','declined','rejected','cancelled','expired')`
+		),
+		check('shift_swaps_people_ck', sql`${t.requesterId} <> ${t.counterpartId}`),
+		check('shift_swaps_note_ck', sql`${t.note} is null or length(${t.note}) <= 200`)
+	]
+);
+
 export const availability = pgTable(
 	'availability',
 	{

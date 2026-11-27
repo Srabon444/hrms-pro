@@ -2,7 +2,16 @@ import { and, asc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-or
 import { z } from 'zod';
 import { recomputeAttendance } from './attendance';
 import { addDays } from './dates';
-import { availability, employees, holidays, leaveRequestDays, memberships, rosterEntries, shifts } from './db/schema';
+import {
+	availability,
+	employees,
+	holidays,
+	leaveRequestDays,
+	memberships,
+	rosterEntries,
+	shifts,
+	shiftSwaps
+} from './db/schema';
 import { lockEmployee } from './employees';
 import { AppError } from './errors';
 import { tenantWeeks } from './lifecycle';
@@ -21,13 +30,13 @@ const MAX_PEOPLE = 300;
 const MAX_AVAILABILITY = 50;
 const ACTIVE_LEAVE = ['pending', 'approved'];
 
-const hhmm = (t: string) => t.slice(0, 5);
+export const hhmm = (t: string) => t.slice(0, 5);
 const weekday = (d: string) => new Date(`${d}T00:00:00Z`).getUTCDay();
 const span = (from: string) => Array.from({ length: 7 }, (_, i) => addDays(from, i));
 const overlaps = (a: { from: string; to: string }, b: { from: string; to: string }) => a.from < b.to && b.from < a.to;
 const inRange = (d: string) => d >= '2000-01-01' && d <= '2099-12-31';
-const isoDay = (message: string) => z.iso.date(message).refine(inRange, message);
-const note = z
+export const isoDay = (message: string) => z.iso.date(message).refine(inRange, message);
+export const note = z
 	.string()
 	.trim()
 	.max(200, 'Keep the note under 200 characters.')
@@ -35,7 +44,7 @@ const note = z
 	.optional()
 	.transform((v) => v || null);
 
-async function weekStart(tx: Tx, raw?: string | null) {
+export async function weekStart(tx: Tx, raw?: string | null) {
 	const weeks = await tenantWeeks(tx);
 	const asked = isoDay('Choose a week.').safeParse(raw);
 	return { start: weeks.of(asked.success ? asked.data : weeks.today), today: weeks.today };
@@ -48,7 +57,7 @@ const employedIn = (from: string, to: string) =>
 		or(ne(employees.status, 'exited'), gte(employees.exitDate, from))
 	);
 
-async function leaveDays(tx: Tx, employeeIds: string[], from: string, to: string) {
+export async function leaveDays(tx: Tx, employeeIds: string[], from: string, to: string) {
 	if (!employeeIds.length) return new Map<string, string>();
 	const rows = await tx
 		.select({ employeeId: leaveRequestDays.employeeId, date: leaveRequestDays.date, status: leaveRequestDays.status })
@@ -205,7 +214,7 @@ async function managedEmployee(tx: Tx, m: Member, employeeId: string) {
 	return e;
 }
 
-async function refuseClosed(tx: Tx, rows: { employeeId: string; date: string }[]) {
+export async function refuseClosed(tx: Tx, rows: { employeeId: string; date: string }[]) {
 	const months = [...new Set(rows.map((r) => r.date.slice(0, 7)))];
 	const closed = await payrollClosedMonths(tx, [...new Set(rows.map((r) => r.employeeId))], months);
 	const hit = rows.filter((r) => closed.has(`${r.employeeId}:${r.date.slice(0, 7)}`));
@@ -231,7 +240,7 @@ async function refuseLeave(tx: Tx, rows: { employeeId: string; date: string; kin
 		);
 }
 
-async function tell(tx: Tx, m: Member, employeeIds: string[], title: string, week: string) {
+export async function tell(tx: Tx, m: Member, employeeIds: string[], title: string, week: string) {
 	if (!employeeIds.length) return [];
 	const owners = await tx
 		.select({ id: memberships.id })
@@ -246,7 +255,21 @@ async function tell(tx: Tx, m: Member, employeeIds: string[], title: string, wee
 	);
 }
 
-async function activeShift(tx: Tx, shiftId: string | undefined) {
+export async function refuseSwapping(tx: Tx, entryIds: string[]) {
+	const [hit] = await tx
+		.select({ id: shiftSwaps.id })
+		.from(shiftSwaps)
+		.where(
+			and(
+				inArray(shiftSwaps.status, ['asked', 'accepted']),
+				or(inArray(shiftSwaps.requesterEntryId, entryIds), inArray(shiftSwaps.counterpartEntryId, entryIds))
+			)
+		)
+		.limit(1);
+	if (hit) throw new AppError('swap_pending', 'A swap is waiting on this shift. Decide or cancel the swap first.', 409);
+}
+
+export async function activeShift(tx: Tx, shiftId: string | undefined) {
 	if (!shiftId) return null;
 	const [s] = await tx.select().from(shifts).where(eq(shifts.id, shiftId));
 	if (!s?.active) throw new AppError('unknown_shift', 'Choose an active shift.', 400);
@@ -268,6 +291,7 @@ export async function saveEntry(m: Member, raw: Record<string, string>) {
 			.where(and(eq(rosterEntries.employeeId, e.id), eq(rosterEntries.date, input.date)))
 			.for('update');
 		const published = existing?.status === 'published';
+		if (existing) await refuseSwapping(tx, [existing.id]);
 		if (published) await refuseLeave(tx, [{ employeeId: e.id, date: input.date, kind: input.kind }]);
 		const values = {
 			kind: input.kind,
@@ -297,6 +321,7 @@ export async function removeEntry(m: Member, entryId: string) {
 		const e = await managedEmployee(tx, m, found.employeeId);
 		const [entry] = await tx.select().from(rosterEntries).where(eq(rosterEntries.id, found.id)).for('update');
 		if (!entry) throw new AppError('not_found', 'That schedule entry does not exist.', 404);
+		await refuseSwapping(tx, [entry.id]);
 		if (entry.status === 'published') await refuseClosed(tx, [{ employeeId: e.id, date: entry.date }]);
 		await tx.delete(rosterEntries).where(eq(rosterEntries.id, entry.id));
 		if (entry.status !== 'published') return [];

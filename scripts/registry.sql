@@ -36,6 +36,8 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('work_week_assignments', 'plain', '{id,tenant_id,employee_id,work_week_id,effective_from,created_by_user_id}'),
 	('roster_entries', 'plain', '{id,tenant_id,employee_id,date,shift_id,kind,status,note,created_by_user_id,published_at}'),
 	('availability', 'plain', '{id,tenant_id,employee_id,weekday,date,from_time,to_time,note}'),
+	('open_shift_claims', 'plain', '{id,tenant_id,roster_entry_id,employee_id,status,decided_by_user_id,decided_at}'),
+	('shift_swaps', 'plain', '{id,tenant_id,requester_id,requester_entry_id,counterpart_id,counterpart_entry_id,status,note,requester_approved_by_user_id,counterpart_approved_by_user_id,decided_by_user_id,decided_at}'),
 	('checklist_templates', 'plain', '{id,tenant_id,kind,name,active}'),
 	('checklist_template_items', 'plain', '{id,tenant_id,template_id,title,assignee_role,due_offset_days}'),
 	('checklists', 'plain', '{id,tenant_id,employee_id,template_id,kind,name,anchor_date}'),
