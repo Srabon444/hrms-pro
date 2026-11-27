@@ -74,6 +74,25 @@ npm run cli -- create-tenant acme "Acme Ltd" owner@acme.com   # prints the owner
 The owner role cannot be edited or removed from the last owner. Every other built-in role is editable per tenant;
 `migrate` brings built-in roles in line with the code without undoing an admin's own changes.
 
+## Company sign-in (SSO)
+
+An organisation's owner sets this up under Settings → Company sign-in. What they need from you and from their IT:
+
+- The redirect address shown on that page, `${APP_URL}/sso/callback`. Register it in the Google Cloud OAuth client
+  (Web application) or the Entra app registration (Web platform, ID tokens not needed; a client secret is). `APP_URL`
+  must be the address people really use, over https.
+- A DNS TXT record on each email domain, on the domain itself (`example.com`, not a subdomain), with the value shown
+  on the page (`hrms-sso-verify=...`). "Check" looks it up from the app server, so the server needs outbound DNS.
+- Redis: in-progress sign-ins live there for 10 minutes. With Redis down, company sign-in says it is unavailable and
+  password sign-in keeps working.
+- Outbound https to `accounts.google.com`/`oauth2.googleapis.com` or `login.microsoftonline.com`.
+
+When company sign-in is required, the owner is never forced through it; turning "Require" on needs the owner's own
+2FA, so the way back in is password plus 2FA. If the provider breaks, the owner signs in
+with their password and turns "Require" off. Someone who joined through company sign-in has no password; they can
+set one with "Forgot your password?". Unlinking under Account → Security, removing their membership or disabling the
+user stops their company sign-in.
+
 ## Health and monitoring
 
 - `GET /healthz`: process is up.

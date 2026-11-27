@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { randomUUID } from 'node:crypto';
 import { LAST_TENANT_COOKIE, SESSION_COOKIE, setLastTenant } from '#lib/server/auth/cookies.ts';
@@ -48,15 +48,35 @@ const route: Handle = async ({ event, resolve }) => {
 		if (limited) return limited;
 	}
 
-	const slug = event.url.pathname.match(TENANT_PATH)?.[1];
+	if (user?.ssoTenantId && event.route.id?.startsWith('/platform'))
+		error(403, 'Sign in with your password to use the platform console.');
+
+	const slug =
+		(event.route.id?.startsWith('/t/[slug]') ? event.params.slug : undefined) ??
+		event.url.pathname.match(TENANT_PATH)?.[1];
 	if (slug) {
-		if (!user) redirect(303, `/login?next=${encodeURIComponent(event.url.pathname + event.url.search)}`);
+		const here = encodeURIComponent(event.url.pathname + event.url.search);
+		if (!user) redirect(303, `/login?next=${here}`);
 		const access = await resolveTenantAccess(slug, user.userId);
 		if (access) {
+			const ssoHere = user.ssoTenantId === access.tenant.id;
+			if (user.ssoTenantId && !ssoHere) redirect(303, `/login?next=${here}&notice=other_org`);
 			event.locals.tenant = access.tenant;
 			event.locals.membership = access.membership;
 			event.locals.access = await loadAccess(access.tenant.id, access.membership);
-			if (access.tenant.require2faForSensitive && !user.totpEnabled && holdsRestricted(event.locals.access.grants))
+			if (
+				access.tenant.ssoEnforced &&
+				!ssoHere &&
+				access.membership.status === 'active' &&
+				!(event.locals.access.isOwner && user.totpEnabled)
+			)
+				redirect(303, `/sso/start?t=${access.tenant.id}&next=${here}`);
+			if (
+				access.tenant.require2faForSensitive &&
+				!user.totpEnabled &&
+				!ssoHere &&
+				holdsRestricted(event.locals.access.grants)
+			)
 				redirect(303, '/account/security?required=1');
 			if (event.cookies.get(LAST_TENANT_COOKIE) !== slug) setLastTenant(event.cookies, event.url, slug);
 		}

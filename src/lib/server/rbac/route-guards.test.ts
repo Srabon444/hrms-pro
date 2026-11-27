@@ -59,7 +59,9 @@ describe('routes outside tenants and the sign-in pages are allowlisted', () => {
 		'src/routes/metrics/+server.ts',
 		'src/routes/platform/+layout.server.ts',
 		'src/routes/platform/+page.server.ts',
-		'src/routes/readyz/+server.ts'
+		'src/routes/readyz/+server.ts',
+		'src/routes/sso/callback/+server.ts',
+		'src/routes/sso/start/+server.ts'
 	];
 	const outside = globSync('src/routes/**/{+page.server.ts,+layout.server.ts,+server.ts}').filter(
 		(f) => !f.startsWith('src/routes/t/') && !f.startsWith('src/routes/(public)/')

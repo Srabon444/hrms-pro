@@ -2,11 +2,17 @@ import { fail, redirect } from '@sveltejs/kit';
 import { DEVICE_COOKIE, safeNext, setChallengeCookie, setSessionCookies } from '#lib/server/auth/cookies.ts';
 import { login } from '#lib/server/auth/service.ts';
 import { actionError, field, limitedMessage } from '#lib/server/http/forms.ts';
+import { ssoMessage } from '#lib/server/sso.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ locals, url }) => {
-	if (locals.user) redirect(303, safeNext(url.searchParams.get('next')));
-	return { next: safeNext(url.searchParams.get('next')), notice: url.searchParams.get('notice') };
+	if (locals.user && !locals.user.ssoTenantId) redirect(303, safeNext(url.searchParams.get('next')));
+	const sso = url.searchParams.get('sso');
+	return {
+		next: safeNext(url.searchParams.get('next')),
+		notice: url.searchParams.get('notice'),
+		ssoError: ssoMessage(sso)
+	};
 };
 
 export const actions: Actions = {

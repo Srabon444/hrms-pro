@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { encrypt } from '#lib/server/auth/crypto.ts';
+import { createSession } from '#lib/server/auth/session.ts';
 import { createUser } from '#lib/server/auth/users.ts';
 import { config } from '#lib/server/config.ts';
 import { authPool } from '#lib/server/db/index.ts';
@@ -14,6 +15,8 @@ import {
 	mealTypes,
 	mealVendors,
 	memberships,
+	ssoConnections,
+	ssoDomains,
 	tenantSettings,
 	tenants,
 	users
@@ -28,7 +31,13 @@ import type { RequestHandler } from './$types';
 
 const bodySchema = z.object({
 	password: z.string().min(10),
-	tenant: z.object({ name: z.string().default('E2E Org'), require2fa: z.boolean().default(false) }).optional(),
+	tenant: z
+		.object({
+			name: z.string().default('E2E Org'),
+			require2fa: z.boolean().default(false),
+			sso: z.object({ enforce: z.boolean().default(false) }).optional()
+		})
+		.optional(),
 	mealMonth: z
 		.string()
 		.regex(/^\d{4}-\d{2}$/)
@@ -41,7 +50,9 @@ const bodySchema = z.object({
 			platformAdmin: z.boolean().default(false),
 			employee: z.boolean().default(false),
 			manager: z.string().optional(),
-			totpSecret: z.string().optional()
+			totpSecret: z.string().optional(),
+			ssoSession: z.boolean().default(false),
+			exEmployee: z.boolean().default(false)
 		})
 	)
 });
@@ -61,9 +72,23 @@ export const POST: RequestHandler = async ({ request }) => {
 		await withTenant(systemCtx(id), async (tx) => {
 			await seedTenant(tx, id, DEMO_LOCALE);
 			await tx.update(tenantSettings).set({ require2faForSensitive });
+			if (!body.tenant?.sso) return;
+			const connectionId = randomUUID();
+			await tx.insert(ssoConnections).values({
+				id: connectionId,
+				tenantId: id,
+				provider: 'google',
+				clientId: `e2e-${run}.apps.googleusercontent.com`,
+				clientSecretEnc: encrypt('e2e-secret', undefined, `sso:${id}:${connectionId}`),
+				verifyToken: `e2e${run}`,
+				enforce: body.tenant.sso.enforce
+			});
+			await tx
+				.insert(ssoDomains)
+				.values({ tenantId: id, connectionId, domain: `e2e-${run}.example`, verifiedAt: new Date() });
 		});
 	}
-	const created: Record<string, { id: string; email: string; employeeId?: string }> = {};
+	const created: Record<string, { id: string; email: string; employeeId?: string; ssoToken?: string }> = {};
 	for (const u of body.users) {
 		const email = `${u.key}-${run}@e2e.local`;
 		const id = await createUser({
@@ -82,6 +107,11 @@ export const POST: RequestHandler = async ({ request }) => {
 			const tenantId = tenant.id;
 			await withTenant(systemCtx(tenantId), async (tx) => {
 				const membershipId = await addMember(tx, tenantId, id, u.roles);
+				if (u.exEmployee)
+					await tx
+						.update(memberships)
+						.set({ status: 'ex_employee', exAccessUntil: new Date(Date.now() + 30 * 24 * 3600_000) })
+						.where(eq(memberships.id, membershipId));
 				if (!u.employee) return;
 				const [e] = await tx
 					.insert(employees)
@@ -100,7 +130,8 @@ export const POST: RequestHandler = async ({ request }) => {
 				await tx.update(memberships).set({ employeeId }).where(eq(memberships.id, membershipId));
 			});
 		}
-		created[u.key] = { id, email, employeeId };
+		const ssoToken = tenant && u.ssoSession ? (await createSession(id, {}, tenant.id)).token : undefined;
+		created[u.key] = { id, email, employeeId, ssoToken };
 	}
 	const month = body.mealMonth;
 	if (tenant && month) {
@@ -119,5 +150,5 @@ export const POST: RequestHandler = async ({ request }) => {
 				.where(and(gte(mealDays.date, from), lte(mealDays.date, to)));
 		});
 	}
-	return Response.json({ tenant, users: created });
+	return Response.json({ tenant, users: created, ssoDomain: body.tenant?.sso ? `e2e-${run}.example` : null });
 };

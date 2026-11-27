@@ -191,9 +191,13 @@ begin
 			execute format('grant select, insert, update, delete on public.%I to hrms_app', t.table_name);
 		end if;
 
-		if t.table_name in ('memberships', 'invitations', 'tenant_settings') then
+		if t.table_name in ('memberships', 'invitations', 'tenant_settings', 'sso_connections', 'user_identities') then
 			execute format('create policy hrms_auth_read on public.%I for select to hrms_auth using (true)', t.table_name);
-			execute format('grant select on public.%I to hrms_auth', t.table_name);
+			if t.table_name = 'sso_connections' then
+				execute 'grant select (id, tenant_id, provider, active, enforce) on public.sso_connections to hrms_auth';
+			else
+				execute format('grant select on public.%I to hrms_auth', t.table_name);
+			end if;
 		end if;
 
 		execute format('drop trigger if exists hrms_audit on public.%I', t.table_name);
@@ -333,6 +337,10 @@ begin
 			where a.key_hash = p_hash and a.revoked_at is null and a.expires_at > now();
 	elsif p_kind = 'attendance_device' then
 		return query select d.tenant_id, d.id from public.attendance_devices d where d.key_hash = p_hash and d.revoked_at is null;
+	elsif p_kind = 'sso_domain' then
+		return query select d.tenant_id, d.connection_id from public.sso_domains d
+			join public.sso_connections c on c.tenant_id = d.tenant_id and c.id = d.connection_id
+			where d.domain = p_hash and d.verified_at is not null and c.active;
 	elsif p_kind = 'kiosk_pair' then
 		return query select k.tenant_id, k.id from public.kiosk_devices k
 			where k.pair_hash = p_hash and k.pair_expires_at > now() and k.revoked_at is null;

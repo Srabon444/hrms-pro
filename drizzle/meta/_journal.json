@@ -561,6 +561,13 @@
       "when": 1795784857949,
       "tag": "0079_device_punches",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1795791994100,
+      "tag": "0080_sso",
+      "breakpoints": true
     }
   ]
 }
