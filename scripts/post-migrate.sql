@@ -303,7 +303,7 @@ begin
 	insert into public.memberships (tenant_id, user_id, employee_id, status)
 	values (inv.tenant_id, p_user_id, inv.employee_id, 'active')
 	on conflict (tenant_id, user_id) do update
-		set status = 'active', employee_id = coalesce(excluded.employee_id, public.memberships.employee_id), ex_access_until = null
+		set status = 'active', employee_id = coalesce(excluded.employee_id, public.memberships.employee_id), ex_access_until = null, disabled_by = null
 		where public.memberships.status <> 'ex_employee'
 	returning id into mid;
 	if mid is null then
@@ -337,6 +337,8 @@ begin
 			where a.key_hash = p_hash and a.revoked_at is null and a.expires_at > now();
 	elsif p_kind = 'attendance_device' then
 		return query select d.tenant_id, d.id from public.attendance_devices d where d.key_hash = p_hash and d.revoked_at is null;
+	elsif p_kind = 'scim' then
+		return query select c.tenant_id, c.id from public.sso_connections c where c.scim_token_hash = p_hash;
 	elsif p_kind = 'sso_domain' then
 		return query select d.tenant_id, d.connection_id from public.sso_domains d
 			join public.sso_connections c on c.tenant_id = d.tenant_id and c.id = d.connection_id

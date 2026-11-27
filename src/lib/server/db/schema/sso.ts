@@ -16,11 +16,15 @@ export const ssoConnections = pgTable(
 		entraTenantId: text(),
 		verifyToken: text().notNull(),
 		active: boolean().notNull().default(true),
-		enforce: boolean().notNull().default(false)
+		enforce: boolean().notNull().default(false),
+		scimPrefix: text(),
+		scimTokenHash: text()
 	},
 	(t) => [
 		tenantKey('sso_connections', t),
 		uniqueIndex('sso_connections_tenant_uq').on(t.tenantId),
+		uniqueIndex('sso_connections_scim_uq').on(t.scimTokenHash),
+		check('sso_connections_scim_ck', sql`(${t.scimPrefix} is null) = (${t.scimTokenHash} is null)`),
 		check('sso_connections_provider_ck', sql`${t.provider} in ('google','entra')`),
 		check('sso_connections_client_ck', sql`length(${t.clientId}) between 1 and 200`),
 		check(

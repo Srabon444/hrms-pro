@@ -113,7 +113,7 @@ async function loadTarget(tx: Tx, actor: Actor, membershipId: string) {
 	return { ...target, roleIds: current.map((r) => r.roleId) };
 }
 
-const revokeInvitesBy = (tx: Tx, membershipId: string) =>
+export const revokeInvitesBy = (tx: Tx, membershipId: string) =>
 	tx
 		.update(invitations)
 		.set({ revokedAt: now() })
@@ -247,7 +247,7 @@ export async function setMemberStatus(
 		const target = await loadTarget(tx, actor, membershipId);
 		if (target.status === 'ex_employee')
 			throw new AppError('ex_employee', 'Former employees are managed through the exit process.', 409);
-		if (target.status === status) return;
+		if (target.status === 'active' && status === 'active') return;
 		assertCanHandOut(actor.access, await rolesWithGrants(tx, target.roleIds));
 		if (
 			status === 'disabled' &&
@@ -255,7 +255,10 @@ export async function setMemberStatus(
 			(await otherActiveOwners(tx, ownerRoleId, membershipId)) === 0
 		)
 			throw new AppError('last_owner', 'The organisation needs at least one active owner.', 409);
-		await tx.update(memberships).set({ status }).where(eq(memberships.id, membershipId));
+		await tx
+			.update(memberships)
+			.set({ status, disabledBy: status === 'disabled' ? 'hr' : null })
+			.where(eq(memberships.id, membershipId));
 		if (status === 'disabled') await revokeInvitesBy(tx, membershipId);
 	});
 }

@@ -149,3 +149,35 @@
 		</ul>
 	</section>
 {/if}
+
+{#if c}
+	<section class="mt-6 max-w-3xl panel" aria-label="Provisioning (SCIM)">
+		<h2 class="section-title">Provisioning (SCIM)</h2>
+		<p class="mt-1 text-sm text-slate-600">
+			Let your identity provider add and deactivate people here. It only adds people in verified domains, never changes
+			owners, and never turns back on someone HR or an exit turned off. Base URL:
+			<code class="break-all" data-testid="scim-url">{data.scimUrl}</code>
+		</p>
+		{#if form && 'scimToken' in form && typeof form.scimToken === 'string'}
+			<p class="mt-3 text-sm text-slate-700">Token (shown once):</p>
+			<code class="mt-1 block break-all rounded bg-slate-100 p-2 text-sm" data-testid="scim-token">
+				{form.scimToken}
+			</code>
+		{/if}
+		<p class="mt-3 text-sm text-slate-600" data-testid="scim-state">
+			{c.scimPrefix ? `Token hrs_${c.scimPrefix}_… is active.` : 'No token yet.'}
+		</p>
+		<div class="mt-3 flex flex-wrap gap-2">
+			<form method="POST" action="?/scim">
+				<Button type="submit" variant="secondary" disabled={!data.recent}>
+					{c.scimPrefix ? 'Replace token' : 'Create token'}
+				</Button>
+			</form>
+			{#if c.scimPrefix}
+				<form method="POST" action="?/scimRevoke">
+					<Button type="submit" variant="secondary" disabled={!data.recent}>Revoke token</Button>
+				</form>
+			{/if}
+		</div>
+	</section>
+{/if}

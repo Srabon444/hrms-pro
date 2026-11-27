@@ -3,7 +3,7 @@ import { authPool } from '../db';
 import { tenants } from '../db/schema';
 
 export type TokenKind =
-	'calendar_feed' | 'kiosk_device' | 'kiosk_pair' | 'api_key' | 'attendance_device' | 'sso_domain';
+	'calendar_feed' | 'kiosk_device' | 'kiosk_pair' | 'api_key' | 'attendance_device' | 'sso_domain' | 'scim';
 
 export type TokenHolder = {
 	tenantId: string;

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { resolveTxt } from 'node:dns/promises';
 import { decodeIdToken, Google, MicrosoftEntraId } from 'arctic';
 import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
@@ -71,7 +72,8 @@ export async function loadSso(tx: Tx) {
 			entraTenantId: ssoConnections.entraTenantId,
 			verifyToken: ssoConnections.verifyToken,
 			active: ssoConnections.active,
-			enforce: ssoConnections.enforce
+			enforce: ssoConnections.enforce,
+			scimPrefix: ssoConnections.scimPrefix
 		})
 		.from(ssoConnections);
 	const domains = connection
@@ -130,6 +132,34 @@ export async function saveSsoConnection(m: Member, raw: Record<string, string>) 
 				verifyToken: randomToken(18)
 			});
 		await auditEvent(tx, userCtx(m), 'sso_connections', id, 'sso.save', { provider: input.provider });
+	});
+}
+
+export async function createScimToken(m: Member) {
+	await manager(m);
+	const prefix = randomBytes(4).toString('hex');
+	const token = `hrs_${prefix}_${randomToken()}`;
+	await withTenant(userCtx(m), async (tx) => {
+		const [c] = await tx.select({ id: ssoConnections.id }).from(ssoConnections).for('update');
+		if (!c) throw new AppError('invalid', 'Save the connection first.', 400);
+		await tx
+			.update(ssoConnections)
+			.set({ scimPrefix: prefix, scimTokenHash: sha256(token) })
+			.where(eq(ssoConnections.id, c.id));
+		await auditEvent(tx, userCtx(m), 'sso_connections', c.id, 'scim.token', { prefix });
+	});
+	return token;
+}
+
+export async function revokeScimToken(m: Member) {
+	await manager(m);
+	await withTenant(userCtx(m), async (tx) => {
+		const [c] = await tx
+			.update(ssoConnections)
+			.set({ scimPrefix: null, scimTokenHash: null })
+			.where(isNotNull(ssoConnections.scimTokenHash))
+			.returning({ id: ssoConnections.id });
+		if (c) await auditEvent(tx, userCtx(m), 'sso_connections', c.id, 'scim.revoke');
 	});
 }
 

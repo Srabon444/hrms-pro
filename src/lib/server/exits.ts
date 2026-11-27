@@ -123,6 +123,7 @@ async function completeExit(
 			.update(memberships)
 			.set({
 				status: 'ex_employee',
+				disabledBy: 'exit',
 				exAccessUntil: sql`((${e.exitDate}::date + ${(s?.days ?? 90) + 1}::int)::timestamp at time zone ${s?.tz ?? 'UTC'})`
 			})
 			.where(eq(memberships.id, membership.id));
@@ -261,7 +262,7 @@ export async function rehire(m: Member, employeeId: string, raw: Record<string, 
 		});
 		const [membership] = await tx
 			.update(memberships)
-			.set({ status: 'active', exAccessUntil: null })
+			.set({ status: 'active', exAccessUntil: null, disabledBy: null })
 			.where(and(eq(memberships.employeeId, e.id), ne(memberships.status, 'active')))
 			.returning({ id: memberships.id });
 		if (membership) {
@@ -320,7 +321,7 @@ export async function runTenantLifecycle(tenant: { id: string; slug: string }) {
 		}
 		await tx
 			.update(memberships)
-			.set({ status: 'disabled' })
+			.set({ status: 'disabled', disabledBy: 'exit' })
 			.where(and(eq(memberships.status, 'ex_employee'), lte(memberships.exAccessUntil, now())));
 		return out;
 	});

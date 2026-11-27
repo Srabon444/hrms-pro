@@ -95,7 +95,8 @@ export const memberships = pgTable(
 		employeeId: uuid(),
 		status: text().notNull().default('active'),
 		exAccessUntil: tstz(),
-		lastUsedAt: tstz()
+		lastUsedAt: tstz(),
+		disabledBy: text().$type<'hr' | 'scim' | 'exit'>()
 	},
 	(t) => [
 		tenantKey('memberships', t),
@@ -103,7 +104,8 @@ export const memberships = pgTable(
 		unique('memberships_tenant_employee_uq').on(t.tenantId, t.employeeId),
 		tfk('memberships_employee_fk', t, t.employeeId, employees, 'restrict'),
 		index('memberships_user_idx').on(t.userId),
-		check('memberships_status_ck', sql`${t.status} in ('active','ex_employee','disabled')`)
+		check('memberships_status_ck', sql`${t.status} in ('active','ex_employee','disabled')`),
+		check('memberships_disabled_by_ck', sql`${t.disabledBy} is null or ${t.disabledBy} in ('hr','scim','exit')`)
 	]
 );
 
