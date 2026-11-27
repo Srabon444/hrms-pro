@@ -1041,6 +1041,21 @@ erDiagram
 								</td>
 							</tr>
 							<tr>
+								<td>Search inside files</td>
+								<td>
+									Words inside policy PDFs and candidate resumes (PDF, Word or image) are searchable, with the matching
+									line shown under the hit; scanned PDFs and resume images are read by AI when it is on.
+								</td>
+								<td>
+									Text-layer PDFs and Word files are read locally; PDFs parse in a separate thread with a 256 MB memory
+									cap, a 50-page cap and a 20 s limit, and Word files unpack with a 20 MB cap; scans and images go to
+									the company's AI and count against its budget; text is cleaned of control, direction and zero-width
+									characters and capped at 200,000 characters; search keeps each module's visibility rule; a replaced
+									policy file's text is deleted in the same transaction; failed reads back off and stop after three
+									tries, and saving the AI settings retries the ones a key or quota problem stopped.
+								</td>
+							</tr>
+							<tr>
 								<td>AI setup</td>
 								<td>
 									Settings → AI: turn AI on with consent, pick Google Gemini, OpenAI or Anthropic Claude, paste the
