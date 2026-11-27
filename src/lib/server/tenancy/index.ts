@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { appPool, type Db } from '../db';
@@ -18,8 +19,16 @@ export type TenantCtx = z.input<typeof ctxSchema>;
 
 const flag = (on: boolean | undefined) => (on ? 'on' : 'off');
 
+const openTx = new AsyncLocalStorage<true>();
+
+export const insideTenantTx = () => openTx.getStore() === true;
+
 export async function withTenant<T>(input: TenantCtx, fn: (tx: Tx) => Promise<T>): Promise<T> {
 	const ctx = ctxSchema.parse(input);
+	return openTx.run(true, () => run(ctx, fn));
+}
+
+function run<T>(ctx: z.output<typeof ctxSchema>, fn: (tx: Tx) => Promise<T>): Promise<T> {
 	return appPool().db.transaction(async (tx) => {
 		await tx.execute(sql`select
 			set_config('app.tenant_id', ${ctx.tenantId}, true),

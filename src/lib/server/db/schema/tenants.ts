@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 const ts = () => timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow();
 
@@ -10,6 +10,7 @@ export const tenants = pgTable(
 		slug: text().notNull().unique(),
 		name: text().notNull(),
 		status: text().notNull().default('active'),
+		aiPlatform: boolean().notNull().default(true),
 		createdAt: ts(),
 		updatedAt: ts().$onUpdate(() => new Date())
 	},

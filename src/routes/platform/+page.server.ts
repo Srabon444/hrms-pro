@@ -5,7 +5,7 @@ import { authPool } from '#lib/server/db/index.ts';
 import { memberships, tenants } from '#lib/server/db/schema/index.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { CURRENCIES } from '#lib/money.ts';
-import { provisionTenant, setTenantStatus } from '#lib/server/platform/tenants.ts';
+import { provisionTenant, setTenantAi, setTenantStatus } from '#lib/server/platform/tenants.ts';
 import { NEUTRAL_LOCALE, TIMEZONES } from '#lib/server/settings.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -22,6 +22,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			slug: tenants.slug,
 			name: tenants.name,
 			status: tenants.status,
+			aiPlatform: tenants.aiPlatform,
 			members: count(memberships.id)
 		})
 		.from(tenants)
@@ -67,6 +68,19 @@ export const actions: Actions = {
 		if (!id.success || !status.success) return fail(400, { message: 'Invalid request.' });
 		try {
 			await setTenantStatus(id.data, status.data, user.userId);
+		} catch (err) {
+			return actionError(err, locals.requestId);
+		}
+		return { updated: true };
+	},
+	aiPlatform: async ({ request, locals }) => {
+		const user = admin(locals);
+		const form = await request.formData();
+		const id = z.uuid().safeParse(field(form, 'tenantId'));
+		const on = z.enum(['on', 'off']).safeParse(field(form, 'ai'));
+		if (!id.success || !on.success) return fail(400, { message: 'Invalid request.' });
+		try {
+			await setTenantAi(id.data, on.data === 'on', user.userId);
 		} catch (err) {
 			return actionError(err, locals.requestId);
 		}

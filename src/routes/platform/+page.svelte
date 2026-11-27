@@ -55,7 +55,7 @@
 					class="px-4 py-2"
 				>
 					Status
-				</th><th></th>
+				</th><th class="px-4 py-2">Platform AI</th><th></th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-slate-200">
@@ -65,6 +65,19 @@
 					<td class="px-4 py-2 font-mono">/t/{t.slug}</td>
 					<td class="px-4 py-2">{t.members}</td>
 					<td class="px-4 py-2"><Badge status={t.status} /></td>
+					<td class="px-4 py-2">
+						<form method="POST" action="?/aiPlatform">
+							<input type="hidden" name="tenantId" value={t.id} />
+							<input type="hidden" name="ai" value={t.aiPlatform ? 'off' : 'on'} />
+							<Button
+								type="submit"
+								variant="secondary"
+								aria-label={`${t.aiPlatform ? 'Turn off' : 'Turn on'} platform AI for ${t.name}`}
+							>
+								{t.aiPlatform ? 'On · turn off' : 'Off · turn on'}
+							</Button>
+						</form>
+					</td>
 					<td class="px-4 py-2 text-right">
 						<form method="POST" action="?/status">
 							<input type="hidden" name="tenantId" value={t.id} />

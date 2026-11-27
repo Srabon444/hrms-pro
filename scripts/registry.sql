@@ -108,6 +108,8 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('policy_acknowledgements', 'plain', '{id,tenant_id,policy_id,employee_id,version,sha256,acknowledged_at}'),
 	('letter_templates', 'plain', '{id,tenant_id,kind,name,subject,active}'),
 	('letters', 'plain', '{id,tenant_id,number,employee_id,template_id,kind,subject,sha256,issued_on,issued_by_user_id}'),
+	('ai_settings', 'row_only', '{}'),
+	('ai_usage', 'excluded', '{}'),
 	('report_shares', 'plain', '{id,tenant_id,report_id,title,period,recipient_membership_ids,shared_by_membership_id,shared_by_user_id,expires_on}')
 on conflict (table_name) do update set mode = excluded.mode, plain_columns = excluded.plain_columns;
 

@@ -512,6 +512,13 @@
       "when": 1795735911799,
       "tag": "0072_shift_swaps",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1795739315025,
+      "tag": "0073_ai_core",
+      "breakpoints": true
     }
   ]
 }

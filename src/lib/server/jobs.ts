@@ -1,4 +1,5 @@
 import type { Processor } from 'bullmq';
+import { purgeAiUsage } from './ai/service';
 import { runAttendance } from './attendance';
 import { runLifecycle } from './exits';
 import { runLeaveAccrual } from './leave';
@@ -22,7 +23,8 @@ export const LIFECYCLE_STEPS: Record<string, () => Promise<unknown>> = {
 	candidates: purgeCandidates,
 	celebrations: runCelebrations,
 	eventReminders: runEventReminders,
-	swaps: expireSwaps
+	swaps: expireSwaps,
+	aiRetention: purgeAiUsage
 };
 
 export const processors: Record<QueueName, Processor> = {

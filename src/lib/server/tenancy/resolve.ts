@@ -4,7 +4,7 @@ import { authPool } from '../db';
 import { memberships, tenantSettings, tenants } from '../db/schema';
 
 export type TenantAccess = {
-	tenant: { id: string; slug: string; name: string; require2faForSensitive: boolean };
+	tenant: { id: string; slug: string; name: string; require2faForSensitive: boolean; aiPlatform: boolean };
 	membership: { id: string; status: 'active' | 'ex_employee'; employeeId: string | null };
 };
 
@@ -16,6 +16,7 @@ export async function resolveTenantAccess(slug: string, userId: string): Promise
 			slug: tenants.slug,
 			name: tenants.name,
 			tenantStatus: tenants.status,
+			aiPlatform: tenants.aiPlatform,
 			membershipId: memberships.id,
 			status: memberships.status,
 			employeeId: memberships.employeeId,
@@ -30,7 +31,13 @@ export async function resolveTenantAccess(slug: string, userId: string): Promise
 	const exAllowed = row.status === 'ex_employee' && !!row.exAccessUntil && row.exAccessUntil > now();
 	if (row.status !== 'active' && !exAllowed) return null;
 	return {
-		tenant: { id: row.id, slug: row.slug, name: row.name, require2faForSensitive: !!row.require2fa },
+		tenant: {
+			id: row.id,
+			slug: row.slug,
+			name: row.name,
+			require2faForSensitive: !!row.require2fa,
+			aiPlatform: row.aiPlatform
+		},
 		membership: { id: row.membershipId, status: row.status as 'active' | 'ex_employee', employeeId: row.employeeId }
 	};
 }

@@ -23,6 +23,9 @@ export function testEnv(db: string, extra: Record<string, string> = {}): Record<
 		TEST_MODE: '1',
 		NODE_ENV: 'test',
 		LOG_LEVEL: 'warn',
+		AI_FAKE: '1',
+		AI_PLATFORM_GEMINI: '1',
+		GEMINI_API_KEY: 'platform-test-key',
 		...extra
 	};
 }
