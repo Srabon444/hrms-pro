@@ -26,6 +26,7 @@ import { userCtx, type Access, type requireMember } from './rbac/access';
 import { lockOwnerRole, otherActiveOwners } from './rbac/members';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { systemCtx, withTenant, type Tx } from './tenancy';
+import { emitWebhook } from './webhooks';
 import type { Mail } from './mail';
 
 type Member = ReturnType<typeof requireMember>;
@@ -99,6 +100,12 @@ async function completeExit(
 		.returning({ name: departments.name });
 
 	await tx.update(employees).set({ status: 'exited' }).where(eq(employees.id, e.id));
+	await emitWebhook(
+		tx,
+		tenant.id,
+		'employee.updated',
+		[e.id, ...reports.map((r) => r.id)].map((employeeId) => ({ employeeId }))
+	);
 	await tx.insert(employeeHistory).values({
 		tenantId: tenant.id,
 		employeeId: e.id,
@@ -168,6 +175,7 @@ export async function applyExit(tx: Tx, m: Member, e: Employee, input: z.infer<t
 		.set({ ...input, status: due ? e.status : 'notice' })
 		.where(eq(employees.id, e.id));
 	if (!due) {
+		await emitWebhook(tx, m.tenant.id, 'employee.updated', [{ employeeId: e.id }]);
 		if (e.status !== 'notice')
 			await tx.insert(employeeHistory).values({
 				tenantId: m.tenant.id,
@@ -203,6 +211,7 @@ export async function withdrawExit(m: Member, employeeId: string) {
 			.update(employees)
 			.set({ status: 'active', exitDate: null, exitType: null, exitReason: null })
 			.where(eq(employees.id, e.id));
+		await emitWebhook(tx, m.tenant.id, 'employee.updated', [{ employeeId: e.id }]);
 		await tx.insert(employeeHistory).values({
 			tenantId: m.tenant.id,
 			employeeId: e.id,
@@ -241,6 +250,7 @@ export async function rehire(m: Member, employeeId: string, raw: Record<string, 
 			.where(eq(employees.id, e.id));
 		await startChecklists(tx, m.tenant.id, e.id, 'onboarding', joinDate);
 		await accrue(tx, m.tenant.id, [e.id]);
+		await emitWebhook(tx, m.tenant.id, 'employee.updated', [{ employeeId: e.id }]);
 		await tx.insert(employeeHistory).values({
 			tenantId: m.tenant.id,
 			employeeId: e.id,

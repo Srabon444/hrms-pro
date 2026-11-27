@@ -18,7 +18,8 @@ export const NOTIFICATION_CATEGORIES = {
 	celebrations: 'Birthdays and work anniversaries in your team',
 	events: 'Reminders for events you said you will attend',
 	schedule: 'Published schedules',
-	kiosk: 'Attendance kiosk lockouts'
+	kiosk: 'Attendance kiosk lockouts',
+	webhooks: 'Webhook endpoints turned off after failures'
 } as const;
 
 export type NotificationCategory = keyof typeof NOTIFICATION_CATEGORIES;

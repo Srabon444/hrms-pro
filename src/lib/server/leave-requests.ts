@@ -25,6 +25,7 @@ import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope } from './rbac/scope';
 import { restDayResolver } from './rest-days';
 import { withTenant, type Tx } from './tenancy';
+import { emitWebhook } from './webhooks';
 import type { ApprovalItem } from './approvals';
 
 type Member = ReturnType<typeof requireMember>;
@@ -158,6 +159,7 @@ export async function requestLeave(m: Member, raw: Record<string, string>, attac
 			}))
 		);
 		if (stored.length) await insertFiles(tx, userCtx(m), 'leave_request', req.id, stored);
+		await emitWebhook(tx, m.tenant.id, 'leave_request.created', [{ leaveRequestId: req.id, employeeId: e.id }]);
 		const mails = await notify(
 			tx,
 			m.tenant.id,
@@ -316,6 +318,7 @@ export async function decideLeave(m: Member, requestId: string, raw: Record<stri
 			await tx.insert(leaveLedger).values(ledgerRows(r, days, -1, m.user.userId));
 			await recomputeAttendance(tx, m.tenant.id, r.startDate, r.endDate, [r.employeeId]);
 		}
+		await emitWebhook(tx, m.tenant.id, 'leave_request.updated', [{ leaveRequestId: r.id, employeeId: r.employeeId }]);
 		return tellOwner(
 			tx,
 			m,
@@ -342,6 +345,7 @@ export async function cancelLeave(m: Member, requestId: string) {
 			.where(and(eq(leaveRequestDays.requestId, r.id), inArray(leaveRequestDays.status, ACTIVE)))
 			.returning({ fiscalYear: leaveRequestDays.fiscalYear, session: leaveRequestDays.session });
 		if (r.status === 'approved') await tx.insert(leaveLedger).values(ledgerRows(r, days, 1, m.user.userId));
+		await emitWebhook(tx, m.tenant.id, 'leave_request.updated', [{ leaveRequestId: r.id, employeeId: r.employeeId }]);
 		return rights.own ? [] : tellOwner(tx, m, r, `Your leave from ${r.startDate} was cancelled`);
 	});
 	await sendAll(mails);
@@ -441,6 +445,14 @@ async function recountLeave(tx: Tx, ids: string[], from: string, refuseNewDays: 
 		.update(leaveRequests)
 		.set({ days: left, status: sql`case when ${left} = 0 then 'cancelled' else ${leaveRequests.status} end` })
 		.where(inArray(leaveRequests.id, ids));
+	const changed = requests.filter(({ r }) => dropped.some((d) => d.requestId === r.id));
+	if (changed.length)
+		await emitWebhook(
+			tx,
+			changed[0].r.tenantId,
+			'leave_request.updated',
+			changed.map(({ r }) => ({ leaveRequestId: r.id, employeeId: r.employeeId }))
+		);
 }
 
 export async function myLeave(tx: Tx, access: Access) {

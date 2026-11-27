@@ -70,6 +70,13 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 		about: 'Keys that let other systems read employees, leave, attendance, rosters and events.'
 	},
 	{
+		href: 'webhooks',
+		label: 'Webhooks',
+		group: 'Access',
+		perm: 'api.manage',
+		about: 'Tell other systems when employees or leave requests change.'
+	},
+	{
 		href: 'data-export',
 		label: 'Data export',
 		group: 'Access',

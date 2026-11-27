@@ -14,6 +14,7 @@ import { withPayslip } from './payslip-mail';
 import { expireSwaps } from './shift-swaps';
 import { runSteps } from './steps';
 import type { QueueName } from './queue';
+import { deliverWebhook, runWebhooks, type WebhookJob } from './webhooks';
 
 export const LIFECYCLE_STEPS: Record<string, () => Promise<unknown>> = {
 	exits: runLifecycle,
@@ -26,12 +27,14 @@ export const LIFECYCLE_STEPS: Record<string, () => Promise<unknown>> = {
 	eventReminders: runEventReminders,
 	swaps: expireSwaps,
 	aiRetention: purgeAiUsage,
-	fileTexts: reconcileFileTexts
+	fileTexts: reconcileFileTexts,
+	webhooks: runWebhooks
 };
 
 export const processors: Record<QueueName, Processor> = {
 	mail: async (job) => deliverMail(await withPayslip(job.data as Mail)),
 	'meal-bills': (job) => sendMealBill(job.data as BillJob),
 	lifecycle: () => runSteps(LIFECYCLE_STEPS),
-	'file-text': (job) => extractFileText(job.data as FileTextJob)
+	'file-text': (job) => extractFileText(job.data as FileTextJob),
+	webhooks: (job) => deliverWebhook(job.data as WebhookJob)
 };

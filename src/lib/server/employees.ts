@@ -27,6 +27,7 @@ import type { Access } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import type { TenantCtx, Tx } from './tenancy';
 import { withTenant } from './tenancy';
+import { emitWebhook } from './webhooks';
 
 export const blank = <T extends z.ZodType>(schema: T) =>
 	z.union([z.literal(''), schema]).transform((v) => (v === '' ? null : v));
@@ -238,6 +239,12 @@ async function insertEmployees(
 	for (const r of rows)
 		if (r.status === 'onboarding') await startChecklists(tx, tenantId, r.id, 'onboarding', r.joinDate);
 	await accrue(tx, tenantId, ids);
+	await emitWebhook(
+		tx,
+		tenantId,
+		'employee.created',
+		ids.map((employeeId) => ({ employeeId }))
+	);
 	return ids;
 }
 
@@ -294,6 +301,7 @@ export async function updateEmployee(
 		}
 		if (!inScope(await resolveScope(tx, access, 'employee.update'), targetId))
 			throw new AppError('out_of_scope', 'That change would move this person outside your scope.', 403);
+		await emitWebhook(tx, ctx.tenantId, 'employee.updated', [{ employeeId: targetId }]);
 		const bankChanged = sensitiveChanged && BANK_KEYS.some((k) => k in sensitive && sensitive[k] !== current[k]);
 		return bankChanged ? bankChangeAlert(tx, ctx.tenantId, targetId, tenantSlug) : [];
 	});

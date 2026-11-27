@@ -8,6 +8,7 @@ import { notify, sendAll } from './notifications';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { withTenant, type Tx } from './tenancy';
+import { emitWebhook } from './webhooks';
 import type { ApprovalItem } from './approvals';
 import type { AttachmentRules } from './attachments';
 
@@ -186,6 +187,7 @@ export async function decideChange(m: Member, requestId: string, raw: Record<str
 				.for('update');
 			if (e.status === 'exited') throw new AppError('exited', 'This record is closed.', 409);
 			await tx.update(employees).set(changes).where(eq(employees.id, request.employeeId));
+			await emitWebhook(tx, m.tenant.id, 'employee.updated', [{ employeeId: request.employeeId }]);
 		}
 		await tx
 			.update(changeRequests)
