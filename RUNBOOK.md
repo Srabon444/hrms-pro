@@ -101,6 +101,9 @@ bucket. Never set them when the app is reachable directly, or clients can choose
 If Redis is down, sign-in, password reset and 2FA refuse requests rather than run without limits. Saves and downloads
 keep working with limits counted in each app process's memory and log `redis rate limit unavailable; counting in memory`,
 so with several app processes a user can briefly get that many times the normal allowance.
+The attendance kiosk also refuses PINs while Redis is down, because its lockouts live there. Staff can still punch
+from their phones. Kiosk PINs are keyed with `APP_ENC_KEYS`; keep retired keys in the ring after a rotation or every
+kiosk PIN made with them stops matching and has to be set again.
 
 ## Backup and restore
 

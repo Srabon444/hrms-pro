@@ -105,6 +105,14 @@ Vitest · Playwright · Docker.
   faked, so networks are the stronger check, and location is only stored while the rule is on. Staff start and end
   breaks from the attendance page. A shift can mark its break unpaid: punched breaks come off worked time, or the
   shift's break minutes on days longer than a half day when no break was punched.
+- **Attendance kiosk (module, off by default).** Settings → Kiosks adds a shared tablet at a work site and makes a
+  one-time pairing link that works for 15 minutes; opening it on the tablet turns that browser into the kiosk with a
+  long-lived cookie, and HR can switch a kiosk off or bind it to office networks. Staff set their own 6 to 8 digit
+  kiosk PIN on the attendance page (runs, repeats, their code and birth-date forms are refused; only a keyed hash is
+  stored, never the PIN) and punch with their employee code and PIN. Kiosk punches count as on site. A wrong PIN and
+  an unknown code get the same answer in the same time; five wrong PINs lock that code on that kiosk for 15 minutes,
+  doubling each time, and HR is notified at the second lock. HR can reset a forgotten PIN. If Redis is down the kiosk
+  refuses PINs rather than run without limits.
 - **Schedule.** The Schedule page is a weekly roster: a manager puts people on a shift or gives them a day off
   for each day, copies last week as drafts, and publishes the week, which tells each person. Staff only see
   published days. A published shift makes a weekend a working day for attendance and meals, a published day off
