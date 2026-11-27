@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { auditEvent } from '../audit';
 import { sha256 } from '../auth/crypto';
