@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { appPool, type Db } from '../db';
+import { log } from '../log';
 
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -20,13 +21,30 @@ export type TenantCtx = z.input<typeof ctxSchema>;
 
 const flag = (on: boolean | undefined) => (on ? 'on' : 'off');
 
-const openTx = new AsyncLocalStorage<true>();
+type Hook = () => Promise<unknown>;
 
-export const insideTenantTx = () => openTx.getStore() === true;
+const openTx = new AsyncLocalStorage<Hook[]>();
+
+export const insideTenantTx = () => openTx.getStore() !== undefined;
+
+export function afterCommit(hook: Hook): void {
+	const hooks = openTx.getStore();
+	if (!hooks) throw new Error('afterCommit outside a tenant transaction');
+	hooks.push(hook);
+}
 
 export async function withTenant<T>(input: TenantCtx, fn: (tx: Tx) => Promise<T>): Promise<T> {
 	const ctx = ctxSchema.parse(input);
-	return openTx.run(true, () => run(ctx, fn));
+	const hooks: Hook[] = [];
+	const out = await openTx.run(hooks, () => run(ctx, fn));
+	await Promise.all(
+		hooks.map((hook) =>
+			openTx
+				.exit(() => Promise.resolve().then(hook))
+				.catch((err: Error) => log.error({ err: err.message }, 'after commit hook failed'))
+		)
+	);
+	return out;
 }
 
 function run<T>(ctx: z.output<typeof ctxSchema>, fn: (tx: Tx) => Promise<T>): Promise<T> {

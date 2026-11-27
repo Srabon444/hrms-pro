@@ -122,6 +122,14 @@ Vitest · Playwright · Docker.
   key and a short field list per endpoint (never national ID, bank, tax or pay fields); `/api/v1/openapi.json`
   describes it. Making, revoking and the first use each day are audited, and changing or resetting a password or
   turning off 2FA revokes that person's keys.
+- **Webhooks.** Settings → Webhooks (same permission and password check) adds up to 10 https endpoints that hear
+  when an employee is added or changed and when leave is requested, decided or cancelled. Each POST carries only the
+  event name, ids and a time, signed in `X-HRMS-Signature` (`t=<seconds>,v1=<HMAC-SHA256 of "t.body">`) with a
+  secret shown once. The event is written in the same transaction as the change, so a rolled-back change sends
+  nothing. A failed delivery is tried 8 times over about two days; after 50 failures in a row the endpoint turns off and
+  people who manage API access are told. Outbound calls go only to public addresses on port 443: every resolved
+  address is checked (private, loopback, link-local, cloud metadata, CGNAT, multicast, documentation, IPv4-mapped and
+  NAT64 ranges are refused), with no redirects, a 5 second limit and a 64 KB reply cap. Deliveries are kept 30 days.
 - **Schedule.** The Schedule page is a weekly roster: a manager puts people on a shift or gives them a day off
   for each day, copies last week as drafts, and publishes the week, which tells each person. Staff only see
   published days. A published shift makes a weekend a working day for attendance and meals, a published day off

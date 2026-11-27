@@ -1105,6 +1105,20 @@ erDiagram
 								</td>
 							</tr>
 							<tr>
+								<td>Webhooks</td>
+								<td>
+									Settings → Webhooks sends a signed POST to up to 10 https endpoints when an employee is added or
+									changed and when leave is requested, decided or cancelled. The body has the event name, ids and a time
+									only.
+								</td>
+								<td>
+									Same owner-only permission and password check; HMAC-SHA256 signature with a timestamp and a secret
+									shown once; the event commits with the change; 8 tries over about two days, and 50 failures in a row
+									turn the endpoint off and notify its managers; only public addresses on port 443, every resolved
+									address checked, no redirects, 5 second limit, 64 KB reply cap.
+								</td>
+							</tr>
+							<tr>
 								<td>AI file reading and writing help</td>
 								<td>
 									Read receipt fills an expense row, Read CV fills a new candidate, Read document fills a certificate's

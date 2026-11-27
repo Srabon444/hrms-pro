@@ -105,6 +105,8 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('announcements', 'plain', '{id,tenant_id,title,audience,department_id,branch_id,pinned,publish_on,expires_on,created_by_user_id}'),
 	('calendar_feeds', 'row_only', '{}'),
 	('api_keys', 'row_only', '{}'),
+	('webhook_endpoints', 'row_only', '{}'),
+	('webhook_deliveries', 'excluded', '{}'),
 	('events', 'plain', '{id,tenant_id,title,description,location,start_date,end_date,start_time,end_time,audience,department_id,branch_id,created_by_user_id}'),
 	('event_rsvps', 'row_only', '{}'),
 	('file_texts', 'excluded', '{}'),

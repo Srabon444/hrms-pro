@@ -8,6 +8,7 @@ import { discardFiles, dropFiles } from './file-store';
 import type { Access } from './rbac/access';
 import { inScope, resolveScope } from './rbac/scope';
 import { withTenant, type TenantCtx, type Tx } from './tenancy';
+import { emitWebhook } from './webhooks';
 
 export const MAX_LIST_ENTRIES = 20;
 
@@ -107,6 +108,7 @@ export async function updateOwnDetails(
 		const rights = await lockTarget(tx, access, employeeId);
 		if (!rights.self) throw new AppError('forbidden', 'You can only change your own contact details here.', 403);
 		await tx.update(employees).set(input).where(eq(employees.id, employeeId));
+		await emitWebhook(tx, ctx.tenantId, 'employee.updated', [{ employeeId: employeeId }]);
 	});
 }
 

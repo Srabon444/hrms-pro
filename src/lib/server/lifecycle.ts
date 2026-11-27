@@ -10,6 +10,7 @@ import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { readSettings } from './settings';
 import { withTenant, type Tx } from './tenancy';
+import { emitWebhook } from './webhooks';
 
 type Member = ReturnType<typeof requireMember>;
 
@@ -105,6 +106,7 @@ export async function decideProbation(m: Member, employeeId: string, raw: Record
 				newValue: input.date
 			});
 		}
+		await emitWebhook(tx, m.tenant.id, 'employee.updated', [{ employeeId: e.id }]);
 		const owners = await tx.select({ id: memberships.id }).from(memberships).where(eq(memberships.employeeId, e.id));
 		return notify(
 			tx,
