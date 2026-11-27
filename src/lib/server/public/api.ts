@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { ModuleId } from '../../modules';
 import type { Permission } from '../../rbac/permissions';
 import { API_KEY, effectiveGrants } from '../api-keys';
+import { DEVICE_KEY, ingestPunches } from '../attendance-devices';
 import { auditEvent } from '../audit';
 import { sha256 } from '../auth/crypto';
 import { now } from '../clock';
@@ -28,12 +29,14 @@ import { readAccess, type Access } from '../rbac/access';
 import { resolveScope, scopeWhere } from '../rbac/scope';
 import { systemCtx, withTenant, type TenantCtx, type Tx } from '../tenancy';
 import { OPENAPI } from './openapi';
-import { activeHolder, lookupToken } from './tokens';
+import { activeHolder, activeTenant, lookupToken } from './tokens';
 
 const HOUR = 3_600_000;
 export const API_PER_KEY_MIN = 600;
 export const API_AUTH_FAILS_PER_IP_HOUR = 30;
 export const API_PAGE_MAX = 200;
+export const DEVICE_PER_MIN = 60;
+export const DEVICE_BODY_MAX = 256 * 1024;
 const MAX_SPAN_DAYS = 366;
 
 const HEADERS = { 'cache-control': 'no-store', 'content-type': 'application/json; charset=utf-8' };
@@ -258,11 +261,57 @@ const unauthorized = () =>
 		'www-authenticate': 'Bearer'
 	});
 
-export async function apiRequest(request: Request, path: string, ip: string): Promise<Response> {
-	if (request.method !== 'GET') return problem(405, 'method_not_allowed', 'This API is read only.', { allow: 'GET' });
+const jsonOnly = (request: Request) => {
 	const type = request.headers.get('content-type');
-	if (type && type.split(';')[0].trim().toLowerCase() !== 'application/json')
-		return problem(415, 'unsupported_media_type', 'This API only speaks JSON.');
+	return !type || type.split(';')[0].trim().toLowerCase() === 'application/json';
+};
+
+async function devicePunches(request: Request, ip: string): Promise<Response> {
+	if (request.method !== 'POST')
+		return problem(405, 'method_not_allowed', 'Send punches with POST.', { allow: 'POST' });
+	if (!request.headers.get('content-type') || !jsonOnly(request))
+		return problem(415, 'unsupported_media_type', 'Send punches as application/json.');
+	const failed = async () => {
+		if (await overLimit('api-auth-fail', ip, API_AUTH_FAILS_PER_IP_HOUR))
+			return problem(429, 'rate_limited', 'Too many failed attempts.', { 'retry-after': String(HOUR / 1000) });
+		await hitOrLocal('api-auth-fail', ip, API_AUTH_FAILS_PER_IP_HOUR, HOUR);
+		return problem(401, 'unauthorized', 'Send a valid device key as Authorization: Bearer <key>.', {
+			'www-authenticate': 'Bearer'
+		});
+	};
+	const key = /^Bearer (\S+)$/.exec(request.headers.get('authorization') ?? '')?.[1] ?? '';
+	if (!DEVICE_KEY.test(key)) return failed();
+	const found = await lookupToken('attendance_device', sha256(key));
+	if (!found || !(await activeTenant(found.tenantId))) return failed();
+	const limited = await hitOrLocal('device', found.id, DEVICE_PER_MIN, 60_000);
+	if (!limited.ok)
+		return problem(429, 'rate_limited', 'Too many requests for this device.', {
+			'retry-after': String(limited.retryAfter)
+		});
+	if (Number(request.headers.get('content-length') ?? 0) > DEVICE_BODY_MAX)
+		return problem(413, 'too_large', 'Send at most 256 KB at a time.');
+	const text = await request.text();
+	if (Buffer.byteLength(text) > DEVICE_BODY_MAX) return problem(413, 'too_large', 'Send at most 256 KB at a time.');
+	let body: unknown;
+	try {
+		body = JSON.parse(text);
+	} catch {
+		return problem(400, 'invalid', 'The body is not valid JSON.');
+	}
+	try {
+		return reply(200, await ingestPunches(found.tenantId, found.id, body));
+	} catch (err) {
+		if (err instanceof z.ZodError) return problem(400, 'invalid', err.issues[0].message);
+		if (err instanceof AppError) return problem(err.status, err.code, err.message);
+		log.error({ err, tenantId: found.tenantId, device: found.id }, 'device punches failed');
+		return problem(500, 'server_error', 'Something went wrong.');
+	}
+}
+
+export async function apiRequest(request: Request, path: string, ip: string): Promise<Response> {
+	if (path === 'punches') return devicePunches(request, ip);
+	if (request.method !== 'GET') return problem(405, 'method_not_allowed', 'This API is read only.', { allow: 'GET' });
+	if (!jsonOnly(request)) return problem(415, 'unsupported_media_type', 'This API only speaks JSON.');
 	if (path === 'openapi.json') return reply(200, OPENAPI);
 	if (await overLimit('api-auth-fail', ip, API_AUTH_FAILS_PER_IP_HOUR))
 		return problem(429, 'rate_limited', 'Too many failed attempts.', { 'retry-after': String(HOUR / 1000) });

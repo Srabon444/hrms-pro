@@ -18,6 +18,7 @@ import { AppError } from './errors';
 import { csvRecords, ImportFailed, type ImportRowError } from './csv';
 import { lockEmployee } from './employees';
 import { log } from './log';
+import { payrollClosedMonths } from './payroll';
 import { singleAdmin } from './approval-chain';
 import { userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
@@ -240,6 +241,7 @@ async function savePunch(
 	const { day } = await punchDay(tx, e.id, at);
 	if (day < e.joinDate || (e.exitDate && day > e.exitDate) || e.status === 'exited')
 		throw new AppError('not_employed', 'Punches only count while employed.', 400);
+	const closed = source !== 'manual' && (await payrollClosedMonths(tx, [e.id], [day.slice(0, 7)])).size > 0;
 	const saved = await tx
 		.insert(attendancePunches)
 		.values({
@@ -254,6 +256,7 @@ async function savePunch(
 			accuracyM: extra.point ? Math.round(extra.point.accuracyM) : null,
 			siteId: extra.siteId ?? null,
 			outsideSite: extra.outsideSite ?? false,
+			needsReview: closed,
 			createdByUserId: actor.userId
 		})
 		.onConflictDoNothing()

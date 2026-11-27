@@ -282,6 +282,29 @@ export const kioskDevices = pgTable(
 	]
 );
 
+export const attendanceDevices = pgTable(
+	'attendance_devices',
+	{
+		...tenantBase(),
+		name: text().notNull(),
+		siteId: uuid(),
+		serial: text(),
+		prefix: text().notNull(),
+		keyHash: text().notNull(),
+		lastSeenAt: tstz(),
+		revokedAt: tstz()
+	},
+	(t) => [
+		tenantKey('attendance_devices', t),
+		tfk('attendance_devices_site_fk', t, t.siteId, workSites, 'restrict'),
+		unique('attendance_devices_name_uq').on(t.tenantId, t.name),
+		uniqueIndex('attendance_devices_key_uq').on(t.keyHash),
+		check('attendance_devices_name_ck', sql`length(trim(${t.name})) between 1 and 60`),
+		check('attendance_devices_serial_ck', sql`${t.serial} is null or length(${t.serial}) between 1 and 64`),
+		check('attendance_devices_key_ck', sql`${t.keyHash} ~ '^[0-9a-f]{64}$' and ${t.prefix} ~ '^[0-9a-f]{8}$'`)
+	]
+);
+
 export const attendancePunches = pgTable(
 	'attendance_punches',
 	{
@@ -296,12 +319,18 @@ export const attendancePunches = pgTable(
 		accuracyM: integer(),
 		siteId: uuid(),
 		outsideSite: boolean().notNull().default(false),
+		needsReview: boolean().notNull().default(false),
+		deviceId: uuid(),
 		createdByUserId: uuid()
 	},
 	(t) => [
 		tenantKey('attendance_punches', t),
 		tfk('attendance_punches_employee_fk', t, t.employeeId, employees, 'restrict'),
 		tfk('attendance_punches_site_fk', t, t.siteId, workSites, 'restrict'),
+		tfk('attendance_punches_device_fk', t, t.deviceId, attendanceDevices, 'restrict'),
+		index('attendance_punches_review_idx')
+			.on(t.tenantId, t.at)
+			.where(sql`${t.needsReview}`),
 		check('attendance_punches_kind_ck', sql`${t.kind} is null or ${t.kind} in ('in','out','break_start','break_end')`),
 		check(
 			'attendance_punches_point_ck',
