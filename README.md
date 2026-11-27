@@ -42,6 +42,15 @@ Vitest · Playwright · Docker.
 - **One search box.** `Ctrl K` (or `/`) finds menu pages and records across 12 modules: people, documents, letters,
   policies, tickets, expenses, assets, projects, candidates, payroll runs and more. Each module answers through its own
   access rule, so search never shows a row its page would hide; confidential tickets match only by number.
+- **Search inside policy files and CVs.** After a policy PDF or a resume is uploaded, a background job reads its
+  text and search matches words inside the file, showing the matching line under the hit. Text-layer PDFs and Word
+  resumes are read locally at no AI cost; scanned PDFs (or ones whose only text is a watermark) and resume images
+  (PNG, JPEG, WebP) are transcribed by the company's AI when AI and file reading are on, charged to its budget as
+  "index". PDFs are parsed in a separate thread with a memory cap and a 20 s limit, and Word files are unpacked with
+  a size cap, so a crafted file cannot take the worker down. Inactive policies stay hidden from staff and candidates
+  from anyone without recruitment access; a replaced file's old text is dropped at once and the new file is read
+  straight away. Failed reads retry with backoff up to three times; files waiting for AI, or failed because of a bad
+  key or quota, are picked up again when the AI settings are saved.
 - **AI with the company's own key.** Settings → AI lets an owner turn AI on (with an explicit consent that data is
   sent to the provider), pick Google Gemini, OpenAI or Anthropic Claude, paste the company's API key, pick a model and
   set a monthly token budget. A key is tested with one small call before it is saved, stored encrypted and bound to

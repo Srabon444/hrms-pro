@@ -7,7 +7,7 @@ How to run, operate and recover the system. For what it does, see the README.
 | Service  | Role                                                              | Port (dev) |
 | -------- | ----------------------------------------------------------------- | ---------- |
 | app      | SvelteKit server (`node build`)                                   | 3000       |
-| worker   | BullMQ worker: mail, meal bills, hourly lifecycle job             | none       |
+| worker   | BullMQ worker: mail, meal bills, file text, hourly lifecycle job  | none       |
 | migrate  | One-shot: database migrations, bucket, system-role sync           | none       |
 | postgres | Postgres 17, row-level security per tenant                        | 55432      |
 | redis    | Queues, rate limits, session cache, sign-in challenges (AOF on)   | 56379      |

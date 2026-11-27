@@ -6,6 +6,7 @@ import { poishaOf } from '../money';
 import { zonedInstant } from './attendance-day';
 import type { AttachmentRules } from './attachments';
 import { discardFiles, dropFiles, filesFor } from './file-store';
+import { queueFileText } from './file-text';
 import { auditEvent } from './audit';
 import { now } from './clock';
 import { authPool } from './db';
@@ -44,7 +45,10 @@ import { systemCtx, withTenant, type TenantCtx, type Tx } from './tenancy';
 
 const RESUME_TYPES = new Set([
 	'application/pdf',
-	'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+	'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+	'image/png',
+	'image/jpeg',
+	'image/webp'
 ]);
 
 const optionalId = (message: string) =>
@@ -223,7 +227,7 @@ export async function addCandidate(ctx: TenantCtx, raw: Record<string, string>, 
 		const bytes = new Uint8Array(await file.arrayBuffer());
 		const type = sniffType(bytes, file.name);
 		if (!type || !RESUME_TYPES.has(type))
-			throw new AppError('unsupported_file', 'Upload the resume as a PDF or Word file.', 415);
+			throw new AppError('unsupported_file', 'Upload the resume as a PDF, Word file or image.', 415);
 		await withTenant(ctx, (tx) => openStage(tx, input.openingId));
 		resume = {
 			key: `t/${ctx.tenantId}/resumes/${randomUUID()}`,
@@ -234,7 +238,7 @@ export async function addCandidate(ctx: TenantCtx, raw: Record<string, string>, 
 		await putObject(resume.key, bytes, type);
 	}
 	try {
-		return await withTenant(ctx, async (tx) => {
+		const id = await withTenant(ctx, async (tx) => {
 			const stageId = await openStage(tx, input.openingId);
 			const [row] = await tx
 				.insert(candidates)
@@ -257,6 +261,8 @@ export async function addCandidate(ctx: TenantCtx, raw: Record<string, string>, 
 			});
 			return row.id;
 		});
+		if (resume) await queueFileText({ tenantId: ctx.tenantId, candidateId: id });
+		return id;
 	} catch (err) {
 		if (resume) {
 			const key = resume.key;

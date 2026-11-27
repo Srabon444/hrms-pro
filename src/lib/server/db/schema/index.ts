@@ -14,6 +14,7 @@ export * from './assets';
 export * from './helpdesk';
 export * from './announcements';
 export * from './policies';
+export * from './file-texts';
 export * from './letters';
 export * from './reports';
 export * from './calendar';

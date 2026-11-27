@@ -9,13 +9,20 @@ import { log } from '../log';
 import { hit } from '../ratelimit';
 import { can, userCtx, type requireMember } from '../rbac/access';
 import { redisReady, rkey } from '../redis';
-import { insideTenantTx, systemCtx, withTenant } from '../tenancy';
+import { insideTenantTx, systemCtx, withTenant, type TenantCtx } from '../tenancy';
 import { fakeLister, fakeTransport } from './fake';
 import { chainFor, httpLister, httpTransport, keyPrint, runChain, type Lister, type Transport } from './models';
 import { AiError, type AiRequest, type AiResult } from './providers';
 
 type Member = ReturnType<typeof requireMember>;
 type UsageFeature = AiFeature | 'test' | 'index';
+type Who = { tenantId: string; aiPlatform: boolean; ctx: TenantCtx; membershipId: string | null };
+const whoOf = (m: Member): Who => ({
+	tenantId: m.tenant.id,
+	aiPlatform: m.tenant.aiPlatform,
+	ctx: userCtx(m),
+	membershipId: m.access.membershipId
+});
 
 export const AI_MESSAGES: Record<AiError['code'], string> = {
 	key_invalid: 'The provider did not accept this API key.',
@@ -114,9 +121,9 @@ type Plan = {
 const monthKey = (p: Plan) => rkey('t', p.tenantId, 'ai', 'tok', dateIn(now(), p.tz).slice(0, 7).replace('-', ''));
 const dayKey = () => rkey('ai', 'platform', 'tok', now().toISOString().slice(0, 10).replaceAll('-', ''));
 
-async function monthUsed(m: Member, tz: string): Promise<number> {
+async function monthUsed(who: Who, tz: string): Promise<number> {
 	const start = `${dateIn(now(), tz).slice(0, 7)}-01`;
-	const [row] = await withTenant(userCtx(m), (tx) =>
+	const [row] = await withTenant(who.ctx, (tx) =>
 		tx
 			.select({ used: sql<string>`coalesce(sum(${aiUsage.inputTokens} + ${aiUsage.outputTokens}), 0)` })
 			.from(aiUsage)
@@ -125,7 +132,7 @@ async function monthUsed(m: Member, tz: string): Promise<number> {
 	return Number(row?.used ?? 0);
 }
 
-async function reserve(m: Member, p: Plan, estimate: number): Promise<void> {
+async function reserve(who: Who, p: Plan, estimate: number): Promise<void> {
 	const r = await redisOrClosed();
 	const keys = [monthKey(p), dayKey()];
 	const ceiling = p.platform ? config().AI_PLATFORM_DAILY_TOKENS : 0;
@@ -133,7 +140,7 @@ async function reserve(m: Member, p: Plan, estimate: number): Promise<void> {
 		r.eval(RESERVE, 2, ...keys, estimate, p.budget, MONTH_TTL_MS, ceiling, DAY_TTL_MS) as Promise<number>;
 	let res = await run();
 	if (res === -1) {
-		await r.set(keys[0], String(await monthUsed(m, p.tz)), 'PX', MONTH_TTL_MS, 'NX');
+		await r.set(keys[0], String(await monthUsed(who, p.tz)), 'PX', MONTH_TTL_MS, 'NX');
 		res = await run();
 	}
 	if (res === 1) return;
@@ -181,25 +188,25 @@ export function openKey(keyEnc: string, tenantId: string): string {
 	}
 }
 
-async function planFor(m: Member, feature: UsageFeature): Promise<Plan> {
-	const { s, tz } = await withTenant(userCtx(m), async (tx) => {
+async function planFor(who: Who, feature: UsageFeature): Promise<Plan> {
+	const { s, tz } = await withTenant(who.ctx, async (tx) => {
 		const [row] = await tx.select().from(aiSettings);
 		const [t] = await tx.select({ tz: tenantSettings.timezone }).from(tenantSettings);
 		return { s: row, tz: t?.tz ?? 'UTC' };
 	});
 	if (!s?.enabled || (feature !== 'test' && !s.features?.[feature as AiFeature])) throw new AiError('disabled');
-	const base = { tenantId: m.tenant.id, tz, budget: s.monthlyTokenBudget };
+	const base = { tenantId: who.tenantId, tz, budget: s.monthlyTokenBudget };
 	if (s.keyEnc)
 		return {
 			...base,
 			provider: s.provider as AiProvider,
-			key: openKey(s.keyEnc, m.tenant.id),
+			key: openKey(s.keyEnc, who.tenantId),
 			pinned: s.model,
 			platform: false
 		};
 	const c = config();
 	if (!c.AI_PLATFORM_GEMINI || !c.GEMINI_API_KEY) throw new AiError('no_key');
-	if (!m.tenant.aiPlatform) throw new AiError('unavailable');
+	if (!who.aiPlatform) throw new AiError('unavailable');
 	return {
 		...base,
 		provider: 'gemini',
@@ -211,7 +218,7 @@ async function planFor(m: Member, feature: UsageFeature): Promise<Plan> {
 }
 
 export async function recordUsage(
-	m: Member,
+	who: Who,
 	row: {
 		feature: UsageFeature;
 		provider: AiProvider;
@@ -221,10 +228,10 @@ export async function recordUsage(
 		error: string | null;
 	}
 ): Promise<void> {
-	await withTenant(userCtx(m), (tx) =>
+	await withTenant(who.ctx, (tx) =>
 		tx.insert(aiUsage).values({
-			tenantId: m.tenant.id,
-			membershipId: m.access.membershipId,
+			tenantId: who.tenantId,
+			membershipId: who.membershipId,
 			feature: row.feature,
 			provider: row.provider,
 			model: row.model,
@@ -236,8 +243,29 @@ export async function recordUsage(
 	).catch((err: Error) => log.warn({ err: err.message }, 'ai usage row failed'));
 }
 
-export const generate = (m: Member, feature: AiFeature, req: AiRequest, deadlineMs?: number): Promise<AiResult> =>
-	call(m, feature, req, deadlineMs);
+export async function generate(m: Member, feature: AiFeature, req: AiRequest, deadlineMs?: number): Promise<AiResult> {
+	guardNoTx();
+	if (!can(m.access, 'ai.use')) throw new AiError('disabled');
+	await limits(m, feature);
+	return call(whoOf(m), feature, req, deadlineMs);
+}
+
+export const generateForTenant = (
+	tenantId: string,
+	aiPlatform: boolean,
+	feature: AiFeature,
+	req: AiRequest,
+	deadlineMs?: number
+): Promise<AiResult> => {
+	guardNoTx();
+	return call(
+		{ tenantId, aiPlatform, ctx: systemCtx(tenantId), membershipId: null },
+		feature,
+		req,
+		deadlineMs,
+		'index'
+	);
+};
 
 const TEST_REQ: AiRequest = {
 	system: 'You are a connection test.',
@@ -245,16 +273,24 @@ const TEST_REQ: AiRequest = {
 	maxOutputTokens: 16
 };
 
-export const testPlatform = (m: Member): Promise<string> => call(m, 'test', TEST_REQ).then((r) => r.model);
-
-async function call(m: Member, feature: UsageFeature, req: AiRequest, deadlineMs?: number): Promise<AiResult> {
+export async function testPlatform(m: Member): Promise<string> {
 	guardNoTx();
 	if (!can(m.access, 'ai.use')) throw new AiError('disabled');
-	await limits(m, feature);
-	const p = await planFor(m, feature);
+	await limits(m, 'test');
+	return (await call(whoOf(m), 'test', TEST_REQ)).model;
+}
+
+async function call(
+	who: Who,
+	feature: UsageFeature,
+	req: AiRequest,
+	deadlineMs?: number,
+	usageAs: UsageFeature = feature
+): Promise<AiResult> {
+	const p = await planFor(who, feature);
 	if (p.provider === 'anthropic' && req.parts.some(tooBigForAnthropic)) throw new AiError('file_too_large');
 	const estimate = estimateTokens(req);
-	await reserve(m, p, estimate);
+	await reserve(who, p, estimate);
 	const c = config();
 	try {
 		const result = await runChain(await liveChain(p.provider, p.key, p.pinned), p.key, req, {
@@ -264,8 +300,8 @@ async function call(m: Member, feature: UsageFeature, req: AiRequest, deadlineMs
 			callTimeoutMs: c.AI_CALL_TIMEOUT_MS
 		});
 		await settle(p, result.usage.input + result.usage.output - estimate);
-		await recordUsage(m, {
-			feature,
+		await recordUsage(who, {
+			feature: usageAs,
 			provider: p.provider,
 			model: result.model,
 			input: result.usage.input,
@@ -276,8 +312,15 @@ async function call(m: Member, feature: UsageFeature, req: AiRequest, deadlineMs
 	} catch (raw) {
 		const err = raw instanceof AiError ? raw : new AiError('unavailable');
 		await settle(p, -estimate);
-		await recordUsage(m, { feature, provider: p.provider, model: null, input: 0, output: 0, error: err.code });
-		log.warn({ code: err.code, provider: p.provider, feature }, 'ai call failed');
+		await recordUsage(who, {
+			feature: usageAs,
+			provider: p.provider,
+			model: null,
+			input: 0,
+			output: 0,
+			error: err.code
+		});
+		log.warn({ code: err.code, provider: p.provider, feature: usageAs }, 'ai call failed');
 		throw err;
 	}
 }
@@ -300,7 +343,7 @@ export async function testKey(
 			deadline: Date.now() + config().AI_DEADLINE_MS,
 			callTimeoutMs: config().AI_CALL_TIMEOUT_MS
 		});
-		await recordUsage(m, {
+		await recordUsage(whoOf(m), {
 			feature: 'test',
 			provider,
 			model: result.model,
@@ -311,7 +354,7 @@ export async function testKey(
 		return { models, model: result.model };
 	} catch (raw) {
 		const err = raw instanceof AiError ? raw : new AiError('unavailable');
-		await recordUsage(m, { feature: 'test', provider, model: null, input: 0, output: 0, error: err.code });
+		await recordUsage(whoOf(m), { feature: 'test', provider, model: null, input: 0, output: 0, error: err.code });
 		throw err;
 	}
 }

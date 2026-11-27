@@ -16,6 +16,7 @@ import {
 	employees,
 	events,
 	expenseClaims,
+	fileTexts,
 	jobOpenings,
 	letters,
 	payrollRuns,
@@ -85,6 +86,18 @@ type Provider = {
 const anyOf = (access: Access, perms: Permission[]) => perms.some((p) => can(access, p));
 const joined = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(' · ') || null;
 const requester = alias(employees, 'search_requester');
+const HEADLINE = 'StartSel="", StopSel="", MaxWords=14, MinWords=5, MaxFragments=1';
+
+const inFileText = (q: string, column: PgColumn, id: PgColumn) => {
+	const query = sql`plainto_tsquery('simple', ${q})`;
+	const where = sql`from ${fileTexts} where ${column} = ${id} and ${fileTexts.status} = 'ok' and ${fileTexts.tsv} @@ ${query}`;
+	return {
+		hit: sql`exists (select 1 ${where})`,
+		snippet: sql<
+			string | null
+		>`(select ts_headline('simple', ${fileTexts.text}, ${query}, ${HEADLINE}) ${where} limit 1)`
+	};
+};
 
 const PROVIDERS: Provider[] = [
 	{
@@ -174,19 +187,31 @@ const PROVIDERS: Provider[] = [
 	{
 		kind: 'policy',
 		allowed: ({ active }) => active,
-		async find({ tx, access, match, rank }) {
+		async find({ tx, access, q, match, rank }) {
 			const manager = canRunPolicies(access);
+			const text = inFileText(q, fileTexts.policyId, policies.id);
 			const rows = await tx
-				.select({ id: policies.id, title: policies.title, version: policies.version, active: policies.active })
+				.select({
+					id: policies.id,
+					title: policies.title,
+					version: policies.version,
+					active: policies.active,
+					snippet: text.snippet
+				})
 				.from(policies)
-				.where(and(manager ? undefined : eq(policies.active, true), match(policies.title, policies.description)))
+				.where(
+					and(
+						manager ? undefined : eq(policies.active, true),
+						or(match(policies.title, policies.description), text.hit)
+					)
+				)
 				.orderBy(rank(policies.title), asc(policies.title))
 				.limit(PER_KIND);
 			return rows.map((r) => ({
 				kind: 'policy',
 				id: r.id,
 				title: r.title,
-				sub: joined(`Version ${r.version}`, r.active ? null : 'Inactive'),
+				sub: joined(`Version ${r.version}`, r.active ? null : 'Inactive', r.snippet),
 				href: manager ? `policies/${r.id}` : `policies/${r.id}/file`
 			}));
 		}
@@ -371,19 +396,26 @@ const PROVIDERS: Provider[] = [
 	{
 		kind: 'candidate',
 		allowed: ({ access }) => can(access, 'recruitment.read'),
-		async find({ tx, match, rank }) {
+		async find({ tx, q, match, rank }) {
+			const text = inFileText(q, fileTexts.candidateId, candidates.id);
 			const rows = await tx
-				.select({ id: candidates.id, name: candidates.fullName, email: candidates.email, opening: jobOpenings.title })
+				.select({
+					id: candidates.id,
+					name: candidates.fullName,
+					email: candidates.email,
+					opening: jobOpenings.title,
+					snippet: text.snippet
+				})
 				.from(candidates)
 				.innerJoin(jobOpenings, eq(jobOpenings.id, candidates.openingId))
-				.where(match(candidates.fullName, candidates.email))
+				.where(or(match(candidates.fullName, candidates.email), text.hit))
 				.orderBy(rank(candidates.fullName), desc(candidates.createdAt))
 				.limit(PER_KIND);
 			return rows.map((r) => ({
 				kind: 'candidate',
 				id: r.id,
 				title: r.name,
-				sub: joined(r.opening, r.email),
+				sub: joined(r.opening, r.email, r.snippet),
 				href: `recruitment/candidates/${r.id}`
 			}));
 		}

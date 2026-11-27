@@ -104,6 +104,7 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('calendar_feeds', 'row_only', '{}'),
 	('events', 'plain', '{id,tenant_id,title,description,location,start_date,end_date,start_time,end_time,audience,department_id,branch_id,created_by_user_id}'),
 	('event_rsvps', 'row_only', '{}'),
+	('file_texts', 'excluded', '{}'),
 	('policies', 'plain', '{id,tenant_id,title,version,requires_ack,active,file_name,sha256,published_on,created_by_user_id}'),
 	('policy_acknowledgements', 'plain', '{id,tenant_id,policy_id,employee_id,version,sha256,acknowledged_at}'),
 	('letter_templates', 'plain', '{id,tenant_id,kind,name,subject,active}'),

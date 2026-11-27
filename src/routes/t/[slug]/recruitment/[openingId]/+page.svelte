@@ -65,11 +65,11 @@
 				</label>
 				<Field label="Tags (comma separated)" name="tags" maxlength={330} />
 				<label class="block text-sm font-medium text-slate-700">
-					Resume (PDF or Word, up to 10 MB)
+					Resume (PDF, Word or image, up to 10 MB)
 					<input
 						name="resume"
 						type="file"
-						accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+						accept=".pdf,.docx,.png,.jpg,.jpeg,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg,image/webp"
 						class="mt-1 block w-full text-sm"
 					/>
 				</label>
