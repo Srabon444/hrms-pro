@@ -12,7 +12,8 @@ const ctxSchema = z.object({
 	actor: z.enum(['user', 'system']),
 	payrollAll: z.boolean().optional(),
 	salaryAll: z.boolean().optional(),
-	auditSensitive: z.boolean().optional()
+	auditSensitive: z.boolean().optional(),
+	kioskPins: z.boolean().optional()
 });
 
 export type TenantCtx = z.input<typeof ctxSchema>;
@@ -37,7 +38,8 @@ function run<T>(ctx: z.output<typeof ctxSchema>, fn: (tx: Tx) => Promise<T>): Pr
 			set_config('app.actor', ${ctx.actor}, true),
 			set_config('app.payroll_all', ${flag(ctx.payrollAll)}, true),
 			set_config('app.salary_all', ${flag(ctx.salaryAll)}, true),
-			set_config('app.audit_sensitive', ${flag(ctx.auditSensitive)}, true)`);
+			set_config('app.audit_sensitive', ${flag(ctx.auditSensitive)}, true),
+			set_config('app.kiosk_pins', ${flag(ctx.kioskPins)}, true)`);
 		return fn(tx);
 	});
 }

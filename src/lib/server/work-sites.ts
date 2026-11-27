@@ -14,7 +14,7 @@ const EARTH_RADIUS_M = 6_371_000;
 
 const PREFIX = /^(0|[1-9]\d{0,2})$/;
 
-const cidrOk = (v: string) => {
+export const cidrOk = (v: string) => {
 	const [addr, bits, ...rest] = v.split('/');
 	const family = addr.includes('%') ? 0 : isIP(addr);
 	if (!family || rest.length) return false;
@@ -107,7 +107,7 @@ export async function savePunchRule(ctx: TenantCtx, raw: string) {
 	});
 }
 
-const networks = (list: string[]) =>
+export const networks = (list: string[]) =>
 	list.length
 		? sql`array[${sql.join(
 				list.map((c) => sql`network(${c}::inet)`),

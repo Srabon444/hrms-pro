@@ -14,7 +14,9 @@ import {
 import { readCsvUpload } from '#lib/server/csv.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
+import { kioskPinSet, removeKioskPin, setKioskPin } from '#lib/server/kiosk.ts';
 import { tenantToday } from '#lib/server/lifecycle.ts';
+import { modulesOn } from '#lib/server/modules.ts';
 import { punchRule } from '#lib/server/work-sites.ts';
 import { can, requireMember, requirePerm, scopesOf, userCtx } from '#lib/server/rbac/access.ts';
 import { withTenant } from '#lib/server/tenancy/index.ts';
@@ -28,10 +30,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const date = z.iso.date().safeParse(picked).success && picked <= today ? picked : today;
 		const seesTeam = scopesOf(m.access, 'attendance.read').some((s) => s !== 'own');
 		const requests = await myAttendanceRequests(tx, m.access);
+		const canPunch = can(m.access, 'attendance.punch') && !!m.access.employeeId;
 		return {
 			today,
 			date,
-			canPunch: can(m.access, 'attendance.punch') && !!m.access.employeeId,
+			canPunch,
+			kioskPin:
+				canPunch && (await modulesOn(tx)).has('kiosk') ? { set: await kioskPinSet(tx, m.access.membershipId) } : null,
 			canManage: can(m.access, 'attendance.manage'),
 			locationRule: await punchRule(tx),
 			now: await todayPunches(tx, m.access),
@@ -95,6 +100,25 @@ export const actions: Actions = {
 			return actionError(err, locals.requestId);
 		}
 		return { cancelledRequest: true };
+	},
+	kioskPin: async ({ request, locals }) => {
+		const m = requirePerm(locals, 'attendance.punch');
+		try {
+			await setKioskPin(m, formFields(await request.formData()));
+		} catch (err) {
+			if (err instanceof z.ZodError) return fail(400, { message: err.issues[0].message });
+			return actionError(err, locals.requestId);
+		}
+		return { kioskPin: 'Kiosk PIN saved.' };
+	},
+	kioskPinRemove: async ({ locals }) => {
+		const m = requirePerm(locals, 'attendance.punch');
+		try {
+			await removeKioskPin(m);
+		} catch (err) {
+			return actionError(err, locals.requestId);
+		}
+		return { kioskPin: 'Kiosk PIN removed.' };
 	},
 	importPunches: async ({ request, locals }) => {
 		const m = requirePerm(locals, 'attendance.manage');

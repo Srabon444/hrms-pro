@@ -68,8 +68,10 @@ test('HR sets a work site; punches away from it are blocked or flagged, and brea
 	const bea = await phone(browser, f.users.bea.email, HQ);
 	const beaToday = bea.page.getByRole('region', { name: 'Today' });
 	const tap = async (time: string, button: string) => {
+		const before = await beaToday.getByTestId('punch').count();
 		await bea.clock(time);
 		await beaToday.getByRole('button', { name: button }).click();
+		await expect(beaToday.getByTestId('punch')).toHaveCount(before + 1);
 		await expect(bea.page.getByRole('status')).toHaveText('Punch recorded.');
 	};
 	await bea.clock('09:00');

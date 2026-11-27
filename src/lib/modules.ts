@@ -25,6 +25,12 @@ export const MODULES = {
 		on: true,
 		routes: ['schedule']
 	},
+	kiosk: {
+		label: 'Attendance kiosk',
+		about: 'A shared tablet at a work site where staff punch in with their employee code and a PIN.',
+		on: false,
+		routes: ['settings/kiosks']
+	},
 	celebrations_birthdays: {
 		label: 'Birthdays',
 		about: 'People can choose to show their birthday (day and month only) in the directory and on the home page.',

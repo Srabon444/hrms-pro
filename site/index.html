@@ -881,7 +881,8 @@ erDiagram
 								<td>Attendance</td>
 								<td>
 									Punch in and out, take breaks, request corrections with evidence, assign shifts and work weeks, see
-									late and absent days, and check punches against work sites.
+									late and absent days, check punches against work sites, and punch at a shared kiosk with a code and
+									PIN.
 								</td>
 								<td>
 									Grace minutes per shift; each branch can set its own time zone and every day keeps the zone it was
@@ -889,7 +890,8 @@ erDiagram
 									need a manager. A work week gives a person their own weekend, which attendance, leave days, payroll
 									working days and meals follow; it never changes a month whose payroll is approved. Work sites match a
 									punch by office network or by location inside a radius, and can flag or block punches elsewhere;
-									unpaid breaks come off worked time.
+									unpaid breaks come off worked time. A paired kiosk takes punches by employee code and a personal PIN
+									stored only as a keyed hash; wrong PINs lock the code for longer each time and tell HR.
 								</td>
 							</tr>
 							<tr>

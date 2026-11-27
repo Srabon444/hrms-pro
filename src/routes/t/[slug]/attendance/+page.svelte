@@ -87,6 +87,7 @@
 		/>
 	{/if}
 	{#if form && 'added' in form}<Alert tone="info" message="Punch added." />{/if}
+	{#if form && 'kioskPin' in form}<Alert tone="info" message={form.kioskPin} />{/if}
 	{#if form && 'requested' in form}<Alert tone="info" message="Request sent." />{/if}
 	{#if form && 'cancelledRequest' in form}<Alert tone="info" message="Request cancelled." />{/if}
 	{#if form && 'imported' in form && form.imported}
@@ -154,6 +155,52 @@
 				</p>
 			{/if}
 		{/if}
+	</section>
+{/if}
+
+{#if data.kioskPin}
+	<section class="mt-6 max-w-3xl panel" aria-label="Kiosk PIN">
+		<h2 class="section-title">Kiosk PIN</h2>
+		<p class="mt-1 text-sm text-slate-600" data-testid="kiosk-pin-state">
+			{data.kioskPin.set
+				? 'You have a kiosk PIN. Set a new one any time; nobody can see it, not even HR.'
+				: 'Set a PIN to punch at the office kiosk with your employee code. Nobody can see it, not even HR.'}
+		</p>
+		<form method="POST" action="?/kioskPin" class="mt-3 grid gap-3 sm:grid-cols-2" autocomplete="off">
+			<label class="text-sm text-slate-700">
+				New PIN (6 to 8 digits)
+				<input
+					name="pin"
+					type="password"
+					inputmode="numeric"
+					pattern={'\\d{6,8}'}
+					minlength={6}
+					maxlength={8}
+					required
+					autocomplete="new-password"
+					class="input mt-1 block w-full"
+				/>
+			</label>
+			<label class="text-sm text-slate-700">
+				Type it again
+				<input
+					name="confirm"
+					type="password"
+					inputmode="numeric"
+					minlength={6}
+					maxlength={8}
+					required
+					autocomplete="new-password"
+					class="input mt-1 block w-full"
+				/>
+			</label>
+			<div class="flex flex-wrap gap-2 sm:col-span-2">
+				<Button type="submit">Save PIN</Button>
+				{#if data.kioskPin.set}
+					<Button type="submit" variant="secondary" formaction="?/kioskPinRemove" formnovalidate>Remove PIN</Button>
+				{/if}
+			</div>
+		</form>
 	</section>
 {/if}
 

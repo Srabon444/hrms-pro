@@ -8,6 +8,7 @@ export type SettingsPage = {
 	group: string;
 	perm: Permission | Permission[];
 	about: string;
+	module?: ModuleId;
 };
 
 export const SETTINGS_PAGES: SettingsPage[] = [
@@ -90,6 +91,14 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 		about: 'Office locations and networks punches are checked against.'
 	},
 	{
+		href: 'kiosks',
+		label: 'Kiosks',
+		group: 'Time',
+		perm: 'attendance.manage',
+		module: 'kiosk',
+		about: 'Shared tablets where staff punch in with their code and a PIN.'
+	},
+	{
 		href: 'work-weeks',
 		label: 'Work weeks',
 		group: 'Time',
@@ -155,8 +164,8 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 	}
 ];
 
-export const allowedSettingsPages = (allowed: (perm: Permission) => boolean): SettingsPage[] =>
-	SETTINGS_PAGES.filter((p) => [p.perm].flat().some(allowed));
+export const allowedSettingsPages = (allowed: (perm: Permission) => boolean, modules: Set<ModuleId>): SettingsPage[] =>
+	SETTINGS_PAGES.filter((p) => (!p.module || modules.has(p.module)) && [p.perm].flat().some(allowed));
 
 export type NavItem = {
 	href: string;

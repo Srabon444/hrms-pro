@@ -1089,7 +1089,7 @@ export async function payRun(m: Member, form: Record<string, string>) {
 					string | null
 				>`(select membership_id from tenant_users where employee_id = ${payslips.employeeId} and membership_status = 'active' limit 1)`,
 				locked: sql<boolean>`exists (select 1 from member_secrets s join tenant_users u on u.membership_id = s.membership_id
-					where u.employee_id = ${payslips.employeeId} and u.membership_status = 'active')`
+					where s.pdf_password_enc is not null and u.employee_id = ${payslips.employeeId} and u.membership_status = 'active')`
 			})
 			.from(payslips)
 			.innerJoin(employees, eq(employees.id, payslips.employeeId))

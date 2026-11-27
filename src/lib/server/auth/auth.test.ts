@@ -1,13 +1,27 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { safeNext } from './cookies';
-import { decrypt, encrypt, parseKeyRing, sign, unsign } from './crypto';
+import { decrypt, encrypt, keyedMac, keyedMacMatches, parseKeyRing, sign, unsign } from './crypto';
 import { hashPassword, passwordProblem, verifyPassword } from './password';
 import { base32Decode, base32Encode, hotp, matchTotp } from './totp';
 
 const k = () => randomBytes(32).toString('base64');
 
 describe('key ring', () => {
+	it('keyed MACs match only the same purpose, payload and key, and survive rotation', () => {
+		const old = parseKeyRing(`a:${k()}`);
+		const mac = keyedMac('kiosk-pin', 't\nm\n482915', old);
+		expect(mac.startsWith('a:')).toBe(true);
+		expect(keyedMacMatches('kiosk-pin', mac, 't\nm\n482915', old)).toBe(true);
+		expect(keyedMacMatches('kiosk-pin', mac, 't\nm\n482916', old)).toBe(false);
+		expect(keyedMacMatches('other', mac, 't\nm\n482915', old)).toBe(false);
+		const rotated = parseKeyRing(`b:${k()},a:${Buffer.from(old.keys.get('a')!).toString('base64')}`);
+		expect(keyedMacMatches('kiosk-pin', mac, 't\nm\n482915', rotated)).toBe(true);
+		expect(keyedMacMatches('kiosk-pin', mac, 't\nm\n482915', parseKeyRing(`a:${k()}`))).toBe(false);
+		expect(keyedMacMatches('kiosk-pin', mac.replace(/^a:/, 'z:'), 't\nm\n482915', old)).toBe(false);
+		expect(keyedMacMatches('kiosk-pin', 'garbage', 't\nm\n482915', old)).toBe(false);
+	});
+
 	it('round-trips with the active key and decrypts with an older one after rotation', () => {
 		const old = parseKeyRing(`a:${k()}`);
 		const blob = encrypt('secret', old);

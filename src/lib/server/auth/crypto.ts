@@ -75,3 +75,16 @@ export function unsign(purpose: string, token: string | undefined, r: KeyRing = 
 	const expected = createHmac('sha256', purposeKey(key, purpose)).update(payload).digest('base64url');
 	return safeEqual(mac, expected) ? payload : null;
 }
+
+const keyedHmac = (key: Buffer, purpose: string, payload: string) =>
+	createHmac('sha256', purposeKey(key, purpose)).update(payload).digest('base64url');
+
+export const keyedMac = (purpose: string, payload: string, r: KeyRing = keyRing()): string =>
+	`${r.active}:${keyedHmac(r.keys.get(r.active)!, purpose, payload)}`;
+
+export function keyedMacMatches(purpose: string, stored: string, payload: string, r: KeyRing = keyRing()): boolean {
+	const [kid, mac] = stored.split(':');
+	const key = r.keys.get(kid ?? '');
+	const expected = keyedHmac(key ?? r.keys.get(r.active)!, purpose, payload);
+	return !!key && safeEqual(mac ?? '', expected);
+}

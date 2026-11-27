@@ -172,7 +172,7 @@ begin
 		select format('employee_id = nullif(current_setting(''app.employee_id'', true), '''')::uuid or current_setting(''app.%s'', true) = ''on''', o.flag)
 		into access_expr from owner_row_tables o where o.table_name = t.table_name;
 		if t.table_name = 'member_secrets' then
-			access_expr := 'exists (select 1 from public.memberships m where m.id = membership_id and m.user_id = nullif(current_setting(''app.user_id'', true), '''')::uuid) or current_setting(''app.payroll_all'', true) = ''on''';
+			access_expr := 'exists (select 1 from public.memberships m where m.id = membership_id and m.user_id = nullif(current_setting(''app.user_id'', true), '''')::uuid) or current_setting(''app.payroll_all'', true) = ''on'' or current_setting(''app.kiosk_pins'', true) = ''on''';
 		end if;
 
 		if t.table_name = 'audit_sensitive' then
@@ -326,6 +326,11 @@ as $$
 begin
 	if p_kind = 'calendar_feed' then
 		return query select f.tenant_id, f.id from public.calendar_feeds f where f.token_hash = p_hash and f.revoked_at is null;
+	elsif p_kind = 'kiosk_device' then
+		return query select k.tenant_id, k.id from public.kiosk_devices k where k.token_hash = p_hash and k.revoked_at is null;
+	elsif p_kind = 'kiosk_pair' then
+		return query select k.tenant_id, k.id from public.kiosk_devices k
+			where k.pair_hash = p_hash and k.pair_expires_at > now() and k.revoked_at is null;
 	else
 		raise exception 'unknown_token_kind' using errcode = 'P0001';
 	end if;

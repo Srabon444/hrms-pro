@@ -18,7 +18,7 @@ import {
 import { tenantBase, tenantKey, tfk, tstz } from './_helpers';
 import { branches, employees } from './org';
 
-export const PUNCH_SOURCES = ['web', 'manual', 'device', 'regularization'] as const;
+export const PUNCH_SOURCES = ['web', 'manual', 'device', 'regularization', 'kiosk'] as const;
 export const PUNCH_KINDS = ['in', 'out', 'break_start', 'break_end'] as const;
 export const PUNCH_LOCATION_RULES = ['off', 'flag', 'block'] as const;
 
@@ -251,6 +251,37 @@ export const workSites = pgTable(
 	]
 );
 
+export const kioskDevices = pgTable(
+	'kiosk_devices',
+	{
+		...tenantBase(),
+		name: text().notNull(),
+		siteId: uuid().notNull(),
+		tokenHash: text(),
+		pairHash: text(),
+		pairExpiresAt: tstz(),
+		lastSeenAt: tstz(),
+		revokedAt: tstz(),
+		ipCidrs: cidr()
+			.array()
+			.notNull()
+			.default(sql`'{}'::cidr[]`)
+	},
+	(t) => [
+		tenantKey('kiosk_devices', t),
+		tfk('kiosk_devices_site_fk', t, t.siteId, workSites, 'restrict'),
+		unique('kiosk_devices_name_uq').on(t.tenantId, t.name),
+		uniqueIndex('kiosk_devices_token_uq').on(t.tokenHash),
+		uniqueIndex('kiosk_devices_pair_uq').on(t.pairHash),
+		check('kiosk_devices_name_ck', sql`length(trim(${t.name})) between 1 and 60`),
+		check(
+			'kiosk_devices_hash_ck',
+			sql`(${t.tokenHash} is null or ${t.tokenHash} ~ '^[0-9a-f]{64}$') and (${t.pairHash} is null or ${t.pairHash} ~ '^[0-9a-f]{64}$') and (${t.pairHash} is null) = (${t.pairExpiresAt} is null)`
+		),
+		check('kiosk_devices_ips_ck', sql`cardinality(${t.ipCidrs}) <= 20`)
+	]
+);
+
 export const attendancePunches = pgTable(
 	'attendance_punches',
 	{
@@ -277,7 +308,7 @@ export const attendancePunches = pgTable(
 			sql`(${t.lat} is null) = (${t.lng} is null) and (${t.lat} is null) = (${t.accuracyM} is null) and (${t.lat} is null or (${t.lat} between -90 and 90 and ${t.lng} between -180 and 180 and ${t.accuracyM} between 0 and 100000))`
 		),
 		unique('attendance_punches_at_uq').on(t.tenantId, t.employeeId, t.at),
-		check('attendance_punches_source_ck', sql`${t.source} in ('web','manual','device','regularization')`),
+		check('attendance_punches_source_ck', sql`${t.source} in ('web','manual','device','regularization','kiosk')`),
 		check('attendance_punches_ip_ck', sql`${t.ip} is null or length(${t.ip}) <= 64`)
 	]
 );
