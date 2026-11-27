@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Badge from '#lib/components/ui/Badge.svelte';
+	import AiAssist from '#lib/components/AiAssist.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
@@ -42,6 +43,15 @@
 				Description
 				<textarea name="description" rows="4" maxlength="5000" class={input}></textarea>
 			</label>
+			{#if data.ai.write}
+				<div class="sm:col-span-2">
+					<AiAssist
+						url={`/t/${data.tenant.slug}/recruitment/draft`}
+						label="Draft with AI"
+						send={['title', 'departmentId', 'designationId']}
+					/>
+				</div>
+			{/if}
 			<div><Button type="submit">Open position</Button></div>
 		</form>
 	</section>

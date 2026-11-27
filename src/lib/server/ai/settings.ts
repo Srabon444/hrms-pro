@@ -15,8 +15,8 @@ import {
 	type AiProvider
 } from '../db/schema';
 import { AppError } from '../errors';
-import { userCtx, type requireMember } from '../rbac/access';
-import { withTenant } from '../tenancy';
+import { can, userCtx, type requireMember } from '../rbac/access';
+import { withTenant, type Tx } from '../tenancy';
 import { MODEL_ID } from './models';
 import { AI_MESSAGES, guardNoTx, keyAad, listModels, openKey, testKey, testPlatform } from './service';
 import { AiError } from './providers';
@@ -40,6 +40,21 @@ const ownKey = (keyEnc: string, tenantId: string): string => {
 		return aiFail(err);
 	}
 };
+
+const NO_AI = { ask: false, ocr: false, write: false };
+
+export async function aiFeaturesOn(tx: Tx, m: Member): Promise<Record<AiFeature, boolean>> {
+	if (!can(m.access, 'ai.use')) return NO_AI;
+	const [s] = await tx
+		.select({
+			enabled: aiSettings.enabled,
+			features: aiSettings.features,
+			ownKey: sql<boolean>`${aiSettings.keyEnc} is not null`
+		})
+		.from(aiSettings);
+	if (!s?.enabled || !(s.ownKey || platformOpen(m))) return NO_AI;
+	return { ask: !!s.features?.ask, ocr: !!s.features?.ocr, write: !!s.features?.write };
+}
 
 async function stored(m: Member) {
 	return withTenant(userCtx(m), async (tx) => {

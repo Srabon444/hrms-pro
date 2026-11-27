@@ -61,7 +61,7 @@ const openingSchema = z.object({
 });
 
 const tagError = 'Use up to 10 tags, each under 30 characters.';
-const candidateSchema = z.object({
+export const candidateSchema = z.object({
 	openingId: z.uuid({ error: 'Choose an opening.' }),
 	fullName: z.string().trim().min(1, 'Enter the candidate name.').max(120, 'Keep the name under 120 characters.'),
 	email: z

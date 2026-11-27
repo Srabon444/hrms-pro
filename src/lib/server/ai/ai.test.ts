@@ -26,7 +26,11 @@ describe('gemini adapter', () => {
 		const b = body(init);
 		expect(b.systemInstruction.parts[0].text).toBe('sys');
 		expect(b.contents[0].parts[1]).toEqual({ inlineData: { mimeType: 'application/pdf', data: 'QUJD' } });
-		expect(b.generationConfig).toMatchObject({ maxOutputTokens: 100, responseMimeType: 'application/json' });
+		expect(b.generationConfig).toMatchObject({
+			maxOutputTokens: 100,
+			responseMimeType: 'application/json',
+			responseJsonSchema: req.schema
+		});
 	});
 	it('reads text, json and usage', () => {
 		const r = g.read(

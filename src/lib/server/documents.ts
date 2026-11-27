@@ -19,7 +19,7 @@ const metaSchema = z.object({
 
 const notFound = () => new AppError('not_found', 'That document does not exist.', 404);
 
-async function assertManages(tx: Tx, access: Access, employeeId: string) {
+export async function assertManages(tx: Tx, access: Access, employeeId: string) {
 	const [e] = await tx.select({ id: employees.id }).from(employees).where(eq(employees.id, employeeId));
 	if (!e || !inScope(await resolveScope(tx, access, 'employee.read'), employeeId))
 		throw new AppError('not_found', 'That employee does not exist.', 404);

@@ -28,7 +28,8 @@ export const AI_MESSAGES: Record<AiError['code'], string> = {
 	model_unsupported: 'None of the models can do this with this key.',
 	budget: 'This month’s AI budget is used up.',
 	disabled: 'AI is turned off for this.',
-	no_key: 'AI has no API key set up yet.'
+	no_key: 'AI has no API key set up yet.',
+	file_too_large: 'This file is too large for the AI provider.'
 };
 
 export const transportFor = (p: AiProvider): Transport => (config().AI_FAKE ? fakeTransport : httpTransport(p));
@@ -38,6 +39,7 @@ const MODELS_TTL_MS = 6 * 3600_000;
 const MONTH_TTL_MS = 40 * 86_400_000;
 const DAY_TTL_MS = 2 * 86_400_000;
 const FILE_TOKENS = 1500;
+const ANTHROPIC_IMAGE_MAX = 5 * 1024 * 1024;
 
 export function guardNoTx(): void {
 	if (insideTenantTx()) throw new Error('AI call inside a database transaction');
@@ -153,17 +155,21 @@ async function settle(p: Plan, delta: number): Promise<void> {
 	await r.eval(SETTLE, keys.length, ...keys, delta).catch(() => undefined);
 }
 
-async function limits(m: Member): Promise<void> {
+async function limits(m: Member, feature: UsageFeature): Promise<void> {
 	const c = config();
 	const results = await Promise.all([
 		hit('ai', m.access.membershipId, c.RL_AI_PER_USER_MIN, 60_000),
 		hit('ai_day', m.access.membershipId, c.RL_AI_PER_USER_DAY, 86_400_000),
-		hit('ai_tenant', m.tenant.id, c.RL_AI_PER_TENANT_MIN, 60_000)
+		hit('ai_tenant', m.tenant.id, c.RL_AI_PER_TENANT_MIN, 60_000),
+		...(feature === 'ocr' ? [hit('ai_ocr', m.access.membershipId, c.RL_AI_OCR_PER_USER_MIN, 60_000)] : [])
 	]).catch(() => {
 		throw new AiError('unavailable');
 	});
 	if (results.some((r) => !r.ok)) throw new AiError('rate_limited');
 }
+
+const tooBigForAnthropic = (p: AiRequest['parts'][number]) =>
+	'data' in p && p.mime.startsWith('image/') && Math.floor((p.data.length * 3) / 4) > ANTHROPIC_IMAGE_MAX;
 
 export const keyAad = (tenantId: string) => `ai:${tenantId}`;
 
@@ -244,8 +250,9 @@ export const testPlatform = (m: Member): Promise<string> => call(m, 'test', TEST
 async function call(m: Member, feature: UsageFeature, req: AiRequest, deadlineMs?: number): Promise<AiResult> {
 	guardNoTx();
 	if (!can(m.access, 'ai.use')) throw new AiError('disabled');
-	await limits(m);
+	await limits(m, feature);
 	const p = await planFor(m, feature);
+	if (p.provider === 'anthropic' && req.parts.some(tooBigForAnthropic)) throw new AiError('file_too_large');
 	const estimate = estimateTokens(req);
 	await reserve(m, p, estimate);
 	const c = config();

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import AiAssist from '#lib/components/AiAssist.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { money, taka, unit } from '#lib/money.ts';
@@ -144,6 +145,11 @@
 								class="block w-full text-xs"
 							/>
 						</label>
+						{#if data.ai.ocr}
+							<div class="sm:col-span-5">
+								<AiAssist url={`${base}/ocr`} label="Read receipt" file="receipt" prefix={`items.${i}.`} />
+							</div>
+						{/if}
 					</fieldset>
 				{/each}
 				<p class="text-slate-500">Receipts: PDF or image, 10 MB in total.</p>

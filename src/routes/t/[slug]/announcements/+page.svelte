@@ -25,6 +25,7 @@
 				v={{ publishOn: data.admin.today, ...values }}
 				departments={data.admin.departments}
 				branches={data.admin.branches}
+				draftUrl={data.ai.write ? `/t/${data.tenant.slug}/announcements/draft` : undefined}
 			/>
 			<div><Button type="submit">Publish</Button></div>
 		</form>

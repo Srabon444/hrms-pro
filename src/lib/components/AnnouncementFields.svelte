@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AiAssist from '#lib/components/AiAssist.svelte';
 	import AudienceFields from '#lib/components/AudienceFields.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
 
@@ -6,8 +7,14 @@
 	let {
 		v,
 		departments,
-		branches
-	}: { v: Record<string, string | boolean | null | undefined>; departments: Option[]; branches: Option[] } = $props();
+		branches,
+		draftUrl
+	}: {
+		v: Record<string, string | boolean | null | undefined>;
+		departments: Option[];
+		branches: Option[];
+		draftUrl?: string;
+	} = $props();
 	const input = 'mt-1 block w-full input';
 	const str = (k: string) => (typeof v[k] === 'string' ? (v[k] as string) : '');
 	let publishOn = $state(str('publishOn'));
@@ -35,3 +42,6 @@
 	Message
 	<textarea name="body" required maxlength="5000" rows="5" class={input}>{str('body')}</textarea>
 </label>
+{#if draftUrl}
+	<div class="sm:col-span-2"><AiAssist url={draftUrl} label="Draft with AI" send={['title']} /></div>
+{/if}

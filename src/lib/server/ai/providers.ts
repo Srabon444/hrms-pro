@@ -6,6 +6,7 @@ export type AiRequest = {
 	parts: AiPart[];
 	schema?: Record<string, unknown>;
 	maxOutputTokens: number;
+	task?: string;
 };
 export type AiResult = { text: string; json?: unknown; usage: { input: number; output: number }; model: string };
 
@@ -20,7 +21,8 @@ export const AI_ERRORS = [
 	'model_unsupported',
 	'budget',
 	'disabled',
-	'no_key'
+	'no_key',
+	'file_too_large'
 ] as const;
 export type AiErrorCode = (typeof AI_ERRORS)[number];
 
@@ -100,7 +102,7 @@ const gemini: Adapter = {
 			],
 			generationConfig: {
 				maxOutputTokens: req.maxOutputTokens,
-				...(req.schema ? { responseMimeType: 'application/json', responseSchema: req.schema } : {})
+				...(req.schema ? { responseMimeType: 'application/json', responseJsonSchema: req.schema } : {})
 			}
 		}),
 	read: (model, body, json) => {
