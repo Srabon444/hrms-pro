@@ -7,7 +7,7 @@ How to run, operate and recover the system. For what it does, see the README.
 | Service  | Role                                                              | Port (dev) |
 | -------- | ----------------------------------------------------------------- | ---------- |
 | app      | SvelteKit server (`node build`)                                   | 3000       |
-| worker   | BullMQ worker: mail, meal bills, file text, hourly lifecycle job  | none       |
+| worker   | BullMQ worker: mail, meal bills, file text, webhooks, hourly job  | none       |
 | migrate  | One-shot: database migrations, bucket, system-role sync           | none       |
 | postgres | Postgres 17, row-level security per tenant                        | 55432      |
 | redis    | Queues, rate limits, session cache, sign-in challenges (AOF on)   | 56379      |
@@ -85,7 +85,8 @@ The owner role cannot be edited or removed from the last owner. Every other buil
 
 The worker registers one hourly job (minute 5). For each active tenant it, in order: completes exits whose last day
 has passed and ends expired ex-employee access, accrues leave, recomputes attendance days, prepares and locks meal
-days, retries stuck meal bill emails and purges candidate data past retention. Each step picks up whatever is due, so
+days, retries stuck meal bill emails, purges candidate data past retention, queues webhook deliveries stuck for
+more than 10 minutes again and deletes deliveries older than 30 days. Each step picks up whatever is due, so
 a missed hour is caught up by the next one.
 
 ## Deploy
@@ -109,6 +110,13 @@ API keys (`/api/v1`) are limited to 600 requests a minute each, and an address t
 refused for an hour; with Redis down both limits are counted in each app process's memory. That per-address limit is
 another reason to set `ADDRESS_HEADER` behind a proxy. To cut off an integration at once, revoke its key under
 Settings → API keys; changing the creator's password or disabling them also stops every key they made.
+
+Webhooks go out from the worker's `webhooks` queue. The worker must be able to reach the internet on port 443; it
+refuses private and loopback addresses on purpose, so an endpoint on your own network will not work. A delivery that
+fails is tried again after 1 minute, 5 and 30 minutes, then 2, 6, 12 and 24 hours. An endpoint that fails 50 times in
+a row turns itself off and notifies everyone with `api.manage`; fix the receiver, then turn it back on under
+Settings → Webhooks. The signing secret is encrypted with `APP_ENC_KEYS`, so keep retired keys in the ring after a
+rotation.
 
 ## Backup and restore
 
