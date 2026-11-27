@@ -30,6 +30,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				(!item.self || m.access.employeeId) &&
 				(!item.active || locals.membership!.status === 'active') &&
 				(!item.module || modules.has(item.module)) &&
+				(!item.ai || ai[item.ai]) &&
 				(!item.perm || [item.perm].flat().some((p) => can(m.access, p)))
 		).map(({ href, label, group }) => ({ href, label, group })),
 		settingsMenu: allowedSettingsPages((perm) => can(m.access, perm)).map(({ href, label, group }) => ({

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AnnouncementCard from '#lib/components/AnnouncementCard.svelte';
+	import AskHr from '#lib/components/AskHr.svelte';
 	import Card from '#lib/components/ui/Card.svelte';
 	import { dayMonth } from '#lib/day-month.ts';
 	import type { PageProps } from './$types';
@@ -176,6 +177,16 @@
 			</Card>
 		{/if}
 	</div>
+
+	{#if data.ai.ask}
+		<section class="mt-6 max-w-3xl rounded-xl bg-white p-5 ring-1 ring-slate-200" aria-label="Ask HR">
+			<h2 class="section-title">
+				Ask HR
+				<a class="ml-2 text-sm font-normal text-brand-700 underline" href={`${base}/assistant`}>Open</a>
+			</h2>
+			<div class="mt-3 text-sm"><AskHr slug={data.tenant.slug} /></div>
+		</section>
+	{/if}
 
 	{#if home.announcements.length}
 		<section class="mt-6 max-w-3xl space-y-3" aria-label="Announcements">

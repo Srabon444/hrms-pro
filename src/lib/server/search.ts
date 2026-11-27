@@ -16,7 +16,6 @@ import {
 	employees,
 	events,
 	expenseClaims,
-	fileTexts,
 	jobOpenings,
 	letters,
 	payrollRuns,
@@ -88,14 +87,17 @@ const joined = (...parts: (string | null | undefined)[]) => parts.filter(Boolean
 const requester = alias(employees, 'search_requester');
 const HEADLINE = 'StartSel="", StopSel="", MaxWords=14, MinWords=5, MaxFragments=1';
 
-const inFileText = (q: string, column: PgColumn, id: PgColumn) => {
+const FILE_SOURCES = {
+	policy: sql.raw('ft.policy_id = policies.id'),
+	candidate: sql.raw('ft.candidate_id = candidates.id')
+};
+
+export const inFileText = (q: string, source: keyof typeof FILE_SOURCES, headline = HEADLINE) => {
 	const query = sql`plainto_tsquery('simple', ${q})`;
-	const where = sql`from ${fileTexts} where ${column} = ${id} and ${fileTexts.status} = 'ok' and ${fileTexts.tsv} @@ ${query}`;
+	const where = sql`from file_texts ft where ${FILE_SOURCES[source]} and ft.status = 'ok' and ft.tsv @@ ${query}`;
 	return {
 		hit: sql`exists (select 1 ${where})`,
-		snippet: sql<
-			string | null
-		>`(select ts_headline('simple', ${fileTexts.text}, ${query}, ${HEADLINE}) ${where} limit 1)`
+		snippet: sql<string | null>`(select ts_headline('simple', ft.text, ${query}, ${headline}) ${where} limit 1)`
 	};
 };
 
@@ -189,7 +191,7 @@ const PROVIDERS: Provider[] = [
 		allowed: ({ active }) => active,
 		async find({ tx, access, q, match, rank }) {
 			const manager = canRunPolicies(access);
-			const text = inFileText(q, fileTexts.policyId, policies.id);
+			const text = inFileText(q, 'policy');
 			const rows = await tx
 				.select({
 					id: policies.id,
@@ -397,7 +399,7 @@ const PROVIDERS: Provider[] = [
 		kind: 'candidate',
 		allowed: ({ access }) => can(access, 'recruitment.read'),
 		async find({ tx, q, match, rank }) {
-			const text = inFileText(q, fileTexts.candidateId, candidates.id);
+			const text = inFileText(q, 'candidate');
 			const rows = await tx
 				.select({
 					id: candidates.id,

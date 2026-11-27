@@ -159,6 +159,7 @@ export type NavItem = {
 	self?: true;
 	active?: true;
 	module?: ModuleId;
+	ai?: 'ask';
 };
 
 const REPORT_PERMS: Permission[] = [
@@ -179,6 +180,7 @@ export const NAV: NavItem[] = [
 	{ href: 'approvals', label: 'Approvals', group: 'Workspace' },
 	{ href: 'calendar', label: 'Calendar', group: 'Workspace', perm: 'calendar.read', module: 'calendar' },
 	{ href: 'tasks', label: 'Tasks', group: 'Workspace' },
+	{ href: 'assistant', label: 'Ask HR', group: 'Workspace', perm: 'ai.use', ai: 'ask' },
 	{ href: 'letters', label: 'Letters', group: 'Workspace' },
 	{
 		href: 'helpdesk',
