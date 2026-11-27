@@ -51,6 +51,14 @@ Vitest · Playwright · Docker.
   table kept for 13 months, and never made while a database transaction is open. Without a key, a platform Gemini
   key can be used if the operator sets `AI_PLATFORM_GEMINI=1` (only with a paid key) and has not switched AI off for
   that organisation on the platform page.
+- **AI reads files and drafts text, as suggestions only.** With AI on, "Read receipt" fills an expense row
+  (merchant, date, amount, category), "Read CV" fills the add-candidate form and "Read document" fills a
+  certificate's title and expiry. "Draft with AI" writes an announcement body or a job description, and "Suggest a
+  reply" drafts a helpdesk answer. Nothing is saved until the person checks the form and submits it, and the normal
+  form rules run again. Uploads read this way are never stored. Identity and contract documents are never sent, nor
+  confidential tickets or internal notes; a receipt in another currency leaves the amount blank. Each button needs
+  both the page's own permission and the AI feature switch, and file reading has its own per-person limit
+  (`RL_AI_OCR_PER_USER_MIN`, default 10 a minute).
 - **Money in integer poisha.** Payroll, tax, loans and meal bills never touch floating point.
 - **Background work.** Email, meal bills and an hourly job for leave accrual, attendance and exits run on BullMQ
   workers backed by Redis. Each hourly step runs on its own, so one failure does not stop the others.
