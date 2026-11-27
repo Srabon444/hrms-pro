@@ -130,6 +130,14 @@ Vitest · Playwright · Docker.
   people who manage API access are told. Outbound calls go only to public addresses on port 443: every resolved
   address is checked (private, loopback, link-local, cloud metadata, CGNAT, multicast, documentation, IPv4-mapped and
   NAT64 ranges are refused), with no redirects, a 5 second limit and a 64 KB reply cap. Deliveries are kept 30 days.
+- **Fingerprint and card readers.** Settings → Attendance devices (people who manage everyone's attendance, after
+  the same password check) adds a reader with its own `hrd_` key, shown once and stored as a hash. The reader posts
+  up to 500 punches at a time to `POST /api/v1/punches`, matched by the device user ID set on that page or by employee
+  code. Each punch comes back accepted, repeated or refused with a reason (unknown person, older than 31 days, ahead
+  of the clock, outside employment), so a reader can resend a batch safely. API keys cannot post punches and device
+  keys cannot read anything. A punch in a month whose payroll is already approved is kept and listed under "Punches
+  to check" so HR can run arrears; web and kiosk punches in a closed month are listed too. 60 requests a minute per
+  device, 256 KB per request.
 - **Schedule.** The Schedule page is a weekly roster: a manager puts people on a shift or gives them a day off
   for each day, copies last week as drafts, and publishes the week, which tells each person. Staff only see
   published days. A published shift makes a weekend a working day for attendance and meals, a published day off

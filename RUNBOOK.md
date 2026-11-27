@@ -111,6 +111,13 @@ refused for an hour; with Redis down both limits are counted in each app process
 another reason to set `ADDRESS_HEADER` behind a proxy. To cut off an integration at once, revoke its key under
 Settings → API keys; changing the creator's password or disabling them also stops every key they made.
 
+Attendance devices post to `/api/v1/punches` with their own key, limited to 60 requests a minute each, and bad keys
+count toward the same 30-an-hour address limit as API keys; a working device key keeps working from a blocked
+address, so one reader with an old key does not stop the others behind the same router. To cut off a lost or stolen reader, switch it off under
+Settings → Attendance devices; to replace its key, make a new key there and enter it on the reader. Punches older
+than 31 days are refused, so a reader that was offline longer needs its punches imported by CSV. Check "Punches to
+check" on that page after each payroll approval.
+
 Webhooks go out from the worker's `webhooks` queue. The worker must be able to reach the internet on port 443; it
 refuses private and loopback addresses on purpose, so an endpoint on your own network will not work. A delivery that
 fails is tried again after 1 minute, 5 and 30 minutes, then 2, 6, 12 and 24 hours. An endpoint that fails 50 times in
