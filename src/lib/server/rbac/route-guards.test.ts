@@ -45,6 +45,7 @@ describe('browser code never imports server modules', () => {
 
 describe('routes outside tenants and the sign-in pages are allowlisted', () => {
 	const PUBLIC: Record<string, string> = {
+		'src/routes/api/v1/[...path]/+server.ts': 'src/lib/server/public/api.ts',
 		'src/routes/ical/[file]/+server.ts': 'src/lib/server/public/ical.ts',
 		'src/routes/kiosk/+page.server.ts': 'src/lib/server/public/kiosk.ts',
 		'src/routes/kiosk/pair/+page.server.ts': 'src/lib/server/public/kiosk.ts'

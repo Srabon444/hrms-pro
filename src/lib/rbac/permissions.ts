@@ -72,7 +72,8 @@ export const PERMISSIONS = [
 	'calendar.read',
 	'event.manage',
 	'ai.use',
-	'ai.manage'
+	'ai.manage',
+	'api.manage'
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -91,7 +92,8 @@ const RESTRICTED_EXACT = new Set<Permission>([
 	'user.manage',
 	'settings.manage',
 	'data.export',
-	'ai.manage'
+	'ai.manage',
+	'api.manage'
 ]);
 
 export const isRestricted = (p: Permission): boolean =>

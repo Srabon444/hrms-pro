@@ -18,11 +18,11 @@ import {
 } from './challenge';
 import { decrypt, encrypt, randomToken, safeEqual, sha256, sign, unsign } from './crypto';
 import { hashPassword, passwordProblem, verifyPassword } from './password';
-import { createSession, deleteUserSessions, refreshUserSessions } from './session';
+import { createSession, deleteUserSessions, markReauth, refreshUserSessions, type SessionUser } from './session';
 import { checkLogin, loginFailed, loginSucceeded, releaseLogin, stepUpRequired } from './throttle';
 import { matchTotp, newTotpSecret, otpauthUri, base32Encode } from './totp';
 import { createUser, emailSchema, findUserByEmail } from './users';
-import { revokeUserFeeds } from '../public/tokens';
+import { revokeUserTokens } from '../public/tokens';
 
 const TOTP_CHALLENGE_MS = 5 * 60_000;
 const STEP_UP_CHALLENGE_MS = 10 * 60_000;
@@ -246,6 +246,33 @@ export async function matchesAccountPassword(userId: string, candidate: string):
 	return !!user && (await verifyPassword(user.passwordHash, candidate));
 }
 
+export const REAUTH_TRIES_PER_15MIN = 5;
+
+export async function confirmRecentAuth(session: SessionUser, password: string, code: string): Promise<void> {
+	const gate = await hit('reauth', session.userId, REAUTH_TRIES_PER_15MIN, 15 * 60_000);
+	if (!gate.ok)
+		throw new AppError(
+			'rate_limited',
+			`Too many attempts. Try again in ${Math.ceil(gate.retryAfter / 60)} minutes.`,
+			429
+		);
+	const user = await userById(session.userId);
+	const passwordOk = !!user && (await verifyPassword(user.passwordHash, password));
+	const step =
+		passwordOk && user.totpEnabled && user.totpSecretEnc
+			? matchTotp(decrypt(user.totpSecretEnc), code.trim(), now())
+			: null;
+	const codeOk = passwordOk && (!user.totpEnabled || (step !== null && (await claimTotpStep(user.id, step))));
+	if (!codeOk)
+		throw new AppError(
+			'wrong_password',
+			user?.totpEnabled ? 'The password or the authenticator code is wrong.' : 'Password is incorrect.',
+			400
+		);
+	await (await redisReady()).decr(rkey('rl', 'reauth', session.userId));
+	await markReauth(session.sessionId);
+}
+
 export async function disableTotp(userId: string, password: string): Promise<void> {
 	const user = await userById(userId);
 	if (!user || !(await verifyPassword(user.passwordHash, password)))
@@ -254,7 +281,7 @@ export async function disableTotp(userId: string, password: string): Promise<voi
 		.db.update(users)
 		.set({ totpSecretEnc: null, totpEnabled: false, totpLastStep: null, recoveryCodes: [] })
 		.where(eq(users.id, userId));
-	await revokeUserFeeds(userId);
+	await revokeUserTokens(userId);
 	await refreshUserSessions(userId);
 }
 
@@ -310,7 +337,7 @@ export async function resetPassword(token: string, password: string): Promise<vo
 		return true;
 	});
 	if (!claimed) throw new AppError('invalid_token', 'This reset link is invalid or has expired');
-	await revokeUserFeeds(row.userId);
+	await revokeUserTokens(row.userId);
 	await deleteUserSessions(row.userId);
 }
 
@@ -329,7 +356,7 @@ export async function changePassword(
 		.db.update(users)
 		.set({ passwordHash: await hashPassword(next) })
 		.where(eq(users.id, userId));
-	await revokeUserFeeds(userId);
+	await revokeUserTokens(userId);
 	await deleteUserSessions(userId);
 	return createSession(userId, meta);
 }

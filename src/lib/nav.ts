@@ -63,6 +63,13 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 	},
 	{ href: 'audit', label: 'Audit log', group: 'Access', perm: 'audit.read', about: 'Who changed what, and when.' },
 	{
+		href: 'api-keys',
+		label: 'API keys',
+		group: 'Access',
+		perm: 'api.manage',
+		about: 'Keys that let other systems read employees, leave, attendance, rosters and events.'
+	},
+	{
 		href: 'data-export',
 		label: 'Data export',
 		group: 'Access',
