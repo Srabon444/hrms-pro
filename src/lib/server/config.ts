@@ -54,6 +54,7 @@ export const configSchema = z
 		RL_AI_PER_USER_MIN: int(20),
 		RL_AI_PER_USER_DAY: int(300),
 		RL_AI_PER_TENANT_MIN: int(200),
+		RL_AI_OCR_PER_USER_MIN: int(10),
 		RL_AI_ADMIN_PER_MIN: int(10)
 	})
 	.refine((c) => !(c.TEST_MODE && c.NODE_ENV === 'production'), {

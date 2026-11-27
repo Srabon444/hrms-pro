@@ -1057,6 +1057,21 @@ erDiagram
 									months.
 								</td>
 							</tr>
+							<tr>
+								<td>AI file reading and writing help</td>
+								<td>
+									Read receipt fills an expense row, Read CV fills a new candidate, Read document fills a certificate's
+									title and expiry; Draft with AI writes an announcement or a job description and Suggest a reply drafts
+									a helpdesk answer. Everything is a suggestion the person checks and submits.
+								</td>
+								<td>
+									Needs the page's permission and the AI feature switch; files are type-sniffed, capped at 10 MB (5 MB
+									images on Anthropic) and never stored; identity and contract documents, confidential tickets and
+									internal notes are never sent; model output is parsed as data and checked again by the normal form
+									rules; a receipt in another currency leaves the amount blank; file reading has its own per-person
+									limit.
+								</td>
+							</tr>
 						</tbody>
 					</table>
 				</div>

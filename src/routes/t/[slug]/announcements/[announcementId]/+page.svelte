@@ -18,7 +18,12 @@
 
 <section class="mt-4 max-w-3xl panel" aria-label="Edit announcement">
 	<form method="POST" action="?/save" class="grid gap-3 sm:grid-cols-2">
-		<AnnouncementFields v={values} departments={data.departments} branches={data.branches} />
+		<AnnouncementFields
+			v={values}
+			departments={data.departments}
+			branches={data.branches}
+			draftUrl={data.ai.write ? `/t/${data.tenant.slug}/announcements/draft` : undefined}
+		/>
 		<div><Button type="submit">Save</Button></div>
 	</form>
 	<form method="POST" action="?/delete" class="mt-4">

@@ -1,5 +1,6 @@
 import { and, count, eq, isNull } from 'drizzle-orm';
 import { allowedSettingsPages, NAV } from '#lib/nav.ts';
+import { aiFeaturesOn } from '#lib/server/ai/settings.ts';
 import { notifications } from '#lib/server/db/schema/index.ts';
 import { can, requireMember, userCtx } from '#lib/server/rbac/access.ts';
 import { modulesOn } from '#lib/server/modules.ts';
@@ -9,7 +10,7 @@ import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
 	const m = requireMember(locals);
-	const { unread, currency, modules } = await withTenant(userCtx(m), async (tx) => ({
+	const { unread, currency, modules, ai } = await withTenant(userCtx(m), async (tx) => ({
 		unread: (
 			await tx
 				.select({ unread: count() })
@@ -17,7 +18,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				.where(and(eq(notifications.membershipId, m.access.membershipId), isNull(notifications.readAt)))
 		)[0].unread,
 		currency: await tenantCurrency(tx),
-		modules: await modulesOn(tx)
+		modules: await modulesOn(tx),
+		ai: await aiFeaturesOn(tx, m)
 	}));
 	return {
 		tenant: { id: m.tenant.id, slug: m.tenant.slug, name: m.tenant.name },
@@ -36,6 +38,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			group
 		})),
 		unread,
-		currency
+		currency,
+		ai
 	};
 };

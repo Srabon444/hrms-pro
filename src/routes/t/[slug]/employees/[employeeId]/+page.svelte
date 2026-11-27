@@ -1,6 +1,7 @@
 <script lang="ts">
 	import EmployeeForm from '#lib/components/EmployeeForm.svelte';
 	import Attachments from '#lib/components/Attachments.svelte';
+	import AiAssist from '#lib/components/AiAssist.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { weekendText } from '#lib/day-month.ts';
@@ -695,6 +696,16 @@
 					accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx"
 					class="text-sm"
 				/>
+				{#if data.ai.ocr}
+					<div class="sm:col-span-2">
+						<AiAssist
+							url={`/t/${data.tenant.slug}/employees/${e.id}/documents/ocr`}
+							label="Read document"
+							file="file"
+							send={['category']}
+						/>
+					</div>
+				{/if}
 				<div class="sm:col-span-2"><Button type="submit">Upload document</Button></div>
 			</form>
 		{/if}

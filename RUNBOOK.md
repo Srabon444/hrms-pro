@@ -58,6 +58,7 @@ variable.
 | `AI_PLATFORM_GEMINI` `GEMINI_API_KEY`        | Platform Gemini key for tenants without their own. Off by default; turn on only with a paid key (free-tier traffic may be used for training). |
 | `AI_PLATFORM_MONTHLY_TOKENS` `AI_PLATFORM_DAILY_TOKENS` | Per-tenant monthly and all-tenant daily token ceilings on the platform key.     |
 | `AI_DEADLINE_MS` `AI_CALL_TIMEOUT_MS` `RL_AI_*` | Whole-request deadline, per-model call timeout and AI rate limits.                   |
+| `RL_AI_OCR_PER_USER_MIN`                     | File reads (receipt, CV, document) per person per minute. Default 10.            |
 | `AI_FAKE`                                    | Deterministic fake provider for tests. Needs `TEST_MODE`; refused in production.         |
 
 Business settings (leave, attendance, payroll, tax, meals, letters) live per tenant in the app under Settings, not in

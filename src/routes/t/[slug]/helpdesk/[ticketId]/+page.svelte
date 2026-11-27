@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Attachments from '#lib/components/Attachments.svelte';
+	import AiAssist from '#lib/components/AiAssist.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import { TICKET_PRIORITY_LABELS, TICKET_STATUS_LABELS } from '#lib/helpdesk-labels.ts';
@@ -117,6 +118,9 @@
 				Comment
 				<textarea name="body" required maxlength="5000" rows="3" class={input}></textarea>
 			</label>
+			{#if v.agent && !v.confidential && data.ai.write}
+				<AiAssist url={`/t/${data.tenant.slug}/helpdesk/${t.id}/draft`} label="Suggest a reply" />
+			{/if}
 			{#if v.agent}
 				<label class="flex items-center gap-2 text-sm text-slate-700">
 					<input type="checkbox" name="internal" />

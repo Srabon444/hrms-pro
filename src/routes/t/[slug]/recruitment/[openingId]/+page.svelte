@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AiAssist from '#lib/components/AiAssist.svelte';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
@@ -72,6 +73,11 @@
 						class="mt-1 block w-full text-sm"
 					/>
 				</label>
+				{#if data.ai.ocr}
+					<div class="sm:col-span-2">
+						<AiAssist url={`/t/${data.tenant.slug}/recruitment/${o.id}/cv`} label="Read CV" file="resume" />
+					</div>
+				{/if}
 				<label class="block text-sm font-medium text-slate-700 sm:col-span-2">
 					Notes
 					<textarea name="notes" rows="3" maxlength="2000" class={input}></textarea>
@@ -114,6 +120,15 @@
 				Description
 				<textarea name="description" rows="4" maxlength="5000" class={input} value={o.description}></textarea>
 			</label>
+			{#if data.ai.write}
+				<div class="sm:col-span-2">
+					<AiAssist
+						url={`/t/${data.tenant.slug}/recruitment/draft`}
+						label="Draft with AI"
+						send={['title', 'departmentId', 'designationId']}
+					/>
+				</div>
+			{/if}
 			<div><Button type="submit">Save opening</Button></div>
 		</form>
 	</section>
