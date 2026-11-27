@@ -72,6 +72,14 @@ Vitest · Playwright · Docker.
   Leave days and payroll still follow the work week. People mark the times they are unavailable, and the grid flags
   a shift during them or over leave. Publishing refuses a shift over leave or inside a month whose payroll is
   approved, and warns about anyone with no rest day that week. Line managers schedule only their team.
+- **Open shifts and shift swaps.** A manager can post an open shift; staff ask for it, and their approver gives
+  it to one of them, which turns the other requests down. Staff can offer one of their published shifts to a
+  colleague in their team or department, either as a swap for one of the colleague's shifts or as a give-away. The
+  colleague accepts, then each person's approver approves; one approver over both people approves once. The swap
+  is checked again at approval (employment, leave, another entry that day, approved payroll), the giver gets a
+  published day off for the day they gave away, and attendance is recounted. Swaps nobody finished expire on the
+  day. Requests show in the Approvals inbox, and each person's published shifts appear on their calendar and in
+  their calendar feed.
 - **International by default.** A new company starts on UTC, USD, a January fiscal year and a Saturday–Sunday
   weekend, or on the time zone, currency, fiscal month and weekend days its creator picks. Payslips, letters and
   reports print names in Latin, Cyrillic, Greek, Vietnamese, Devanagari and Bengali script.
