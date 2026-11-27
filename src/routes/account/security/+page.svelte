@@ -18,6 +18,55 @@
 		<Alert message="Two-factor authentication is required for this area. Set it up to continue." />
 	{/if}
 	<Alert message={form?.message} />
+	<Alert message={data.ssoError} />
+	{#if data.locked}
+		<Alert
+			tone="info"
+			message="You signed in with a company account. Sign in with your password to change these settings."
+		/>
+	{/if}
+
+	{#if data.links.length}
+		<section class="space-y-4 panel" aria-label="Company sign-in">
+			<h2 class="section-title">Company sign-in</h2>
+			{#if data.linkedNow}<Alert tone="info" message="Company sign-in linked." />{/if}
+			{#if form && 'unlinked' in form}<Alert tone="info" message="Company sign-in unlinked." />{/if}
+			{#if !data.locked && !data.recent}
+				<p class="text-sm text-slate-600">Confirm your password to link or unlink. This lasts 10 minutes.</p>
+				<form method="POST" action="?/reauth" class="space-y-3">
+					<Field label="Your password" name="password" type="password" required autocomplete="current-password" />
+					{#if data.totpEnabled}
+						<Field label="Authenticator code" name="code" required inputmode="numeric" autocomplete="one-time-code" />
+					{/if}
+					<Button type="submit">Confirm</Button>
+				</form>
+			{/if}
+			<ul class="divide-y divide-slate-100 text-sm">
+				{#each data.links as l (l.tenantId)}
+					<li class="flex flex-wrap items-center gap-2 py-2" data-testid="sso-link">
+						<span>{l.name} · {l.provider === 'google' ? 'Google Workspace' : 'Microsoft Entra'}</span>
+						<span class="text-slate-500">{l.linked ? 'Linked' : 'Not linked'}</span>
+						{#if !data.locked && data.recent}
+							{#if l.linked}
+								<form method="POST" action="?/unlink" class="ml-auto">
+									<input type="hidden" name="tenantId" value={l.tenantId} />
+									<Button type="submit" variant="secondary">Unlink {l.name}</Button>
+								</form>
+							{:else}
+								<a
+									class="ml-auto text-brand-600 hover:underline"
+									data-sveltekit-reload
+									href="/sso/start?t={l.tenantId}&link=1"
+								>
+									Link {l.name}
+								</a>
+							{/if}
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
 
 	<section class="space-y-4 panel">
 		<h2 class="section-title">Two-factor authentication</h2>

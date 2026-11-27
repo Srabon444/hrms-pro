@@ -4,6 +4,7 @@ import { acceptInvitation, loadInvitation, registerFromInvitation } from '#lib/s
 import { config } from '#lib/server/config.ts';
 import { actionError, field, limitedMessage } from '#lib/server/http/forms.ts';
 import { hit } from '#lib/server/ratelimit.ts';
+import { ssoForEmail } from '#lib/server/sso.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -11,6 +12,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	if (!inv) error(410, 'This invitation is invalid, already used or expired.');
 	return {
 		invitation: { tenantName: inv.tenantName, email: inv.email, userExists: inv.userExists },
+		sso: !inv.userExists && (await ssoForEmail(inv.email))?.tenantId === inv.tenantId,
 		signedInAs: locals.user?.email ?? null
 	};
 };

@@ -361,12 +361,18 @@ export async function changePassword(
 	return createSession(userId, meta);
 }
 
-export type InvitationView = { tenantSlug: string; tenantName: string; email: string; userExists: boolean };
+export type InvitationView = {
+	tenantId: string;
+	tenantSlug: string;
+	tenantName: string;
+	email: string;
+	userExists: boolean;
+};
 
 export async function loadInvitation(token: string): Promise<InvitationView | null> {
 	if (!token || token.length > 100) return null;
 	const [row] = await authPool()
-		.db.select({ tenantSlug: tenants.slug, tenantName: tenants.name, email: invitations.email })
+		.db.select({ tenantId: tenants.id, tenantSlug: tenants.slug, tenantName: tenants.name, email: invitations.email })
 		.from(invitations)
 		.innerJoin(tenants, eq(tenants.id, invitations.tenantId))
 		.where(

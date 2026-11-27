@@ -1,10 +1,17 @@
 import { and, eq } from 'drizzle-orm';
 import { now } from '../clock';
 import { authPool } from '../db';
-import { memberships, tenantSettings, tenants } from '../db/schema';
+import { memberships, ssoConnections, tenantSettings, tenants } from '../db/schema';
 
 export type TenantAccess = {
-	tenant: { id: string; slug: string; name: string; require2faForSensitive: boolean; aiPlatform: boolean };
+	tenant: {
+		id: string;
+		slug: string;
+		name: string;
+		require2faForSensitive: boolean;
+		aiPlatform: boolean;
+		ssoEnforced: boolean;
+	};
 	membership: { id: string; status: 'active' | 'ex_employee'; employeeId: string | null };
 };
 
@@ -21,11 +28,16 @@ export async function resolveTenantAccess(slug: string, userId: string): Promise
 			status: memberships.status,
 			employeeId: memberships.employeeId,
 			exAccessUntil: memberships.exAccessUntil,
-			require2fa: tenantSettings.require2faForSensitive
+			require2fa: tenantSettings.require2faForSensitive,
+			ssoEnforced: ssoConnections.id
 		})
 		.from(tenants)
 		.innerJoin(memberships, and(eq(memberships.tenantId, tenants.id), eq(memberships.userId, userId)))
 		.leftJoin(tenantSettings, eq(tenantSettings.tenantId, tenants.id))
+		.leftJoin(
+			ssoConnections,
+			and(eq(ssoConnections.tenantId, tenants.id), eq(ssoConnections.active, true), eq(ssoConnections.enforce, true))
+		)
 		.where(eq(tenants.slug, slug));
 	if (!row || row.tenantStatus !== 'active') return null;
 	const exAllowed = row.status === 'ex_employee' && !!row.exAccessUntil && row.exAccessUntil > now();
@@ -36,13 +48,17 @@ export async function resolveTenantAccess(slug: string, userId: string): Promise
 			slug: row.slug,
 			name: row.name,
 			require2faForSensitive: !!row.require2fa,
-			aiPlatform: row.aiPlatform
+			aiPlatform: row.aiPlatform,
+			ssoEnforced: !!row.ssoEnforced
 		},
 		membership: { id: row.membershipId, status: row.status as 'active' | 'ex_employee', employeeId: row.employeeId }
 	};
 }
 
-export async function listUserTenants(userId: string): Promise<{ slug: string; name: string }[]> {
+export async function listUserTenants(
+	userId: string,
+	onlyTenantId?: string | null
+): Promise<{ slug: string; name: string }[]> {
 	const rows = await authPool()
 		.db.select({
 			slug: tenants.slug,
@@ -52,7 +68,13 @@ export async function listUserTenants(userId: string): Promise<{ slug: string; n
 		})
 		.from(memberships)
 		.innerJoin(tenants, eq(tenants.id, memberships.tenantId))
-		.where(and(eq(memberships.userId, userId), eq(tenants.status, 'active')))
+		.where(
+			and(
+				eq(memberships.userId, userId),
+				eq(tenants.status, 'active'),
+				onlyTenantId ? eq(tenants.id, onlyTenantId) : undefined
+			)
+		)
 		.orderBy(tenants.name);
 	const t = now();
 	return rows

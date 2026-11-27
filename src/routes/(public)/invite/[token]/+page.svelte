@@ -30,6 +30,16 @@
 		Sign in to accept
 	</a>
 {:else}
+	{#if data.sso}
+		<a
+			href="/sso/start?invite={encodeURIComponent(page.params.token ?? '')}"
+			data-sveltekit-reload
+			class="inline-flex rounded-lg bg-brand-600 px-3.5 py-1.5 text-sm font-medium text-white no-underline hover:bg-brand-700"
+		>
+			Accept with company sign-in
+		</a>
+		<p class="text-sm text-slate-600">Or set a password:</p>
+	{/if}
 	<form method="POST" action="?/register" class="space-y-4">
 		<Field
 			label="Your name"

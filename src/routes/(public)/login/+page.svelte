@@ -9,7 +9,9 @@
 	const notices: Record<string, string> = {
 		reset: 'Your password was changed. Sign in with the new one.',
 		expired: 'That sign-in step expired. Please sign in again.',
-		signedout: 'You have been signed out.'
+		signedout: 'You have been signed out.',
+		other_org:
+			'You signed in with a company account, which only opens that organisation. Sign in with your password to open this one.'
 	};
 </script>
 
@@ -17,6 +19,7 @@
 
 <h1 class="text-lg font-semibold text-slate-900">Sign in</h1>
 <Alert tone="info" message={data.notice ? notices[data.notice] : null} />
+<Alert message={data.ssoError} />
 <Alert message={form?.message} />
 <form method="POST" class="space-y-4">
 	<input type="hidden" name="next" value={data.next} />
@@ -32,3 +35,10 @@
 	<Button type="submit">Sign in</Button>
 </form>
 <a href="/forgot-password" class="block text-sm text-brand-600 hover:underline">Forgot your password?</a>
+
+<a
+	href="/login/sso?next={encodeURIComponent(data.next)}"
+	class="block border-t border-slate-200 pt-4 text-sm text-brand-600 hover:underline"
+>
+	Use company sign-in
+</a>

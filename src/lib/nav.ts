@@ -77,6 +77,13 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 		about: 'Tell other systems when employees or leave requests change.'
 	},
 	{
+		href: 'sso',
+		label: 'Company sign-in',
+		group: 'Access',
+		perm: 'sso.manage',
+		about: 'Sign in with Google Workspace or Microsoft Entra, verified email domains, and whether it is required.'
+	},
+	{
 		href: 'data-export',
 		label: 'Data export',
 		group: 'Access',

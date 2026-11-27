@@ -19,6 +19,7 @@ export type SessionUser = {
 	name: string;
 	isPlatformAdmin: boolean;
 	totpEnabled: boolean;
+	ssoTenantId: string | null;
 };
 
 type Cached = SessionUser & { expiresAt: number; idleExpiresAt: number; lastSeenAt: number };
@@ -54,7 +55,8 @@ async function cacheDrop(ids: string[]): Promise<void> {
 
 export async function createSession(
 	userId: string,
-	meta: { ip?: string | null; userAgent?: string | null }
+	meta: { ip?: string | null; userAgent?: string | null },
+	ssoTenantId: string | null = null
 ): Promise<{ token: string; expiresAt: Date }> {
 	const token = randomToken();
 	const t = now();
@@ -67,6 +69,7 @@ export async function createSession(
 			expiresAt,
 			idleExpiresAt: new Date(t.getTime() + IDLE_MS),
 			lastSeenAt: t,
+			ssoTenantId,
 			ip: meta.ip ?? null,
 			userAgent: meta.userAgent?.slice(0, 300) ?? null
 		});
@@ -83,6 +86,7 @@ async function load(id: string): Promise<Cached | null> {
 			name: users.name,
 			isPlatformAdmin: users.isPlatformAdmin,
 			totpEnabled: users.totpEnabled,
+			ssoTenantId: sessions.ssoTenantId,
 			expiresAt: sessions.expiresAt,
 			idleExpiresAt: sessions.idleExpiresAt,
 			lastSeenAt: sessions.lastSeenAt
@@ -125,8 +129,9 @@ export async function validateSession(token: string | undefined): Promise<Sessio
 		userId: row.userId,
 		email: row.email,
 		name: row.name,
-		isPlatformAdmin: row.isPlatformAdmin,
-		totpEnabled: row.totpEnabled
+		isPlatformAdmin: row.isPlatformAdmin && !row.ssoTenantId,
+		totpEnabled: row.totpEnabled,
+		ssoTenantId: row.ssoTenantId ?? null
 	};
 }
 
@@ -141,6 +146,14 @@ export async function deleteUserSessions(userId: string, exceptSessionId?: strin
 	const where = exceptSessionId
 		? and(eq(sessions.userId, userId), ne(sessions.id, exceptSessionId))
 		: eq(sessions.userId, userId);
+	const gone = await authPool().db.delete(sessions).where(where).returning({ id: sessions.id });
+	await cacheDrop(gone.map((s) => s.id));
+}
+
+export async function deleteSsoSessions(tenantId: string, userId?: string): Promise<void> {
+	const where = userId
+		? and(eq(sessions.ssoTenantId, tenantId), eq(sessions.userId, userId))
+		: eq(sessions.ssoTenantId, tenantId);
 	const gone = await authPool().db.delete(sessions).where(where).returning({ id: sessions.id });
 	await cacheDrop(gone.map((s) => s.id));
 }

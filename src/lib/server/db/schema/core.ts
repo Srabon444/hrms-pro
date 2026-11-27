@@ -17,6 +17,7 @@ import {
 import { citext, createdAt, tenantBase, tenantKey, tfk, tstz, updatedAt } from './_helpers';
 import { LIMITS } from '../../../settings-sections';
 import { employees } from './org';
+import { tenants } from './tenants';
 export { tenants } from './tenants';
 
 export const users = pgTable(
@@ -54,6 +55,7 @@ export const sessions = pgTable(
 		idleExpiresAt: tstz().notNull(),
 		lastSeenAt: tstz().notNull().defaultNow(),
 		reauthAt: tstz(),
+		ssoTenantId: uuid().references(() => tenants.id, { onDelete: 'cascade' }),
 		ip: text(),
 		userAgent: text(),
 		createdAt: createdAt()
