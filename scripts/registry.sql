@@ -33,6 +33,7 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('shifts', 'plain', '{id,tenant_id,name,start_time,end_time,grace_minutes,half_day_minutes,full_day_minutes,break_minutes,break_paid,is_default,active}'),
 	('shift_assignments', 'plain', '{id,tenant_id,employee_id,shift_id,effective_from,created_by_user_id}'),
 	('work_sites', 'plain', '{id,tenant_id,name,branch_id,lat,lng,radius_m,ip_cidrs,active}'),
+	('kiosk_devices', 'plain', '{id,tenant_id,name,site_id,last_seen_at,revoked_at,ip_cidrs}'),
 	('work_weeks', 'plain', '{id,tenant_id,name,weekend_days,roster_mode,active}'),
 	('work_week_assignments', 'plain', '{id,tenant_id,employee_id,work_week_id,effective_from,created_by_user_id}'),
 	('roster_entries', 'plain', '{id,tenant_id,employee_id,date,shift_id,kind,status,note,created_by_user_id,published_at}'),

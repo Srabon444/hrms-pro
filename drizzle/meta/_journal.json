@@ -533,6 +533,13 @@
       "when": 1795767767459,
       "tag": "0075_time_clock",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1795772615639,
+      "tag": "0076_kiosk",
+      "breakpoints": true
     }
   ]
 }

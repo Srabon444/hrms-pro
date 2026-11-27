@@ -225,12 +225,16 @@ type PunchExtra = {
 	outsideSite?: boolean;
 };
 
+export type PunchActor = { tenantId: string; userId: string | null };
+type Punchable = { id: string; joinDate: string; exitDate: string | null; status: string };
+const actorOf = (m: Member): PunchActor => ({ tenantId: m.tenant.id, userId: m.user.userId });
+
 async function savePunch(
 	tx: Tx,
-	m: Member,
-	e: { id: string; joinDate: string; exitDate: string | null; status: string },
+	actor: PunchActor,
+	e: Punchable,
 	at: Date,
-	source: 'web' | 'manual',
+	source: 'web' | 'manual' | 'kiosk',
 	extra: PunchExtra = {}
 ) {
 	const { day } = await punchDay(tx, e.id, at);
@@ -239,7 +243,7 @@ async function savePunch(
 	const saved = await tx
 		.insert(attendancePunches)
 		.values({
-			tenantId: m.tenant.id,
+			tenantId: actor.tenantId,
 			employeeId: e.id,
 			at,
 			source,
@@ -250,12 +254,38 @@ async function savePunch(
 			accuracyM: extra.point ? Math.round(extra.point.accuracyM) : null,
 			siteId: extra.siteId ?? null,
 			outsideSite: extra.outsideSite ?? false,
-			createdByUserId: m.user.userId
+			createdByUserId: actor.userId
 		})
 		.onConflictDoNothing()
 		.returning({ id: attendancePunches.id });
 	if (!saved.length) throw new AppError('duplicate', 'That punch is already recorded.', 409);
-	await recomputeAttendance(tx, m.tenant.id, addDays(day, -1), addDays(day, 1), [e.id]);
+	await recomputeAttendance(tx, actor.tenantId, addDays(day, -1), addDays(day, 1), [e.id]);
+}
+
+export type PunchInput = ReturnType<typeof punchInput>;
+
+export async function checkedPunch(
+	tx: Tx,
+	actor: PunchActor,
+	e: Punchable,
+	source: 'web' | 'kiosk',
+	kind: PunchInput['kind'],
+	place: (at: Date) => Promise<Omit<PunchExtra, 'kind'>>
+) {
+	const at = now();
+	const [recent] = await tx
+		.select({ id: attendancePunches.id })
+		.from(attendancePunches)
+		.where(and(eq(attendancePunches.employeeId, e.id), gte(attendancePunches.at, new Date(at.getTime() - 60_000))))
+		.limit(1);
+	if (recent) throw new AppError('too_soon', 'You punched less than a minute ago.', 429);
+	const today = (await dayPunches(tx, e.id, at)).punches;
+	if (kind === 'break_start' && (!clockedIn(today) || onBreak(today)))
+		throw new AppError('no_break', 'Punch in before starting a break.', 409);
+	if (kind === 'break_end' && !onBreak(today)) throw new AppError('no_break', 'There is no break to end.', 409);
+	const extra = await place(at);
+	await savePunch(tx, actor, e, at, source, { ...extra, kind });
+	return { at, outsideSite: extra.outsideSite ?? false };
 }
 
 const punchSchema = z
@@ -297,35 +327,24 @@ export async function punch(m: Member, ip: string | null, raw: Record<string, st
 		const e = await lockEmployee(tx, m.access, employeeId);
 		if (!inScope(await resolveScope(tx, m.access, 'attendance.punch'), e.id))
 			throw new AppError('forbidden', 'You cannot record attendance.', 403);
-		const at = now();
-		const [recent] = await tx
-			.select({ id: attendancePunches.id })
-			.from(attendancePunches)
-			.where(and(eq(attendancePunches.employeeId, e.id), gte(attendancePunches.at, new Date(at.getTime() - 60_000))))
-			.limit(1);
-		if (recent) throw new AppError('too_soon', 'You punched less than a minute ago.', 429);
-		const today = (await dayPunches(tx, e.id, at)).punches;
-		if (input.kind === 'break_start' && (!clockedIn(today) || onBreak(today)))
-			throw new AppError('no_break', 'Punch in before starting a break.', 409);
-		if (input.kind === 'break_end' && !onBreak(today)) throw new AppError('no_break', 'There is no break to end.', 409);
-		const address = clientIp(ip) ?? ip?.slice(0, 64) ?? null;
-		const rule = await punchRule(tx);
-		const siteId = rule === 'off' ? null : await matchSite(tx, e.id, address, input.point);
-		if (rule === 'block' && !siteId)
-			throw new AppError(
-				'outside_site',
-				'You are not at a work site. Punch from the office network or turn on location and try again.',
-				403
-			);
-		const outsideSite = rule === 'flag' && !siteId;
-		await savePunch(tx, m, e, at, 'web', {
-			kind: input.kind,
-			ip: address,
-			point: rule === 'off' ? null : input.point,
-			siteId,
-			outsideSite
+		const done = await checkedPunch(tx, actorOf(m), e, 'web', input.kind, async () => {
+			const address = clientIp(ip) ?? ip?.slice(0, 64) ?? null;
+			const rule = await punchRule(tx);
+			const siteId = rule === 'off' ? null : await matchSite(tx, e.id, address, input.point);
+			if (rule === 'block' && !siteId)
+				throw new AppError(
+					'outside_site',
+					'You are not at a work site. Punch from the office network or turn on location and try again.',
+					403
+				);
+			return {
+				ip: address,
+				point: rule === 'off' ? null : input.point,
+				siteId,
+				outsideSite: rule === 'flag' && !siteId
+			};
 		});
-		return { outsideSite };
+		return { outsideSite: done.outsideSite };
 	});
 }
 
@@ -343,7 +362,7 @@ export async function addManualPunch(m: Member, employeeId: string, raw: Record<
 			throw new AppError('self_change', 'Someone else has to add punches for you.', 403);
 		const when = zonedInstant(input.at, (await calendar(tx, e.id)).timeZone);
 		if (when > now()) throw new AppError('future', 'A punch cannot be in the future.', 400);
-		await savePunch(tx, m, e, when, 'manual');
+		await savePunch(tx, actorOf(m), e, when, 'manual');
 	});
 }
 

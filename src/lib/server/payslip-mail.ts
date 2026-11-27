@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { decrypt, encrypt } from './auth/crypto';
 import { isCommonPassword } from './auth/password';
@@ -41,7 +41,7 @@ export async function pdfPasswordSet(tx: Tx, membershipId: string): Promise<bool
 	const [row] = await tx
 		.select({ id: memberSecrets.id })
 		.from(memberSecrets)
-		.where(eq(memberSecrets.membershipId, membershipId));
+		.where(and(eq(memberSecrets.membershipId, membershipId), isNotNull(memberSecrets.pdfPasswordEnc)));
 	return !!row;
 }
 
@@ -63,9 +63,24 @@ export async function setPdfPassword(m: Member, raw: Record<string, string>): Pr
 }
 
 export async function removePdfPassword(m: Member): Promise<void> {
-	await withTenant(userCtx(m), (tx) =>
-		tx.delete(memberSecrets).where(eq(memberSecrets.membershipId, m.access.membershipId))
-	);
+	await withTenant(userCtx(m), (tx) => clearMemberSecret(tx, m.access.membershipId, 'pdfPasswordEnc'));
+}
+
+export async function clearMemberSecret(tx: Tx, membershipId: string, field: 'pdfPasswordEnc' | 'kioskPinMac') {
+	const mine = eq(memberSecrets.membershipId, membershipId);
+	const [row] = await tx
+		.select({ pdfPasswordEnc: memberSecrets.pdfPasswordEnc, kioskPinMac: memberSecrets.kioskPinMac })
+		.from(memberSecrets)
+		.where(mine)
+		.for('update');
+	if (!row) return;
+	const other = field === 'pdfPasswordEnc' ? row.kioskPinMac : row.pdfPasswordEnc;
+	if (other === null) await tx.delete(memberSecrets).where(mine);
+	else
+		await tx
+			.update(memberSecrets)
+			.set({ [field]: null })
+			.where(mine);
 }
 
 export type PayslipAttachment = { payslipId: string; membershipId: string };
@@ -77,7 +92,7 @@ async function lockedPayslip(tenantId: string, a: PayslipAttachment) {
 			.select({ enc: memberSecrets.pdfPasswordEnc, on: sql<boolean>`(select payslip_email_pdf from tenant_settings)` })
 			.from(memberSecrets)
 			.where(eq(memberSecrets.membershipId, a.membershipId));
-		if (!secret) return { skipped: 'no_password' as const };
+		if (!secret?.enc) return { skipped: 'no_password' as const };
 		if (!secret.on) return { skipped: 'setting_off' as const };
 		const found = await payslipPdfInput(
 			tx,

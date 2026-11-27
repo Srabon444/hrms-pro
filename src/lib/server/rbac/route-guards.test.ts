@@ -44,7 +44,11 @@ describe('browser code never imports server modules', () => {
 });
 
 describe('routes outside tenants and the sign-in pages are allowlisted', () => {
-	const PUBLIC: Record<string, string> = { 'src/routes/ical/[file]/+server.ts': 'src/lib/server/public/ical.ts' };
+	const PUBLIC: Record<string, string> = {
+		'src/routes/ical/[file]/+server.ts': 'src/lib/server/public/ical.ts',
+		'src/routes/kiosk/+page.server.ts': 'src/lib/server/public/kiosk.ts',
+		'src/routes/kiosk/pair/+page.server.ts': 'src/lib/server/public/kiosk.ts'
+	};
 	const OTHER = [
 		'src/routes/+page.server.ts',
 		'src/routes/account/security/+page.server.ts',
@@ -72,6 +76,6 @@ describe('routes outside tenants and the sign-in pages are allowlisted', () => {
 		expect(body).toMatch(/\b(hit|hitOrLocal)\(/);
 		expect(body).toMatch(/\boverLimit\(/);
 		expect(body).toMatch(/\blookupToken\(/);
-		expect(body).toMatch(/\bactiveHolder\(/);
+		expect(body).toMatch(/\b(activeHolder|activeTenant)\(/);
 	});
 });

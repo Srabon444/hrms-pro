@@ -30,10 +30,12 @@ export const memberSecrets = pgTable(
 	{
 		...tenantBase(),
 		membershipId: uuid().notNull(),
-		pdfPasswordEnc: text().notNull()
+		pdfPasswordEnc: text(),
+		kioskPinMac: text()
 	},
 	(t) => [
 		tenantKey('member_secrets', t),
+		check('member_secrets_any_ck', sql`${t.pdfPasswordEnc} is not null or ${t.kioskPinMac} is not null`),
 		tfk('member_secrets_membership_fk', t, t.membershipId, memberships, 'cascade'),
 		uniqueIndex('member_secrets_membership_uq').on(t.tenantId, t.membershipId)
 	]

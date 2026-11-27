@@ -112,7 +112,8 @@ describe('payslip PDF password', () => {
 		const [row] = await sql()<{ enc: string }[]>`
 			select pdf_password_enc as enc from member_secrets where membership_id = ${who.ana.access.membershipId}`;
 		expect(row.enc).not.toContain(PDF_PW);
-		const audited = await sql()`select 1 from audit_log where table_name = 'member_secrets'`;
+		const audited =
+			await sql()`select 1 from audit_log where table_name = 'member_secrets' and tenant_id = ${tenant.id}`;
 		expect(audited).toHaveLength(0);
 	});
 
