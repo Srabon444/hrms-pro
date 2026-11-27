@@ -116,6 +116,8 @@ const punches = (employeeId: string, t = tenant) =>
 	withTenant(sys(t), (tx) => tx.select().from(attendancePunches).where(eq(attendancePunches.employeeId, employeeId)));
 
 beforeAll(async () => {
+	const r = await redisReady();
+	await r.del(...['198.51.100.7', '198.51.100.8', '198.51.100.9'].map((ip) => rkey('rl', 'kiosk-pair-fail', ip)));
 	tenant = await createTenant('kiosk');
 	other = await createTenant('kioskb');
 	await withTenant(sys(), (tx) => seedTenant(tx, tenant.id, TEST_LOCALE));
@@ -358,19 +360,18 @@ describe('kiosk punches', () => {
 		await withTenant(sys(), (tx) => tx.update(employees).set({ code: 'ID-0009' }).where(eq(employees.id, ids.dan)));
 		expect(await code(setPin('dan'))).toBe('ok');
 		const d = await device((await newKiosk('Burst')).token);
-		const pins = Array.from({ length: 20 }, (_, i) => (i === 12 ? PIN.dan : String(581900 + i)));
+		const pins = Array.from({ length: 20 }, (_, i) => String(581900 + i));
 		const burst = await at('2026-11-26T10:00:00+06:00', () =>
 			Promise.all(pins.map((pin) => code(kioskPunch(d, { code: 'ID-0009', pin }))))
 		);
-		expect(burst.filter((r) => r === 'no_match').length).toBeLessThanOrEqual(KIOSK_FAILS_BEFORE_LOCK);
-		expect(burst.filter((r) => r === 'kiosk_locked').length).toBeGreaterThanOrEqual(20 - KIOSK_FAILS_BEFORE_LOCK - 1);
+		const misses = burst.filter((r) => r === 'no_match').length;
+		expect(misses).toBeLessThanOrEqual(KIOSK_FAILS_BEFORE_LOCK);
+		expect(burst.filter((r) => r === 'kiosk_locked').length).toBe(20 - misses);
 		const r = await redisReady();
 		const level = Number(await r.get(rkey('kiosk-level', `${d.id}:e:${ids.dan}`)));
 		expect(level).toBeLessThanOrEqual(1);
-		if (!burst.includes('ok')) {
-			expect(await code(at(NOW, () => kioskPunch(d, { code: 'İD-0009', pin: PIN.dan })))).toBe('kiosk_locked');
-			expect(await code(at(NOW, () => kioskPunch(d, { code: ' id-0009 ', pin: PIN.dan })))).toBe('kiosk_locked');
-		}
+		for (const spelling of ['ID-0009', 'İD-0009', ' id-0009 '])
+			expect(await code(at(NOW, () => kioskPunch(d, { code: spelling, pin: PIN.dan })))).toBe('kiosk_locked');
 		const junk = 'NOPE CALL http://evil';
 		await Array.from({ length: 2 * KIOSK_FAILS_BEFORE_LOCK }).reduce<Promise<unknown>>(
 			async (acc) => (
