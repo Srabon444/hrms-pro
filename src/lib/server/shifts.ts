@@ -35,11 +35,19 @@ const shiftSchema = z
 		graceMinutes: mins(0, 240, 'Grace must be 0 to 240 minutes.'),
 		halfDayMinutes: mins(1, 1440, 'Half day must be 1 to 1440 minutes.'),
 		fullDayMinutes: mins(1, 1440, 'Full day must be 1 to 1440 minutes.'),
+		breakMinutes: z.preprocess(
+			(v) => (v === undefined || v === '' ? 0 : v),
+			mins(0, 240, 'Break must be 0 to 240 minutes.')
+		),
+		breakPaid: checkbox,
 		isDefault: checkbox,
 		active: checkbox
 	})
 	.refine((s) => s.halfDayMinutes <= s.fullDayMinutes, 'A half day cannot need more time than a full day.')
-	.refine((s) => s.fullDayMinutes <= shiftSpan(s), 'A full day cannot need more time than the shift lasts.');
+	.refine(
+		(s) => s.fullDayMinutes <= shiftSpan(s) - (s.breakPaid ? 0 : s.breakMinutes),
+		'A full day cannot need more time than the shift lasts, less any unpaid break.'
+	);
 
 const duplicate = (err: unknown) => {
 	if (pgCode(err) === UNIQUE_VIOLATION) throw new AppError('duplicate', 'A shift with that name already exists.', 409);

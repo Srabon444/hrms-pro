@@ -9,13 +9,17 @@ export type ShiftRule = {
 	graceMinutes: number;
 	halfDayMinutes: number;
 	fullDayMinutes: number;
+	breakMinutes?: number;
+	breakPaid?: boolean;
 };
+
+export type PunchMark = { at: Date; kind?: string | null };
 
 export type DayInput = {
 	date: string;
 	shift: ShiftRule;
 	timeZone: string;
-	punches: Date[];
+	punches: PunchMark[];
 	until?: Date;
 	weekend: boolean;
 	holiday: boolean;
@@ -60,15 +64,39 @@ export function shiftWindow(shift: Pick<ShiftRule, 'startTime' | 'endTime'>) {
 	return { start, end: raw > start ? raw : raw + 1440, from: start - 240, to: start + 1200 };
 }
 
+type Mark = { at: Date; m: number; kind?: string | null };
+
+type BreakRun = { open: number | null; plain: number | null; total: number; punched: boolean };
+
+const closeAt = (run: BreakRun, end: number): BreakRun =>
+	run.open === null ? run : { ...run, open: null, plain: null, total: run.total + end - run.open };
+
+const step = (run: BreakRun, p: Mark): BreakRun => {
+	if (p.kind === 'break_start') {
+		if (run.open === null) return { ...run, open: p.m, punched: true };
+		return run.plain === null ? run : { ...closeAt(run, run.plain), open: p.m };
+	}
+	if (p.kind === 'break_end') return closeAt(run, p.m);
+	return run.open !== null && run.plain === null ? { ...run, plain: p.m } : run;
+};
+
+export function unpaidBreak(marks: Mark[], shift: ShiftRule, span: number) {
+	if (shift.breakPaid ?? true) return 0;
+	const run = marks.reduce(step, { open: null, plain: null, total: 0, punched: false });
+	if (run.punched) return (run.plain === null ? run : closeAt(run, run.plain)).total;
+	return Math.min(shift.breakMinutes ?? 0, Math.max(0, span - shift.halfDayMinutes));
+}
+
 export function computeDay(input: DayInput): DayResult | null {
 	const { start, end, from, to } = shiftWindow(input.shift);
 	const marks = input.punches
-		.map((at) => ({ at, m: localMinutes(at, input.date, input.timeZone) }))
+		.map(({ at, kind }) => ({ at, kind, m: localMinutes(at, input.date, input.timeZone) }))
 		.filter((p) => p.m >= from && (input.until ? p.at < input.until : p.m < to))
 		.sort((a, b) => a.m - b.m);
 	const first = marks[0];
 	const last = marks.length > 1 ? marks[marks.length - 1] : undefined;
-	const workedMinutes = first && last ? last.m - first.m : 0;
+	const span = first && last ? last.m - first.m : 0;
+	const workedMinutes = Math.max(0, span - unpaidBreak(marks, input.shift, span));
 	const base = { firstIn: first?.at ?? null, lastOut: last?.at ?? null, workedMinutes, lateMinutes: 0 };
 	if (input.holiday) return { ...base, status: 'holiday' };
 	if (input.weekend) return { ...base, status: 'weekend' };

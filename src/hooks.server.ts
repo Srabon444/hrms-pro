@@ -15,7 +15,7 @@ import { resolveTenantAccess } from '#lib/server/tenancy/resolve.ts';
 const securityHeaders: Record<string, string> = {
 	'x-content-type-options': 'nosniff',
 	'referrer-policy': 'strict-origin-when-cross-origin',
-	'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+	'permissions-policy': 'camera=(), microphone=(), geolocation=(self)',
 	'cross-origin-opener-policy': 'same-origin'
 };
 

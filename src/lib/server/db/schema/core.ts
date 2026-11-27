@@ -239,7 +239,8 @@ export const tenantSettings = pgTable(
 		modulesDisabled: text()
 			.array()
 			.notNull()
-			.default(sql`'{}'::text[]`)
+			.default(sql`'{}'::text[]`),
+		punchLocationRule: text().notNull().default('off')
 	},
 	(t) => [
 		tenantKey('tenant_settings', t),
@@ -248,6 +249,7 @@ export const tenantSettings = pgTable(
 		check('tenant_settings_notice_ck', sql`${t.noticePeriodDays} between 0 and 365`),
 		check('tenant_settings_basis_ck', sql`${t.payrollProrationBasis} in ('calendar','working')`),
 		check('tenant_settings_late_ck', sql`${t.latePolicyPenalty} in ('lop','leave')`),
+		check('tenant_settings_punch_rule_ck', sql`${t.punchLocationRule} in ('off','flag','block')`),
 		check('tenant_settings_lag_ck', sql`${t.mealPayrollLagMonths} between 0 and 3`),
 		check('tenant_settings_audit_ret_ck', sql`${t.retentionAuditDays} >= 365`),
 		check('tenant_settings_candidates_ret_ck', sql`${t.retentionCandidatesDays} between 30 and 3650`),

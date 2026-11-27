@@ -24,7 +24,8 @@ const day = (extra: Partial<DayInput> = {}) =>
 		now: at('2026-03-11T12:00:00'),
 		...extra
 	});
-const punched = (...times: string[]) => ({ punches: times.map((t) => at(`2026-03-10T${t}:00`)) });
+const mark = (local: string, kind?: string) => ({ at: at(local), kind });
+const punched = (...times: string[]) => ({ punches: times.map((t) => mark(`2026-03-10T${t}:00`)) });
 
 describe('attendance day', () => {
 	it('reads minutes from local midnight of the shift day, across days', () => {
@@ -74,11 +75,11 @@ describe('attendance day', () => {
 	});
 
 	it('ignores punches outside the shift window', () => {
-		expect(day({ punches: [at('2026-03-10T04:59:00'), at('2026-03-11T05:00:00')] })).toMatchObject({
+		expect(day({ punches: [mark('2026-03-10T04:59:00'), mark('2026-03-11T05:00:00')] })).toMatchObject({
 			status: 'absent',
 			firstIn: null
 		});
-		expect(day({ punches: [at('2026-03-10T05:00:00'), at('2026-03-11T04:59:00')] })).toMatchObject({
+		expect(day({ punches: [mark('2026-03-10T05:00:00'), mark('2026-03-11T04:59:00')] })).toMatchObject({
 			status: 'present',
 			workedMinutes: 1439
 		});
@@ -86,7 +87,7 @@ describe('attendance day', () => {
 
 	it('handles an overnight shift as one day', () => {
 		const n = (punches: string[], now = '2026-03-11T12:00:00') =>
-			day({ shift: night, punches: punches.map((p) => at(p)), now: at(now) });
+			day({ shift: night, punches: punches.map((p) => mark(p)), now: at(now) });
 		expect(n(['2026-03-10T22:05:00', '2026-03-11T06:00:00'])).toMatchObject({ status: 'present', workedMinutes: 475 });
 		expect(n(['2026-03-10T22:11:00', '2026-03-11T06:00:00'])).toMatchObject({ status: 'late', lateMinutes: 11 });
 		expect(n(['2026-03-10T23:00:00', '2026-03-11T03:30:00'])).toMatchObject({ status: 'half_day', lateMinutes: 60 });
@@ -124,6 +125,63 @@ describe('attendance day', () => {
 		expect(day({ ...punched('09:00', '12:00'), leave: 'pm' })).toMatchObject({ status: 'half_day' });
 		expect(day({ leave: 'pm' })).toMatchObject({ status: 'half_day' });
 		expect(day({ leave: 'am', now: at('2026-03-10T12:00:00') })).toBeNull();
+	});
+
+	it('takes unpaid break pairs off worked time', () => {
+		const unpaid = { ...general, breakMinutes: 60, breakPaid: false };
+		const b = (...list: [string, string?][]) => ({
+			shift: unpaid,
+			punches: list.map(([t, kind]) => mark(`2026-03-10T${t}:00`, kind))
+		});
+		expect(day(b(['09:00'], ['13:00', 'break_start'], ['13:30', 'break_end'], ['18:00']))).toMatchObject({
+			workedMinutes: 510,
+			status: 'present'
+		});
+		expect(day(b(['09:00'], ['13:00', 'break_start'], ['18:00']))).toMatchObject({ workedMinutes: 240 });
+		expect(day(b(['09:00'], ['13:00', 'break_start']))).toMatchObject({ workedMinutes: 240 });
+		expect(
+			day(b(['09:00'], ['12:00', 'break_start'], ['12:30', 'break_start'], ['13:00', 'break_end'], ['18:00']))
+		).toMatchObject({ workedMinutes: 480 });
+		expect(day(b(['09:00'], ['12:00', 'break_end'], ['18:00']))).toMatchObject({ workedMinutes: 480 });
+		expect(day(b(['09:00'], ['12:00', 'break_start'], ['12:10'], ['12:30', 'break_end'], ['18:00']))).toMatchObject({
+			workedMinutes: 510
+		});
+		expect(
+			day(b(['09:00'], ['12:00', 'break_start'], ['13:00'], ['14:00'], ['15:00', 'break_start'], ['15:30'], ['18:00']))
+		).toMatchObject({ workedMinutes: 450 });
+		expect(
+			day({ ...b(['09:00'], ['13:00', 'break_start'], ['13:30', 'break_end'], ['18:00']), shift: general })
+		).toMatchObject({ workedMinutes: 540 });
+	});
+
+	it('takes the fixed unpaid break off longer days with no break punched', () => {
+		const unpaid = { ...general, breakMinutes: 60, breakPaid: false };
+		expect(day({ ...punched('09:00', '18:00'), shift: unpaid })).toMatchObject({ workedMinutes: 480 });
+		expect(day({ ...punched('09:00', '12:00'), shift: unpaid })).toMatchObject({ workedMinutes: 180 });
+		const worked = ['13:00', '13:01', '13:30', '13:59', '14:00', '14:01'].map(
+			(end) => day({ ...punched('09:00', end), shift: unpaid })!.workedMinutes
+		);
+		expect(worked).toEqual([240, 240, 240, 240, 240, 241]);
+		expect(day({ ...punched('09:00', '13:01'), shift: unpaid })).toMatchObject({ status: 'half_day' });
+		expect(day({ ...punched('09:00', '18:00'), shift: { ...unpaid, breakPaid: true } })).toMatchObject({
+			workedMinutes: 540
+		});
+	});
+
+	it('counts a night break that crosses midnight', () => {
+		const shift = { ...night, breakMinutes: 30, breakPaid: false };
+		expect(
+			day({
+				shift,
+				punches: [
+					mark('2026-03-10T22:00:00'),
+					mark('2026-03-10T23:45:00', 'break_start'),
+					mark('2026-03-11T00:30:00', 'break_end'),
+					mark('2026-03-11T06:00:00')
+				],
+				now: at('2026-03-11T12:00:00')
+			})
+		).toMatchObject({ workedMinutes: 435, status: 'present' });
 	});
 
 	it('turns a wall-clock time in the tenant zone into an instant', () => {
