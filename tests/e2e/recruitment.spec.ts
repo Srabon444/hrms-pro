@@ -30,7 +30,7 @@ test('a recruiter opens a job, adds a candidate with a resume and moves them alo
 	await add.getByLabel('Source').selectOption('Referral');
 	await add.getByLabel('Tags (comma separated)').fill('go, sql');
 	await add
-		.getByLabel('Resume (PDF or Word, up to 10 MB)')
+		.getByLabel('Resume (PDF, Word or image, up to 10 MB)')
 		.setInputFiles({ name: 'rafi.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 rafi') });
 	await add.getByRole('button', { name: 'Add candidate' }).click();
 	await expect(page.getByRole('status')).toHaveText('Candidate added.');

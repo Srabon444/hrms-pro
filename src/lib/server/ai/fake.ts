@@ -29,7 +29,8 @@ const CANNED: Record<string, unknown> = {
 	document: { title: 'AWS Certified Developer', expiresOn: '2029-03-31' },
 	announcement: 'The office will close early on Thursday for the team outing. Please plan your work around it.',
 	job: 'We are hiring a teammate to own day-to-day delivery. You will work with a small, friendly team.',
-	reply: 'Thanks for raising this. We have looked into it and will update you by tomorrow.'
+	reply: 'Thanks for raising this. We have looked into it and will update you by tomorrow.',
+	transcribe: 'Night shift allowance is paid with the monthly salary.'
 };
 
 const refuse = (key: string) => {

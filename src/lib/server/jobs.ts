@@ -5,6 +5,7 @@ import { runLifecycle } from './exits';
 import { runLeaveAccrual } from './leave';
 import { runCelebrations } from './directory';
 import { runEventReminders } from './events';
+import { extractFileText, reconcileFileTexts, type FileTextJob } from './file-text';
 import { deliverMail, type Mail } from './mail';
 import { sendMealBill, sweepMealBills, type BillJob } from './meal-bills';
 import { runMeals } from './meal-orders';
@@ -24,11 +25,13 @@ export const LIFECYCLE_STEPS: Record<string, () => Promise<unknown>> = {
 	celebrations: runCelebrations,
 	eventReminders: runEventReminders,
 	swaps: expireSwaps,
-	aiRetention: purgeAiUsage
+	aiRetention: purgeAiUsage,
+	fileTexts: reconcileFileTexts
 };
 
 export const processors: Record<QueueName, Processor> = {
 	mail: async (job) => deliverMail(await withPayslip(job.data as Mail)),
 	'meal-bills': (job) => sendMealBill(job.data as BillJob),
-	lifecycle: () => runSteps(LIFECYCLE_STEPS)
+	lifecycle: () => runSteps(LIFECYCLE_STEPS),
+	'file-text': (job) => extractFileText(job.data as FileTextJob)
 };

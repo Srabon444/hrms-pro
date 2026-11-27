@@ -1,4 +1,4 @@
-import { gte, sql } from 'drizzle-orm';
+import { and, eq, gte, notInArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { auditEvent } from '../audit';
 import { encrypt } from '../auth/crypto';
@@ -10,6 +10,8 @@ import {
 	AI_PROVIDERS,
 	aiSettings,
 	aiUsage,
+	FILE_TEXT_FINAL_ERRORS,
+	fileTexts,
 	tenantSettings,
 	type AiFeature,
 	type AiProvider
@@ -202,6 +204,11 @@ export async function saveAi(m: Member, form: FormData): Promise<void> {
 			model: v.model ?? '',
 			budget: String(v.budget)
 		});
+		if (v.enabled)
+			await tx
+				.update(fileTexts)
+				.set({ attempts: 0, nextRetryAt: now() })
+				.where(and(eq(fileTexts.status, 'failed'), notInArray(fileTexts.lastError, FILE_TEXT_FINAL_ERRORS)));
 	});
 }
 

@@ -3,7 +3,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { activeMembershipsOf } from './approval-chain';
 import { auditEvent } from './audit';
-import { employees, MAX_DOCUMENT_BYTES, policies, policyAcknowledgements } from './db/schema';
+import { employees, fileTexts, MAX_DOCUMENT_BYTES, policies, policyAcknowledgements } from './db/schema';
+import { queueFileText } from './file-text';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { AppError } from './errors';
 import { tenantToday } from './lifecycle';
@@ -86,7 +87,7 @@ export async function savePolicy(
 	const stored = upload && { ...upload.meta, storageKey: `t/${m.tenant.id}/policies/${randomUUID()}` };
 	if (upload && stored) await putObject(stored.storageKey, upload.bytes, stored.contentType);
 	try {
-		return await withTenant(userCtx(m), async (tx) => {
+		const saved = await withTenant(userCtx(m), async (tx) => {
 			const clash = (err: unknown) => {
 				if (pgCode(err) === UNIQUE_VIOLATION)
 					throw new AppError('title_exists', 'Another policy already uses that title.', 409);
@@ -111,6 +112,7 @@ export async function savePolicy(
 			const [current] = await tx.select().from(policies).where(eq(policies.id, policyId)).for('update');
 			if (!current) throw notFound();
 			const version = stored ? current.version + 1 : current.version;
+			if (stored) await tx.delete(fileTexts).where(eq(fileTexts.policyId, current.id));
 			await tx
 				.update(policies)
 				.set({ ...input, ...(stored ? { ...stored, publishedOn: today } : {}), version })
@@ -120,6 +122,8 @@ export async function savePolicy(
 			const mails = wake ? await askEveryone(tx, m, input.title, version) : [];
 			return { id: current.id, mails };
 		});
+		if (stored) await queueFileText({ tenantId: m.tenant.id, policyId: saved.id, sha256: stored.sha256 });
+		return saved;
 	} catch (err) {
 		if (stored)
 			await deleteObject(stored.storageKey).catch((e) =>

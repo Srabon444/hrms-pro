@@ -63,7 +63,7 @@ test('AI reads a receipt, a CV and a certificate and drafts text, all as suggest
 	await hydrated(page);
 
 	const add = page.getByRole('region', { name: 'Add candidate' });
-	await add.getByLabel('Resume (PDF or Word, up to 10 MB)').setInputFiles(pdf);
+	await add.getByLabel('Resume (PDF, Word or image, up to 10 MB)').setInputFiles(pdf);
 	await add.getByRole('button', { name: 'Read CV' }).click();
 	await expect(add.getByLabel('Full name')).toHaveValue('Rina Akter');
 	await expect(add.getByLabel('Email')).toHaveValue('rina.akter@example.com');
