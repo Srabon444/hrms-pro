@@ -78,7 +78,7 @@ const onlyManagers = (access: Access) => {
 };
 const notFound = () => new AppError('not_found', 'That event does not exist.', 404);
 
-const visibleTo = async (tx: Tx, access: Access) =>
+export const visibleTo = async (tx: Tx, access: Access) =>
 	canRunEvents(access) ? undefined : audienceFilter(tx, access.employeeId, events);
 
 export async function saveEvent(m: Member, raw: Record<string, string>) {
@@ -139,7 +139,7 @@ export async function rsvpEvent(m: Member, raw: Record<string, string>) {
 	});
 }
 
-const eventFields = {
+export const eventFields = {
 	id: events.id,
 	title: events.title,
 	description: events.description,

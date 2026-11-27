@@ -53,6 +53,7 @@ export const sessions = pgTable(
 		expiresAt: tstz().notNull(),
 		idleExpiresAt: tstz().notNull(),
 		lastSeenAt: tstz().notNull().defaultNow(),
+		reauthAt: tstz(),
 		ip: text(),
 		userAgent: text(),
 		createdAt: createdAt()

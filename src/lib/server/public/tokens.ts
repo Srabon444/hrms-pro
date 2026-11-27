@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { authPool } from '../db';
 import { tenants } from '../db/schema';
 
-export type TokenKind = 'calendar_feed' | 'kiosk_device' | 'kiosk_pair';
+export type TokenKind = 'calendar_feed' | 'kiosk_device' | 'kiosk_pair' | 'api_key';
 
 export type TokenHolder = {
 	tenantId: string;
@@ -42,8 +42,8 @@ export async function activeHolder(
 		: null;
 }
 
-export async function revokeUserFeeds(userId: string): Promise<void> {
-	await authPool().sql`select public.revoke_user_calendar_feeds(${userId})`;
+export async function revokeUserTokens(userId: string): Promise<void> {
+	await authPool().sql`select public.revoke_user_calendar_feeds(${userId}), public.revoke_user_api_keys(${userId})`;
 }
 
 export async function activeTenant(tenantId: string) {

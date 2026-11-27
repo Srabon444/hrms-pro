@@ -1090,6 +1090,21 @@ erDiagram
 								</td>
 							</tr>
 							<tr>
+								<td>REST API</td>
+								<td>
+									Settings → API keys makes a read-only key for another system: employees, leave requests, attendance
+									days, the published roster and events, at a chosen scope, for 30 days to a year. The API is described
+									at /api/v1/openapi.json.
+								</td>
+								<td>
+									Owner-only permission and a password check within the last 10 minutes; a key never reads more than its
+									creator can today, so demoting or disabling the creator narrows or stops it; only the key's hash is
+									stored; JSON only, Bearer keys, pages of at most 200 rows, 600 requests a minute per key, and no
+									national ID, bank, tax or pay fields; creation, revocation and daily use are audited, and a password
+									change revokes the person's keys.
+								</td>
+							</tr>
+							<tr>
 								<td>AI file reading and writing help</td>
 								<td>
 									Read receipt fills an expense row, Read CV fills a new candidate, Read document fills a certificate's

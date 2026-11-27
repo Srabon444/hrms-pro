@@ -328,6 +328,9 @@ begin
 		return query select f.tenant_id, f.id from public.calendar_feeds f where f.token_hash = p_hash and f.revoked_at is null;
 	elsif p_kind = 'kiosk_device' then
 		return query select k.tenant_id, k.id from public.kiosk_devices k where k.token_hash = p_hash and k.revoked_at is null;
+	elsif p_kind = 'api_key' then
+		return query select a.tenant_id, a.id from public.api_keys a
+			where a.key_hash = p_hash and a.revoked_at is null and a.expires_at > now();
 	elsif p_kind = 'kiosk_pair' then
 		return query select k.tenant_id, k.id from public.kiosk_devices k
 			where k.pair_hash = p_hash and k.pair_expires_at > now() and k.revoked_at is null;
@@ -354,6 +357,22 @@ end $$;
 
 revoke all on function public.revoke_user_calendar_feeds(uuid) from public;
 grant execute on function public.revoke_user_calendar_feeds(uuid) to hrms_auth;
+
+create or replace function public.revoke_user_api_keys(p_user_id uuid) returns integer
+language plpgsql security definer
+set search_path = pg_catalog, public, pg_temp
+as $$
+declare
+	n integer;
+begin
+	update public.api_keys a set revoked_at = now()
+	where a.revoked_at is null and a.created_by_membership_id in (select m.id from public.memberships m where m.user_id = p_user_id);
+	get diagnostics n = row_count;
+	return n;
+end $$;
+
+revoke all on function public.revoke_user_api_keys(uuid) from public;
+grant execute on function public.revoke_user_api_keys(uuid) to hrms_auth;
 
 update letter_templates set body = replace(body, 'BDT {{salary.', '{{salary.currency}} {{salary.') where body like '%BDT {{salary.%';
 

@@ -113,6 +113,15 @@ Vitest · Playwright · Docker.
   an unknown code get the same answer in the same time; five wrong PINs lock that code on that kiosk for 15 minutes,
   doubling each time, and HR is notified at the second lock. HR can reset a forgotten PIN. If Redis is down the kiosk
   refuses PINs rather than run without limits.
+- **Read-only REST API with scoped keys.** Settings → API keys (owner-only by default) makes a key after the
+  person re-enters their password (and their authenticator code when 2FA is on) within the last 10 minutes. A key
+  reads employees, leave requests, attendance days, the published roster or events at a scope no wider than its
+  creator's, works for 30 days to a year, and is shown once; only its hash is stored. Every request is narrowed to
+  what the creator can read that day, so a demoted creator's keys shrink and a disabled creator's keys stop. The API
+  lives at `/api/v1` with `Authorization: Bearer`, JSON only, cursor pages of up to 200 rows, 600 requests a minute per
+  key and a short field list per endpoint (never national ID, bank, tax or pay fields); `/api/v1/openapi.json`
+  describes it. Making, revoking and the first use each day are audited, and changing or resetting a password or
+  turning off 2FA revokes that person's keys.
 - **Schedule.** The Schedule page is a weekly roster: a manager puts people on a shift or gives them a day off
   for each day, copies last week as drafts, and publishes the week, which tells each person. Staff only see
   published days. A published shift makes a weekend a working day for attendance and meals, a published day off
@@ -132,7 +141,7 @@ Vitest · Playwright · Docker.
   weekend, or on the time zone, currency, fiscal month and weekend days its creator picks. Payslips, letters and
   reports print names in Latin, Cyrillic, Greek, Vietnamese, Devanagari and Bengali script.
 - **Audit trail.** Database triggers record every change, with sensitive fields masked.
-- **Tested.** 800+ unit, integration and end-to-end tests run against real Postgres, Redis and MinIO; a shared leak
+- **Tested.** 1,000+ unit, integration and end-to-end tests run against real Postgres, Redis and MinIO; a shared leak
   helper checks that reads stay inside each viewer's scope and tenant.
 
 ## Run it locally

@@ -105,6 +105,11 @@ The attendance kiosk also refuses PINs while Redis is down, because its lockouts
 from their phones. Kiosk PINs are keyed with `APP_ENC_KEYS`; keep retired keys in the ring after a rotation or every
 kiosk PIN made with them stops matching and has to be set again.
 
+API keys (`/api/v1`) are limited to 600 requests a minute each, and an address that sends 30 bad keys in an hour is
+refused for an hour; with Redis down both limits are counted in each app process's memory. That per-address limit is
+another reason to set `ADDRESS_HEADER` behind a proxy. To cut off an integration at once, revoke its key under
+Settings → API keys; changing the creator's password or disabling them also stops every key they made.
+
 ## Backup and restore
 
 ```bash

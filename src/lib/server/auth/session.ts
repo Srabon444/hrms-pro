@@ -1,5 +1,6 @@
 import { and, eq, ne } from 'drizzle-orm';
 import { now } from '../clock';
+import { AppError } from '../errors';
 import { authPool } from '../db';
 import { sessions, users } from '../db/schema';
 import { log } from '../log';
@@ -147,4 +148,19 @@ export async function deleteUserSessions(userId: string, exceptSessionId?: strin
 export async function refreshUserSessions(userId: string): Promise<void> {
 	const ids = await authPool().db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, userId));
 	await cacheDrop(ids.map((s) => s.id));
+}
+
+export async function markReauth(sessionId: string): Promise<void> {
+	await authPool().db.update(sessions).set({ reauthAt: now() }).where(eq(sessions.id, sessionId));
+}
+
+export async function recentlyAuthed(sessionId: string, minutes: number): Promise<boolean> {
+	const [row] = await authPool().db.select({ at: sessions.reauthAt }).from(sessions).where(eq(sessions.id, sessionId));
+	const age = row?.at ? now().getTime() - row.at.getTime() : Infinity;
+	return age >= 0 && age <= minutes * 60_000;
+}
+
+export async function requireRecentAuth(sessionId: string, minutes: number): Promise<void> {
+	if (!(await recentlyAuthed(sessionId, minutes)))
+		throw new AppError('reauth_required', 'Confirm your password to continue.', 403);
 }
