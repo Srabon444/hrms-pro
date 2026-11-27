@@ -98,6 +98,13 @@ Vitest · Playwright · Docker.
   and meal defaults follow each person's own weekend. A change can only start today or later, never inside a month
   whose payroll is approved, and it refuses to turn rest days inside booked leave into working days; leave days that
   become rest days are dropped and refunded.
+- **Work sites and breaks.** Settings → Work sites lists office locations (a point and a radius) and office
+  networks, for every branch or one. The punch rule is off, flag or block: a web punch counts as on site when it
+  comes from an office network or from a phone inside a site's radius (its reported accuracy adds up to 200 m).
+  Flagged punches show as away from site on the team view; blocked ones are refused. A browser's location can be
+  faked, so networks are the stronger check, and location is only stored while the rule is on. Staff start and end
+  breaks from the attendance page. A shift can mark its break unpaid: punched breaks come off worked time, or the
+  shift's break minutes on days longer than a half day when no break was punched.
 - **Schedule.** The Schedule page is a weekly roster: a manager puts people on a shift or gives them a day off
   for each day, copies last week as drafts, and publishes the week, which tells each person. Staff only see
   published days. A published shift makes a weekend a working day for attendance and meals, a published day off
