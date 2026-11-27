@@ -1040,6 +1040,23 @@ erDiagram
 									fast.
 								</td>
 							</tr>
+							<tr>
+								<td>AI setup</td>
+								<td>
+									Settings → AI: turn AI on with consent, pick Google Gemini, OpenAI or Anthropic Claude, paste the
+									company's API key, pick a model, set a monthly token budget, switch Ask HR, file reading and writing
+									help on or off, test the connection and see this month's usage. Without a key the platform Gemini key
+									is used when the operator allows it.
+								</td>
+								<td>
+									Owner-only permission; a key is saved only after a successful test call, encrypted and bound to the
+									organisation, and never shown, logged or audited beyond its last four characters; provider hosts are
+									fixed and redirects refused; the model chain skips unlisted models and cools rate-limited ones; the
+									budget is reserved atomically before each call, with per-person and per-organisation limits and a
+									daily platform ceiling; no call runs while a database transaction is open; usage rows are kept for 13
+									months.
+								</td>
+							</tr>
 						</tbody>
 					</table>
 				</div>
