@@ -62,11 +62,14 @@ export const OPENAPI = {
 		title: 'HRMS Pro API',
 		version: '1',
 		description:
-			'Read-only access for other systems. Make a key under Settings → API keys. Each key can make 600 requests a minute. Send GET requests only; any body must be JSON.'
+			'Read-only access for other systems, plus a punch endpoint for attendance devices. Make a key under Settings → API keys; each key can make 600 requests a minute and sends GET requests only. Attendance devices use their own keys from Settings → Attendance devices. Any body must be JSON.'
 	},
 	servers: [{ url: '/api/v1' }],
 	components: {
-		securitySchemes: { bearer: { type: 'http', scheme: 'bearer', description: 'hrp_<prefix>_<secret>' } },
+		securitySchemes: {
+			bearer: { type: 'http', scheme: 'bearer', description: 'hrp_<prefix>_<secret>' },
+			device: { type: 'http', scheme: 'bearer', description: 'hrd_<prefix>_<secret>' }
+		},
 		responses: {
 			problem: {
 				description: 'An error.',
@@ -79,6 +82,80 @@ export const OPENAPI = {
 		}
 	},
 	paths: {
+		'/punches': {
+			post: {
+				summary: 'Send punches from an attendance device',
+				description:
+					'Needs a device key (hrd_<prefix>_<secret>) from Settings → Attendance devices; an API key cannot send punches. Up to 500 punches per request and 60 requests a minute per device. A punch is matched by deviceUserId, or by employeeCode when deviceUserId is missing. Punches older than 31 days or more than 5 minutes ahead are rejected. A punch already recorded for that person at that moment counts as a duplicate. A punch in a month whose payroll is already approved is stored and flagged for HR to review.',
+				security: [{ device: [] }],
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								required: ['punches'],
+								properties: {
+									punches: {
+										type: 'array',
+										minItems: 1,
+										maxItems: 500,
+										items: {
+											type: 'object',
+											required: ['at'],
+											properties: {
+												deviceUserId: { type: 'string', maxLength: 32 },
+												employeeCode: { type: 'string', maxLength: 40 },
+												at: { type: 'string', format: 'date-time', description: 'RFC 3339 with an offset.' },
+												direction: { enum: ['in', 'out'] }
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				responses: {
+					'200': {
+						description: 'What was stored.',
+						content: {
+							'application/json': {
+								schema: {
+									type: 'object',
+									properties: {
+										accepted: { type: 'integer' },
+										duplicates: { type: 'integer' },
+										rejected: { type: 'integer' },
+										flagged: { type: 'integer' },
+										results: {
+											type: 'array',
+											description: 'One entry per punch sent, in the same order.',
+											items: {
+												type: 'object',
+												required: ['index', 'status'],
+												properties: {
+													index: { type: 'integer' },
+													status: { enum: ['accepted', 'duplicate', 'rejected'] },
+													flagged: { type: 'boolean', description: 'Accepted into a month whose payroll is approved.' },
+													reason: { enum: ['invalid', 'unknown_user', 'too_old', 'in_future', 'not_employed'] },
+													message: { type: 'string' }
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					'400': { $ref: '#/components/responses/problem' },
+					'401': { $ref: '#/components/responses/problem' },
+					'413': { $ref: '#/components/responses/problem' },
+					'415': { $ref: '#/components/responses/problem' },
+					'429': { $ref: '#/components/responses/problem' }
+				}
+			}
+		},
 		'/employees': list('employee.read', employee, false, 'List employees'),
 		'/employees/{id}': {
 			get: {

@@ -554,6 +554,13 @@
       "when": 1795781252961,
       "tag": "0078_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1795784857949,
+      "tag": "0079_device_punches",
+      "breakpoints": true
     }
   ]
 }

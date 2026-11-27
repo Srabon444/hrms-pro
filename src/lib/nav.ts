@@ -105,6 +105,13 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 		about: 'Office locations and networks punches are checked against.'
 	},
 	{
+		href: 'attendance-devices',
+		label: 'Attendance devices',
+		group: 'Time',
+		perm: 'attendance.manage',
+		about: 'Fingerprint and card readers that send punches, and punches to check after payroll.'
+	},
+	{
 		href: 'kiosks',
 		label: 'Kiosks',
 		group: 'Time',

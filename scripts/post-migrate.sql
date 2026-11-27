@@ -331,6 +331,8 @@ begin
 	elsif p_kind = 'api_key' then
 		return query select a.tenant_id, a.id from public.api_keys a
 			where a.key_hash = p_hash and a.revoked_at is null and a.expires_at > now();
+	elsif p_kind = 'attendance_device' then
+		return query select d.tenant_id, d.id from public.attendance_devices d where d.key_hash = p_hash and d.revoked_at is null;
 	elsif p_kind = 'kiosk_pair' then
 		return query select k.tenant_id, k.id from public.kiosk_devices k
 			where k.pair_hash = p_hash and k.pair_expires_at > now() and k.revoked_at is null;

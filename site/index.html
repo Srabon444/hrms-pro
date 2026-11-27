@@ -1119,6 +1119,20 @@ erDiagram
 								</td>
 							</tr>
 							<tr>
+								<td>Attendance devices</td>
+								<td>
+									Settings → Attendance devices adds a fingerprint or card reader with its own key. It posts up to 500
+									punches at a time to /api/v1/punches, matched by device user ID or employee code, and each punch comes
+									back accepted, repeated or refused with a reason.
+								</td>
+								<td>
+									Everyone's-attendance permission and a password check; the key is shown once and stored as a hash; it
+									can only post punches, and API keys cannot; 60 requests a minute per device, 256 KB per request,
+									punches older than 31 days or ahead of the clock refused; punches in a month already paid are kept and
+									listed for HR to check.
+								</td>
+							</tr>
+							<tr>
 								<td>AI file reading and writing help</td>
 								<td>
 									Read receipt fills an expense row, Read CV fills a new candidate, Read document fills a certificate's
