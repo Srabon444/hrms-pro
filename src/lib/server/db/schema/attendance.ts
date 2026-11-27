@@ -2,8 +2,11 @@ import { sql } from 'drizzle-orm';
 import {
 	boolean,
 	check,
+	cidr,
 	date,
+	doublePrecision,
 	index,
+	integer,
 	pgTable,
 	smallint,
 	text,
@@ -13,9 +16,11 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 import { tenantBase, tenantKey, tfk, tstz } from './_helpers';
-import { employees } from './org';
+import { branches, employees } from './org';
 
 export const PUNCH_SOURCES = ['web', 'manual', 'device', 'regularization'] as const;
+export const PUNCH_KINDS = ['in', 'out', 'break_start', 'break_end'] as const;
+export const PUNCH_LOCATION_RULES = ['off', 'flag', 'block'] as const;
 
 export const shifts = pgTable(
 	'shifts',
@@ -27,6 +32,8 @@ export const shifts = pgTable(
 		graceMinutes: smallint().notNull().default(15),
 		halfDayMinutes: smallint().notNull().default(240),
 		fullDayMinutes: smallint().notNull().default(480),
+		breakMinutes: smallint().notNull().default(0),
+		breakPaid: boolean().notNull().default(true),
 		isDefault: boolean().notNull().default(false),
 		active: boolean().notNull().default(true)
 	},
@@ -43,7 +50,8 @@ export const shifts = pgTable(
 			'shifts_minutes_ck',
 			sql`${t.halfDayMinutes} between 1 and ${t.fullDayMinutes} and ${t.fullDayMinutes} <= 1440`
 		),
-		check('shifts_default_active_ck', sql`not ${t.isDefault} or ${t.active}`)
+		check('shifts_default_active_ck', sql`not ${t.isDefault} or ${t.active}`),
+		check('shifts_break_ck', sql`${t.breakMinutes} between 0 and 240`)
 	]
 );
 
@@ -213,6 +221,36 @@ export const availability = pgTable(
 	]
 );
 
+export const workSites = pgTable(
+	'work_sites',
+	{
+		...tenantBase(),
+		name: text().notNull(),
+		branchId: uuid(),
+		lat: doublePrecision(),
+		lng: doublePrecision(),
+		radiusM: integer().notNull().default(200),
+		ipCidrs: cidr()
+			.array()
+			.notNull()
+			.default(sql`'{}'::cidr[]`),
+		active: boolean().notNull().default(true)
+	},
+	(t) => [
+		tenantKey('work_sites', t),
+		tfk('work_sites_branch_fk', t, t.branchId, branches, 'restrict'),
+		unique('work_sites_name_uq').on(t.tenantId, t.name),
+		check('work_sites_name_ck', sql`length(trim(${t.name})) between 1 and 60`),
+		check(
+			'work_sites_point_ck',
+			sql`(${t.lat} is null) = (${t.lng} is null) and (${t.lat} is null or (${t.lat} between -90 and 90 and ${t.lng} between -180 and 180))`
+		),
+		check('work_sites_radius_ck', sql`${t.radiusM} between 25 and 5000`),
+		check('work_sites_ips_ck', sql`cardinality(${t.ipCidrs}) <= 20`),
+		check('work_sites_rule_ck', sql`${t.lat} is not null or cardinality(${t.ipCidrs}) > 0`)
+	]
+);
+
 export const attendancePunches = pgTable(
 	'attendance_punches',
 	{
@@ -221,11 +259,23 @@ export const attendancePunches = pgTable(
 		at: tstz().notNull(),
 		source: text().notNull(),
 		ip: text(),
+		kind: text(),
+		lat: doublePrecision(),
+		lng: doublePrecision(),
+		accuracyM: integer(),
+		siteId: uuid(),
+		outsideSite: boolean().notNull().default(false),
 		createdByUserId: uuid()
 	},
 	(t) => [
 		tenantKey('attendance_punches', t),
 		tfk('attendance_punches_employee_fk', t, t.employeeId, employees, 'restrict'),
+		tfk('attendance_punches_site_fk', t, t.siteId, workSites, 'restrict'),
+		check('attendance_punches_kind_ck', sql`${t.kind} is null or ${t.kind} in ('in','out','break_start','break_end')`),
+		check(
+			'attendance_punches_point_ck',
+			sql`(${t.lat} is null) = (${t.lng} is null) and (${t.lat} is null) = (${t.accuracyM} is null) and (${t.lat} is null or (${t.lat} between -90 and 90 and ${t.lng} between -180 and 180 and ${t.accuracyM} between 0 and 100000))`
+		),
 		unique('attendance_punches_at_uq').on(t.tenantId, t.employeeId, t.at),
 		check('attendance_punches_source_ck', sql`${t.source} in ('web','manual','device','regularization')`),
 		check('attendance_punches_ip_ck', sql`${t.ip} is null or length(${t.ip}) <= 64`)

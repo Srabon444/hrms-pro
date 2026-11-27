@@ -24,6 +24,7 @@ import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { systemCtx, withTenant, type Tx } from './tenancy';
 import type { Shift } from './shifts';
 import { dayRules } from './rest-days';
+import { clientIp, matchSite, punchRule, type Point } from './work-sites';
 
 type Member = ReturnType<typeof requireMember>;
 type DayRow = typeof attendanceDays.$inferInsert;
@@ -140,7 +141,7 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 		).map((w) => `${w.employeeId}:${w.date}`)
 	);
 	const punches = await tx
-		.select({ employeeId: attendancePunches.employeeId, at: attendancePunches.at })
+		.select({ employeeId: attendancePunches.employeeId, at: attendancePunches.at, kind: attendancePunches.kind })
 		.from(attendancePunches)
 		.where(
 			and(
@@ -153,7 +154,7 @@ export async function recomputeAttendance(tx: Tx, tenantId: string, from: string
 	const upserts: DayRow[] = [];
 	const cleared: { employeeId: string; date: string }[] = [];
 	for (const p of people) {
-		const own = (punchesOf.get(p.id) ?? []).map((x) => x.at);
+		const own = punchesOf.get(p.id) ?? [];
 		const shiftFor = (date: string): Shift | undefined => rule(p.id, date).shift;
 		const zoneFor = (date: string) => kept.get(`${p.id}:${date}`) ?? p.zone;
 		for (const date of dates(from, p.last)) {
@@ -216,30 +217,83 @@ export async function shiftOn(tx: Tx, employeeId: string, date: string) {
 	return (await dayRules(tx, [employeeId], date, date))(employeeId, date).shift;
 }
 
+type PunchExtra = {
+	kind?: 'break_start' | 'break_end' | null;
+	ip?: string | null;
+	point?: Point | null;
+	siteId?: string | null;
+	outsideSite?: boolean;
+};
+
 async function savePunch(
 	tx: Tx,
 	m: Member,
 	e: { id: string; joinDate: string; exitDate: string | null; status: string },
 	at: Date,
 	source: 'web' | 'manual',
-	ip: string | null
+	extra: PunchExtra = {}
 ) {
 	const { day } = await punchDay(tx, e.id, at);
 	if (day < e.joinDate || (e.exitDate && day > e.exitDate) || e.status === 'exited')
 		throw new AppError('not_employed', 'Punches only count while employed.', 400);
 	const saved = await tx
 		.insert(attendancePunches)
-		.values({ tenantId: m.tenant.id, employeeId: e.id, at, source, ip, createdByUserId: m.user.userId })
+		.values({
+			tenantId: m.tenant.id,
+			employeeId: e.id,
+			at,
+			source,
+			ip: extra.ip ?? null,
+			kind: extra.kind ?? null,
+			lat: extra.point?.lat ?? null,
+			lng: extra.point?.lng ?? null,
+			accuracyM: extra.point ? Math.round(extra.point.accuracyM) : null,
+			siteId: extra.siteId ?? null,
+			outsideSite: extra.outsideSite ?? false,
+			createdByUserId: m.user.userId
+		})
 		.onConflictDoNothing()
 		.returning({ id: attendancePunches.id });
 	if (!saved.length) throw new AppError('duplicate', 'That punch is already recorded.', 409);
 	await recomputeAttendance(tx, m.tenant.id, addDays(day, -1), addDays(day, 1), [e.id]);
 }
 
-export async function punch(m: Member, ip: string | null) {
+const punchSchema = z
+	.object({
+		kind: z.enum(['', 'break_start', 'break_end']).catch(''),
+		lat: z.coerce.number().min(-90).max(90).optional().catch(undefined),
+		lng: z.coerce.number().min(-180).max(180).optional().catch(undefined),
+		accuracy: z.coerce.number().min(0).max(100_000).optional().catch(undefined)
+	})
+	.transform((v) => ({
+		kind: v.kind || null,
+		point:
+			v.lat !== undefined && v.lng !== undefined && v.accuracy !== undefined
+				? { lat: v.lat, lng: v.lng, accuracyM: v.accuracy }
+				: null
+	}));
+
+const blank = (v: string | undefined) => (v === undefined || v.trim() === '' ? undefined : v);
+
+export function punchInput(raw: Record<string, string>) {
+	return punchSchema.parse({
+		kind: raw.kind ?? '',
+		lat: blank(raw.lat),
+		lng: blank(raw.lng),
+		accuracy: blank(raw.accuracy)
+	});
+}
+
+type Marked = { kind: string | null };
+export const onBreak = (punches: Marked[]) => punches.at(-1)?.kind === 'break_start';
+export const clockedIn = (punches: Marked[]) =>
+	punches.filter((p) => p.kind !== 'break_start' && p.kind !== 'break_end').length % 2 === 1;
+
+export async function punch(m: Member, ip: string | null, raw: Record<string, string> = {}) {
 	if (!m.access.employeeId) throw new AppError('no_employee', 'Your account is not linked to an employee record.', 403);
 	const employeeId = m.access.employeeId;
-	await withTenant(userCtx(m), async (tx) => {
+	const input = punchInput(raw);
+	return withTenant(userCtx(m), async (tx) => {
 		const e = await lockEmployee(tx, m.access, employeeId);
 		if (!inScope(await resolveScope(tx, m.access, 'attendance.punch'), e.id))
 			throw new AppError('forbidden', 'You cannot record attendance.', 403);
@@ -250,7 +304,28 @@ export async function punch(m: Member, ip: string | null) {
 			.where(and(eq(attendancePunches.employeeId, e.id), gte(attendancePunches.at, new Date(at.getTime() - 60_000))))
 			.limit(1);
 		if (recent) throw new AppError('too_soon', 'You punched less than a minute ago.', 429);
-		await savePunch(tx, m, e, at, 'web', ip?.slice(0, 64) ?? null);
+		const today = (await dayPunches(tx, e.id, at)).punches;
+		if (input.kind === 'break_start' && (!clockedIn(today) || onBreak(today)))
+			throw new AppError('no_break', 'Punch in before starting a break.', 409);
+		if (input.kind === 'break_end' && !onBreak(today)) throw new AppError('no_break', 'There is no break to end.', 409);
+		const address = clientIp(ip) ?? ip?.slice(0, 64) ?? null;
+		const rule = await punchRule(tx);
+		const siteId = rule === 'off' ? null : await matchSite(tx, e.id, address, input.point);
+		if (rule === 'block' && !siteId)
+			throw new AppError(
+				'outside_site',
+				'You are not at a work site. Punch from the office network or turn on location and try again.',
+				403
+			);
+		const outsideSite = rule === 'flag' && !siteId;
+		await savePunch(tx, m, e, at, 'web', {
+			kind: input.kind,
+			ip: address,
+			point: rule === 'off' ? null : input.point,
+			siteId,
+			outsideSite
+		});
+		return { outsideSite };
 	});
 }
 
@@ -268,7 +343,7 @@ export async function addManualPunch(m: Member, employeeId: string, raw: Record<
 			throw new AppError('self_change', 'Someone else has to add punches for you.', 403);
 		const when = zonedInstant(input.at, (await calendar(tx, e.id)).timeZone);
 		if (when > now()) throw new AppError('future', 'A punch cannot be in the future.', 400);
-		await savePunch(tx, m, e, when, 'manual', null);
+		await savePunch(tx, m, e, when, 'manual');
 	});
 }
 
@@ -377,26 +452,48 @@ export async function attendanceMonth(tx: Tx, access: Access, employeeId: string
 	return { month: m, timeZone, today, days };
 }
 
-export async function todayPunches(tx: Tx, access: Access) {
-	if (!access.employeeId) return null;
-	const { day, timeZone, shift } = await punchDay(tx, access.employeeId, now());
+export async function dayPunches(tx: Tx, employeeId: string, at: Date) {
+	const { day, timeZone, shift } = await punchDay(tx, employeeId, at);
 	const rows = await tx
-		.select({ at: attendancePunches.at, source: attendancePunches.source })
+		.select({
+			at: attendancePunches.at,
+			source: attendancePunches.source,
+			kind: attendancePunches.kind,
+			outsideSite: attendancePunches.outsideSite
+		})
 		.from(attendancePunches)
 		.where(
 			and(
-				eq(attendancePunches.employeeId, access.employeeId),
+				eq(attendancePunches.employeeId, employeeId),
 				sql`${attendancePunches.at} >= (${addDays(day, -1)}::date)::timestamp at time zone ${timeZone}`,
 				sql`${attendancePunches.at} < (${addDays(day, 2)}::date)::timestamp at time zone ${timeZone}`
 			)
 		)
 		.orderBy(asc(attendancePunches.at));
-	const mine = shift ? rows.filter((r) => shiftDayOf(r.at, shift, timeZone) === day) : rows;
+	return {
+		day,
+		timeZone,
+		shift,
+		punches: shift ? rows.filter((r) => shiftDayOf(r.at, shift, timeZone) === day) : rows
+	};
+}
+
+export async function todayPunches(tx: Tx, access: Access) {
+	if (!access.employeeId) return null;
+	const { day, timeZone, shift, punches } = await dayPunches(tx, access.employeeId, now());
 	const [status] = await tx
 		.select({ status: attendanceDays.status, workedMinutes: attendanceDays.workedMinutes })
 		.from(attendanceDays)
 		.where(and(eq(attendanceDays.employeeId, access.employeeId), eq(attendanceDays.date, day)));
-	return { day, timeZone, shift, punches: mine, status: status ?? null };
+	return {
+		day,
+		timeZone,
+		shift,
+		punches,
+		status: status ?? null,
+		onBreak: onBreak(punches),
+		clockedIn: clockedIn(punches)
+	};
 }
 
 export async function teamDay(tx: Tx, access: Access, date: string) {
@@ -411,7 +508,8 @@ export async function teamDay(tx: Tx, access: Access, date: string) {
 			lastOut: attendanceDays.lastOut,
 			workedMinutes: attendanceDays.workedMinutes,
 			lateMinutes: attendanceDays.lateMinutes,
-			timeZone: attendanceDays.timeZone
+			timeZone: attendanceDays.timeZone,
+			outsideSite: sql<boolean>`coalesce((select bool_or(p.outside_site) from attendance_punches p where p.employee_id = employees.id and p.at between attendance_days.first_in and coalesce(attendance_days.last_out, attendance_days.first_in)), false)`
 		})
 		.from(employees)
 		.leftJoin(attendanceDays, and(eq(attendanceDays.employeeId, employees.id), eq(attendanceDays.date, date)))

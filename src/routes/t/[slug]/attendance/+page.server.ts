@@ -15,6 +15,7 @@ import { readCsvUpload } from '#lib/server/csv.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError, field } from '#lib/server/http/forms.ts';
 import { tenantToday } from '#lib/server/lifecycle.ts';
+import { punchRule } from '#lib/server/work-sites.ts';
 import { can, requireMember, requirePerm, scopesOf, userCtx } from '#lib/server/rbac/access.ts';
 import { withTenant } from '#lib/server/tenancy/index.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -32,6 +33,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			date,
 			canPunch: can(m.access, 'attendance.punch') && !!m.access.employeeId,
 			canManage: can(m.access, 'attendance.manage'),
+			locationRule: await punchRule(tx),
 			now: await todayPunches(tx, m.access),
 			month: m.access.employeeId
 				? await attendanceMonth(tx, m.access, m.access.employeeId, url.searchParams.get('month') ?? undefined)
@@ -50,14 +52,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-	punch: async ({ locals, getClientAddress }) => {
+	punch: async ({ request, locals, getClientAddress }) => {
 		const m = requirePerm(locals, 'attendance.punch');
 		try {
-			await punch(m, getClientAddress());
+			const done = await punch(m, getClientAddress(), formFields(await request.formData()));
+			return { punched: true, outsideSite: done.outsideSite };
 		} catch (err) {
 			return actionError(err, locals.requestId);
 		}
-		return { punched: true };
 	},
 	manual: async ({ request, locals }) => {
 		const m = requirePerm(locals, 'attendance.manage');

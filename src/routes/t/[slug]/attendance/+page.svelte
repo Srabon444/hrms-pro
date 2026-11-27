@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Attachments from '#lib/components/Attachments.svelte';
 	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '$app/forms';
 	import { whileBusy } from '#lib/busy.ts';
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
@@ -10,6 +11,30 @@
 	const field = 'mt-1 block w-full input';
 	let kind = $state('regularization');
 	let importing = $state(false);
+	let punching = $state(false);
+	const place = () =>
+		new Promise<GeolocationPosition | null>((resolve) =>
+			navigator.geolocation
+				? navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), {
+						enableHighAccuracy: true,
+						timeout: 10_000,
+						maximumAge: 60_000
+					})
+				: resolve(null)
+		);
+	const punchWithPlace: SubmitFunction = async ({ formData }) => {
+		punching = true;
+		const at = data.locationRule === 'off' ? null : await place();
+		if (at) {
+			formData.set('lat', String(at.coords.latitude));
+			formData.set('lng', String(at.coords.longitude));
+			formData.set('accuracy', String(at.coords.accuracy));
+		}
+		return async ({ update }) => {
+			punching = false;
+			await update();
+		};
+	};
 	const rowErrors = $derived(form && 'rows' in form ? (form.rows as { line: number; message: string }[]) : []);
 	const tz = $derived(data.now?.timeZone ?? data.month?.timeZone ?? 'UTC');
 	const time = (d: Date | null, zone?: string | null) =>
@@ -55,7 +80,12 @@
 <h1 class="page-title">Attendance</h1>
 <div class="mt-4 max-w-3xl space-y-2">
 	<Alert message={form?.message} />
-	{#if form && 'punched' in form}<Alert tone="info" message="Punch recorded." />{/if}
+	{#if form && 'punched' in form}
+		<Alert
+			tone="info"
+			message={form.outsideSite ? 'Punch recorded. It was away from a work site, so HR can see it.' : 'Punch recorded.'}
+		/>
+	{/if}
 	{#if form && 'added' in form}<Alert tone="info" message="Punch added." />{/if}
 	{#if form && 'requested' in form}<Alert tone="info" message="Request sent." />{/if}
 	{#if form && 'cancelledRequest' in form}<Alert tone="info" message="Request cancelled." />{/if}
@@ -94,15 +124,35 @@
 			<ul class="mt-2 flex flex-wrap gap-2 text-sm">
 				{#each n.punches as p (p.at)}
 					<li class="rounded bg-slate-100 px-2 py-1" data-testid="punch">
-						{time(p.at)}{p.source === 'web' ? '' : ` (${p.source})`}
+						{time(p.at)}{p.kind === 'break_start' ? ' break' : p.kind === 'break_end' ? ' back' : ''}{p.source === 'web'
+							? ''
+							: ` (${p.source})`}{p.outsideSite ? ' · away from site' : ''}
 					</li>
 				{/each}
 			</ul>
 		{/if}
+		{#if n.onBreak}<p class="mt-2 text-sm text-amber-700" data-testid="on-break">On a break.</p>{/if}
 		{#if data.canPunch}
-			<form method="POST" action="?/punch" class="mt-4">
-				<Button type="submit">{n.punches.length % 2 ? 'Punch out' : 'Punch in'}</Button>
+			<form method="POST" action="?/punch" class="mt-4 flex flex-wrap gap-2" use:enhance={punchWithPlace}>
+				{#if n.onBreak}
+					<Button type="submit" name="kind" value="break_end" disabled={punching}>End break</Button>
+				{:else}
+					<Button type="submit" name="kind" value="" disabled={punching}>
+						{n.clockedIn ? 'Punch out' : 'Punch in'}
+					</Button>
+					{#if n.clockedIn}
+						<Button type="submit" name="kind" value="break_start" variant="secondary" disabled={punching}>
+							Start break
+						</Button>
+					{/if}
+				{/if}
 			</form>
+			{#if data.locationRule !== 'off'}
+				<p class="mt-2 text-xs text-slate-500">
+					Your location is checked against the work sites when you punch. Punching from the office network works without
+					it.
+				</p>
+			{/if}
 		{/if}
 	</section>
 {/if}
@@ -220,6 +270,7 @@
 				<li class="flex gap-3 py-2" data-testid="team-day">
 					<span class="w-48 truncate text-slate-800">{t.fullName}</span>
 					<span class="text-slate-600">{line(t)}</span>
+					{#if t.outsideSite}<span class="text-amber-700" data-testid="away-flag">Away from site</span>{/if}
 				</li>
 			{/each}
 		</ul>

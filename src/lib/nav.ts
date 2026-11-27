@@ -83,6 +83,13 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 		about: 'Working hours, late grace and day lengths.'
 	},
 	{
+		href: 'work-sites',
+		label: 'Work sites',
+		group: 'Time',
+		perm: 'attendance.manage',
+		about: 'Office locations and networks punches are checked against.'
+	},
+	{
 		href: 'work-weeks',
 		label: 'Work weeks',
 		group: 'Time',

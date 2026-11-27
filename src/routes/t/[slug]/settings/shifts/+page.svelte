@@ -6,7 +6,14 @@
 	let { data, form }: PageProps = $props();
 	const input = 'input mt-1 block w-full';
 	type Values = Partial<(typeof data.shifts)[number]>;
-	const blank: Values = { graceMinutes: 15, halfDayMinutes: 240, fullDayMinutes: 480, active: true };
+	const blank: Values = {
+		graceMinutes: 15,
+		halfDayMinutes: 240,
+		fullDayMinutes: 480,
+		breakMinutes: 0,
+		breakPaid: true,
+		active: true
+	};
 	const hhmm = (t?: string) => t?.slice(0, 5) ?? '';
 </script>
 
@@ -36,6 +43,19 @@
 	<label class="text-sm text-slate-700">
 		Minutes for a full day
 		<input name="fullDayMinutes" type="number" min="1" max="1440" required value={v.fullDayMinutes} class={input} />
+	</label>
+	<label class="text-sm text-slate-700">
+		Break (minutes)
+		<input name="breakMinutes" type="number" min="0" max="240" required value={v.breakMinutes ?? 0} class={input} />
+	</label>
+	<label class="flex items-start gap-2 text-sm text-slate-700">
+		<input type="checkbox" name="breakPaid" checked={v.breakPaid ?? true} class="mt-1" />
+		<span>
+			Break is paid
+			<span class="block text-xs text-slate-500">
+				Unpaid breaks come off worked time: the punched breaks, or the break minutes on days longer than a half day.
+			</span>
+		</span>
 	</label>
 	<label class="flex items-center gap-2 text-sm text-slate-700">
 		<input type="checkbox" name="isDefault" checked={!!v.isDefault} />
