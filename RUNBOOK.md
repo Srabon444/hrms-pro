@@ -93,6 +93,13 @@ with their password and turns "Require" off. Someone who joined through company 
 set one with "Forgot your password?". Unlinking under Account → Security, removing their membership or disabling the
 user stops their company sign-in.
 
+Provisioning (SCIM) uses the token from the same page and the base URL `${APP_URL}/api/scim/v2`; in Entra use
+"Bearer token" as the secret token, in Okta "HTTP Header". A token is limited to 600 requests a minute, and an
+address that sends 30 bad tokens in an hour is turned away for that hour. If the identity provider deactivates
+someone by mistake, reactivating them there turns them back on; if HR disabled them, HR turns them back on under
+Members. A leaked token: Replace or Revoke it on the page; the old one stops at once. Turning company sign-in off
+does not stop provisioning; revoke the token for that.
+
 ## Health and monitoring
 
 - `GET /healthz`: process is up.

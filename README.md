@@ -146,6 +146,13 @@ Vitest · Playwright · Docker.
   organisation only: no platform admin, no other organisations, no password or 2FA changes. The owner can require
   it for everyone but the owner, who keeps password and 2FA sign-in as the way back in (2FA must be on first). The flow uses PKCE, a nonce, a state
   kept 10 minutes in Redis and a cookie that ties it to the browser.
+- **Provisioning (SCIM 2.0).** On the same page the owner creates a provisioning token (`hrs_...`, shown once,
+  replaceable and revocable) and gives the identity provider the base URL `${APP_URL}/api/scim/v2`. Entra or Okta
+  can then list, add and deactivate people (`/Users` with `userName eq` filters, PATCH, PUT, DELETE). It only adds
+  people in the organisation's verified domains, adds an existing account as a member without changing it, never
+  returns names, and never changes owners. Only `active` is honoured. Deactivation ends that person's company
+  sign-in sessions; reactivation only undoes its own deactivation, so someone HR disabled or who left through an
+  exit stays off.
 - **Schedule.** The Schedule page is a weekly roster: a manager puts people on a shift or gives them a day off
   for each day, copies last week as drafts, and publishes the week, which tells each person. Staff only see
   published days. A published shift makes a weekend a working day for attendance and meals, a published day off
