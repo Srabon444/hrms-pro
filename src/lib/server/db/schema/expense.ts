@@ -3,6 +3,7 @@ import { boolean, check, date, index, integer, pgTable, text, unique, uuid } fro
 import { tfk, tenantBase, tenantKey, trigramIndex, tstz } from './_helpers';
 import { employees } from './org';
 import { payrollRuns } from './payroll';
+import { travelRequests } from './travel';
 
 export const EXPENSE_STATUSES = ['submitted', 'approved', 'rejected', 'paid', 'cancelled'] as const;
 export const EXPENSE_PAY_VIA = ['payroll', 'direct'] as const;
@@ -39,12 +40,15 @@ export const expenseClaims = pgTable(
 		decisionNote: text(),
 		paidAt: tstz(),
 		paidByUserId: uuid(),
-		payrollRunId: uuid()
+		payrollRunId: uuid(),
+		travelRequestId: uuid()
 	},
 	(t) => [
 		tenantKey('expense_claims', t),
 		tfk('expense_claims_employee_fk', t, t.employeeId, employees, 'restrict'),
 		tfk('expense_claims_run_fk', t, t.payrollRunId, payrollRuns),
+		tfk('expense_claims_trip_fk', t, t.travelRequestId, travelRequests, 'restrict'),
+		index('expense_claims_trip_idx').on(t.tenantId, t.travelRequestId),
 		index('expense_claims_employee_idx').on(t.tenantId, t.employeeId),
 		index('expense_claims_status_idx').on(t.tenantId, t.status),
 		trigramIndex('expense_claims_search_idx', t, t.title),

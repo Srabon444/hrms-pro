@@ -12,7 +12,8 @@ import {
 	expenseItems,
 	employees,
 	MAX_DOCUMENT_BYTES,
-	MAX_EXPENSE_ITEMS
+	MAX_EXPENSE_ITEMS,
+	travelRequests
 } from './db/schema';
 import { AppError } from './errors';
 import { tenantToday } from './lifecycle';
@@ -24,6 +25,7 @@ import { sniffType } from './sniff';
 import { deleteObject, getObject, putObject } from './storage';
 import { withTenant, type Tx } from './tenancy';
 import { tenantCurrency } from './settings';
+import { claimableTrips } from './travel';
 
 type Member = ReturnType<typeof requireMember>;
 type Claim = typeof expenseClaims.$inferSelect;
@@ -51,7 +53,8 @@ const itemSchema = z.object({
 });
 
 const claimSchema = z.object({
-	title: z.string().trim().min(1, 'Give the claim a title.').max(120, 'Keep the title under 120 characters.')
+	title: z.string().trim().min(1, 'Give the claim a title.').max(120, 'Keep the title under 120 characters.'),
+	travelRequestId: z.union([z.literal(''), z.uuid({ error: 'Choose one of your approved trips.' })]).default('')
 });
 
 const decisionSchema = z.object({
@@ -101,7 +104,7 @@ async function storeReceipt(tenantId: string, file: File): Promise<Receipt> {
 }
 
 export async function submitClaim(m: Member, form: Record<string, string>, files: Map<number, File>) {
-	const { title } = claimSchema.parse(form);
+	const { title, travelRequestId } = claimSchema.parse(form);
 	const items: (z.infer<typeof itemSchema> & { index: number })[] = [];
 	for (let i = 0; i < MAX_EXPENSE_ITEMS; i++) {
 		const keys = ['categoryId', 'spentOn', 'description', 'amount'] as const;
@@ -126,7 +129,7 @@ export async function submitClaim(m: Member, form: Record<string, string>, files
 			receipts.set(item.index, receipt);
 		}
 		return await withTenant(userCtx(m), async (tx) => {
-			await validateClaim(tx, employeeId, items);
+			await validateClaim(tx, employeeId, items, travelRequestId);
 			const [claim] = await tx
 				.insert(expenseClaims)
 				.values({
@@ -134,7 +137,8 @@ export async function submitClaim(m: Member, form: Record<string, string>, files
 					employeeId,
 					title,
 					total: items.reduce((sum, i) => sum + i.amount, 0),
-					submittedByUserId: m.user.userId
+					submittedByUserId: m.user.userId,
+					travelRequestId: travelRequestId || null
 				})
 				.returning({ id: expenseClaims.id });
 			await tx.insert(expenseItems).values(
@@ -166,10 +170,13 @@ export async function submitClaim(m: Member, form: Record<string, string>, files
 async function validateClaim(
 	tx: Tx,
 	employeeId: string,
-	items: { categoryId: string; spentOn: string; amount: number }[]
+	items: { categoryId: string; spentOn: string; amount: number }[],
+	travelRequestId: string
 ) {
 	const [e] = await tx.select({ status: employees.status }).from(employees).where(eq(employees.id, employeeId));
 	if (!e || e.status === 'exited') throw new AppError('exited', 'People who have left cannot claim expenses.', 409);
+	if (travelRequestId && !(await claimableTrips(tx, employeeId, travelRequestId)).length)
+		throw new AppError('bad_trip', 'Choose one of your approved trips.', 400);
 	const today = await tenantToday(tx);
 	if (items.some((i) => i.spentOn > today))
 		throw new AppError('future_expense', 'Expenses must already have happened.', 400);
@@ -302,7 +309,8 @@ const claimFields = {
 	total: expenseClaims.total,
 	payVia: expenseClaims.payVia,
 	createdAt: expenseClaims.createdAt,
-	name: employees.fullName
+	name: employees.fullName,
+	trip: travelRequests.purpose
 };
 
 export async function expenseBoard(tx: Tx, m: Member) {
@@ -313,7 +321,11 @@ export async function expenseBoard(tx: Tx, m: Member) {
 	]);
 	const lone = await singleAdmin(tx);
 	const base = () =>
-		tx.select(claimFields).from(expenseClaims).innerJoin(employees, eq(employees.id, expenseClaims.employeeId));
+		tx
+			.select(claimFields)
+			.from(expenseClaims)
+			.innerJoin(employees, eq(employees.id, expenseClaims.employeeId))
+			.leftJoin(travelRequests, eq(travelRequests.id, expenseClaims.travelRequestId));
 	const mine = me
 		? await base().where(eq(expenseClaims.employeeId, me)).orderBy(desc(expenseClaims.createdAt)).limit(50)
 		: [];
@@ -343,6 +355,7 @@ export async function expenseBoard(tx: Tx, m: Member) {
 		canSubmit: !!me && can(m.access, 'expense.submit'),
 		canManage: can(m.access, 'expense.pay'),
 		categories: await tx.select().from(expenseCategories).orderBy(asc(expenseCategories.name)),
+		trips: me && can(m.access, 'expense.submit') ? await claimableTrips(tx, me) : [],
 		mine: await withItems(tx, mine),
 		toApprove: await withItems(tx, toApprove),
 		toPay: await withItems(tx, toPay)
@@ -355,6 +368,7 @@ export async function expenseApprovals(tx: Tx, access: Access): Promise<Approval
 		.select(claimFields)
 		.from(expenseClaims)
 		.innerJoin(employees, eq(employees.id, expenseClaims.employeeId))
+		.leftJoin(travelRequests, eq(travelRequests.id, expenseClaims.travelRequestId))
 		.where(
 			and(
 				eq(expenseClaims.status, 'submitted'),

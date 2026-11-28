@@ -27,3 +27,4 @@ export * from './surveys';
 export * from './learning';
 export * from './esign';
 export * from './comp';
+export * from './travel';

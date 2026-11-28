@@ -5,7 +5,7 @@ import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import type { Tx } from './tenancy';
 
 type Employee = typeof employees.$inferSelect;
-export type ApprovalModule = 'leave' | 'attendance' | 'schedule';
+export type ApprovalModule = 'leave' | 'attendance' | 'schedule' | 'travel';
 
 export async function activeMembershipsOf(tx: Tx, employeeIds: string[]) {
 	if (!employeeIds.length) return [];
