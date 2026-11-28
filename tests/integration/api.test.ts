@@ -178,7 +178,7 @@ describe('making API keys', () => {
 			const [row] = await ownerPool().sql<{ key_hash: string; grants: unknown; expires_at: Date; created_at: Date }[]>`
 				select key_hash, grants, expires_at, created_at from api_keys where tenant_id = ${tenant.id} and name = 'Sync'`;
 			expect(row.key_hash).toBe(sha256(key));
-			expect(JSON.stringify(row)).not.toContain(key.split('_')[2]);
+			expect(JSON.stringify(row)).not.toContain(key.slice('hrp_00000000_'.length));
 			expect(row.grants).toEqual({ 'employee.read': 'team', 'leave.read': 'own' });
 			expect(new Date(row.expires_at).getTime() - new Date(row.created_at).getTime()).toBe(90 * 86_400_000);
 			const [audit] = await ownerPool().sql`
