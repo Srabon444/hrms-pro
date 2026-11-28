@@ -100,6 +100,13 @@ Vitest · Playwright · Docker.
   of their own applications and referrals only. Hiring a referred candidate starts a referral bonus that falls due
   after the qualifying period (90 days by default) while the hire is still employed; payroll marks it paid. Ten
   applications and ten referrals a day per person.
+- **Public careers page** (module, off by default). Openings set to "Public careers page" (or both) are listed at
+  `/careers/<organisation>` with a link HR can set; anyone can apply with name, email, optional phone and a PDF CV up
+  to 5 MB, agreeing to the retention window shown. Applicants become "Website" candidates in the first stage. Spam
+  controls: a hidden honeypot field, a signed form token that must be at least 3 seconds and at most a day old, five
+  applications per address per opening an hour, 200 per opening and 1000 per organisation a day. The CV is checked to
+  be a real PDF (not a malware scan) and always downloads as an attachment. No email is ever sent to the applicant,
+  and a repeat email shows the same thank-you page. A suspended organisation or the module being off answers 404.
 - **Kudos and announcement discussion.** Colleagues thank up to 10 people at once (20 kudos a day each), tagged
   with one of the company values HR lists; kudos show on a wall, on the home page and in a monthly count by value,
   and recipients are notified. Announcements get six reactions (counts only, no list of who reacted) and

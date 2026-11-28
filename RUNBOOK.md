@@ -126,6 +126,23 @@ working, and voids it if the hire has left. Rewards are salary data: only the re
 see them, and only `salary.update` can mark one paid or void it; nothing is added to payroll, so pay it in the next run
 yourself.
 
+## Careers page
+
+Turn on "Careers page" in Settings, Modules, then set "Who can see it" on an opening to "Public careers page" (or "Job
+board and careers page" with the talent module on). The link is `/careers/<tenant slug>/<careers link>`; a blank link is
+made from the title (with `-2`, `-3` added when it is taken, and `job` for a title with no Latin letters), a link typed
+by hand must be free, and an opening that leaves the careers page drops its link. Only open openings are listed; put an
+opening on hold or close it to take it down at once. The page is anonymous: limits are five applications per IP per
+opening an hour, 200 per opening and 1000 per tenant a day (Redis keys `rl:careers_ip`, `rl:careers_opening`,
+`rl:careers_tenant`; delete a key to lift a limit early). Bot submissions (honeypot filled, form sent in under 3 seconds
+or with a missing, forged or day-old token) and repeat emails get the normal thank-you page and store nothing. CVs are
+checked for a PDF header only; they are not scanned for malware, so open them with care. Only their text layer is read
+for search: a scanned CV is never sent to OCR, so visitors cannot spend the AI budget. The IP limit needs the real
+client address, so set `ADDRESS_HEADER` behind a proxy or every visitor shares one bucket. Nothing is emailed to the
+address an applicant types. Applicants are kept under the candidate retention setting (People) and purged with other
+candidates; the page names the legal name and address from Settings as the contact for deletion requests, so delete the
+candidate by hand when one arrives.
+
 ## Kudos and comments
 
 HR admins hold `kudos.moderate` and `announcement.manage`, which let them hide kudos and comments; hidden items stay
