@@ -124,6 +124,13 @@ Vitest · Playwright · Docker.
   untouched original. An offer letter request adds the candidate as the first signer and marks the offer accepted as
   soon as the candidate signs; an HR decision on the offer cancels the open request. The signing window counts from
   sending, a cancel closes every link, and signer personal data stays out of the audit log. This is a simple electronic signature with an audit trail, not a qualified electronic signature.
+- **Pay reviews.** Payroll starts a review (name, start date of the new salaries, an optional guideline raise) and sets a
+  monthly budget per department. Managers propose a raise in percent for each person in their team or department, never
+  for themselves, and see salaries only where they may already read them. The new salary scales basic and fixed
+  earnings, keeps percentage lines on basic, and stores the gross it really comes to. Applying the review sends each
+  proposal to finance as a pending salary change; nothing changes until finance approves it, and people who cannot be
+  applied (a change already waiting, a salary changed since the proposal, a start date not after the current salary)
+  are listed with the reason.
 - **Kudos and announcement discussion.** Colleagues thank up to 10 people at once (20 kudos a day each), tagged
   with one of the company values HR lists; kudos show on a wall, on the home page and in a monthly count by value,
   and recipients are notified. Announcements get six reactions (counts only, no list of who reacted) and

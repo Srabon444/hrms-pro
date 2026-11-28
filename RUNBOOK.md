@@ -173,6 +173,29 @@ declines. When HR accepts, declines or withdraws the offer on the offer page, it
 cancelled. Purging a candidate also deletes their offer's signature request and both files. The legal level is a
 simple electronic signature with an audit trail, not a qualified one.
 
+## Pay reviews
+
+Finance, Pay reviews. `comp.manage` (restricted; payroll officer by default, never HR admin, who cannot read salaries)
+starts a review with a name, the date the new salaries start and an optional guideline raise (0.01 to 100%), sets each
+department's monthly budget, applies and closes it. Budgets and amounts are shown only to a `comp.manage` holder who can
+also read every salary; a budget's use is the sum of proposed gross minus current gross, without changes finance
+rejected, red when over (going over is allowed), and people without a department show as "No department".
+`comp.propose` (line manager for their team, department head for their department) saves a raise of 0.01 to 100% with
+a reason for anyone in scope who has a salary, except themselves. Anyone without `salary.read` for that person sees only
+the percentage, never the amounts. The list shows 500 people; search by name for the rest. The proposed salary scales
+BASIC and fixed earning lines by the raise, keeps `pct_basic` lines (they follow BASIC), leaves fixed deductions alone,
+and solves BASIC so the gross lands on the target; the stored gross is the one the lines add up to.
+
+"Apply proposals" needs `salary.update` as well and runs in one transaction: each proposal becomes a pending salary
+change from the review's start date, made by the person applying, with the reason `<review>: <reason>`; finance
+approves it in the usual place with the usual self-approval rule. A proposal is skipped and listed when it is the
+applier's own raise, the person has left, already has a change waiting, joined after the start date, has a salary that
+changed since the proposal (save it again), or has a salary starting on or after the review date. Skipped proposals
+stay proposed, so apply again after fixing them. Applied proposals cannot be edited until finance rejects the change;
+then the proposal can be saved again and re-applied. A closed review cannot be changed. Budgets and proposals are
+readable in the database only with the salary flag, which `comp.propose` and `comp.manage` set, so an employee never
+reads their own proposal. Increment letters are not generated; issue them from Letters after approval.
+
 ## Careers page
 
 Turn on "Careers page" in Settings, Modules, then set "Who can see it" on an opening to "Public careers page" (or "Job

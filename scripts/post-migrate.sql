@@ -169,7 +169,9 @@ begin
 		execute format('create policy hrms_tenant on public.%I as restrictive for all to hrms_app using (%s) with check (%s)',
 			t.table_name, tenant_expr, tenant_expr);
 
-		select format('employee_id = nullif(current_setting(''app.employee_id'', true), '''')::uuid or current_setting(''app.%s'', true) = ''on''', o.flag)
+		select case when t.table_name <> 'comp_proposals' and exists (select 1 from information_schema.columns e where e.table_schema = 'public' and e.table_name = t.table_name and e.column_name = 'employee_id')
+			then format('employee_id = nullif(current_setting(''app.employee_id'', true), '''')::uuid or current_setting(''app.%s'', true) = ''on''', o.flag)
+			else format('current_setting(''app.%s'', true) = ''on''', o.flag) end
 		into access_expr from owner_row_tables o where o.table_name = t.table_name;
 		if t.table_name = 'member_secrets' then
 			access_expr := 'exists (select 1 from public.memberships m where m.id = membership_id and m.user_id = nullif(current_setting(''app.user_id'', true), '''')::uuid) or current_setting(''app.payroll_all'', true) = ''on'' or current_setting(''app.kiosk_pins'', true) = ''on''';

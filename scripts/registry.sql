@@ -146,6 +146,9 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('letters', 'plain', '{id,tenant_id,number,employee_id,template_id,kind,subject,sha256,issued_on,issued_by_user_id}'),
 	('ai_settings', 'row_only', '{}'),
 	('ai_usage', 'excluded', '{}'),
+	('comp_cycles', 'plain', '{id,tenant_id,name,effective_from,status,guideline_bp,created_by_user_id}'),
+	('comp_budgets', 'row_only', '{}'),
+	('comp_proposals', 'row_only', '{}'),
 	('report_shares', 'plain', '{id,tenant_id,report_id,title,period,recipient_membership_ids,shared_by_membership_id,shared_by_user_id,expires_on}')
 on conflict (table_name) do update set mode = excluded.mode, plain_columns = excluded.plain_columns;
 
@@ -154,6 +157,8 @@ insert into owner_row_tables (table_name, flag) values
 	('referral_rewards', 'salary_all'),
 	('employee_salaries', 'salary_all'),
 	('employee_salary_lines', 'salary_all'),
+	('comp_budgets', 'salary_all'),
+	('comp_proposals', 'salary_all'),
 	('employee_tax_profiles', 'payroll_all'),
 	('payslips', 'payroll_all'),
 	('payslip_lines', 'payroll_all')

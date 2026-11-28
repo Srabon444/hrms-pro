@@ -44,7 +44,7 @@ export const salaryCtx = (m: Member) =>
 const inSalary = (c: { kind: string; system: boolean; active: boolean }) =>
 	c.active && (c.kind === 'earning' || !c.system);
 
-const salaryComponents = async (tx: Tx) =>
+export const salaryComponents = async (tx: Tx) =>
 	(await tx.select().from(payComponents).orderBy(desc(payComponents.kind), asc(payComponents.name))).filter(inSalary);
 
 const fixedValue = z
@@ -88,7 +88,7 @@ export function resolveLines(
 	return { lines, gross };
 }
 
-const latestSalary = async (tx: Tx, employeeId: string) =>
+export const latestSalary = async (tx: Tx, employeeId: string) =>
 	(
 		await tx
 			.select()

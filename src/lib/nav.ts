@@ -267,6 +267,7 @@ export const NAV: NavItem[] = [
 	{ href: 'assets', label: 'Assets', group: 'People', perm: 'asset.read' },
 	{ href: 'payroll', label: 'Payroll', group: 'Finance', perm: ['payroll.run', 'payroll.approve'] },
 	{ href: 'payroll/salaries', label: 'Salaries', group: 'Finance', perm: 'salary.read' },
+	{ href: 'payroll/reviews', label: 'Pay reviews', group: 'Finance', perm: ['comp.propose', 'comp.manage'] },
 	{ href: 'meals/bills', label: 'Meal bills', group: 'Finance', perm: 'meal.billing' },
 	{ href: 'reports', label: 'Reports', group: 'Admin', perm: REPORT_PERMS },
 	{ href: 'org', label: 'Organisation', group: 'Admin', perm: 'org.manage' },

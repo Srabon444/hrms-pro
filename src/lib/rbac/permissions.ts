@@ -27,6 +27,8 @@ export const PERMISSIONS = [
 	'salary.read',
 	'salary.update',
 	'salary.approve',
+	'comp.propose',
+	'comp.manage',
 	'loan.request',
 	'loan.approve',
 	'meal.order',
@@ -102,7 +104,8 @@ const RESTRICTED_EXACT = new Set<Permission>([
 	'data.export',
 	'ai.manage',
 	'api.manage',
-	'sso.manage'
+	'sso.manage',
+	'comp.manage'
 ]);
 
 export const isRestricted = (p: Permission): boolean =>
@@ -227,6 +230,7 @@ const ROLES: SystemRole[] = [
 			'payroll.run',
 			'salary.read',
 			'salary.update',
+			'comp.manage',
 			'report.payroll'
 		)
 	},
@@ -269,6 +273,7 @@ const ROLES: SystemRole[] = [
 				'performance.review',
 				'skill.validate',
 				'course.report',
+				'comp.propose',
 				'timesheet.approve',
 				'expense.approve',
 				'report.attendance',
@@ -299,6 +304,7 @@ const ROLES: SystemRole[] = [
 			'performance.review',
 			'skill.validate',
 			'course.report',
+			'comp.propose',
 			'timesheet.approve',
 			'expense.approve',
 			'report.weekly',
