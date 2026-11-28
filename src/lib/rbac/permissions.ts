@@ -31,6 +31,10 @@ export const PERMISSIONS = [
 	'comp.manage',
 	'loan.request',
 	'loan.approve',
+	'travel.request',
+	'travel.approve',
+	'travel.manage',
+	'travel.read',
 	'meal.order',
 	'meal.manage',
 	'meal.billing',
@@ -181,6 +185,8 @@ const ROLES: SystemRole[] = [
 			'report.expense',
 			'report.utilisation',
 			'report.weekly',
+			'travel.manage',
+			'travel.read',
 			'workplan.edit',
 			'user.manage',
 			'audit.read'
@@ -248,6 +254,7 @@ const ROLES: SystemRole[] = [
 			'loan.approve',
 			'expense.approve',
 			'expense.pay',
+			'travel.read',
 			'report.payroll',
 			'report.meal',
 			'report.expense'
@@ -276,6 +283,7 @@ const ROLES: SystemRole[] = [
 				'comp.propose',
 				'timesheet.approve',
 				'expense.approve',
+				'travel.approve',
 				'report.attendance',
 				'report.leave',
 				'report.expense',
@@ -307,6 +315,7 @@ const ROLES: SystemRole[] = [
 			'comp.propose',
 			'timesheet.approve',
 			'expense.approve',
+			'travel.approve',
 			'report.weekly',
 			'workplan.edit'
 		)
@@ -349,6 +358,7 @@ const ROLES: SystemRole[] = [
 			'project.read',
 			'timesheet.submit',
 			'expense.submit',
+			'travel.request',
 			'asset.read',
 			'helpdesk.submit',
 			'workplan.edit',

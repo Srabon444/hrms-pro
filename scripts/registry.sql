@@ -73,7 +73,7 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('employee_salaries', 'row_only', '{}'),
 	('employee_salary_lines', 'row_only', '{}'),
 	('expense_categories', 'plain', '{id,tenant_id,name,claim_limit,active}'),
-	('expense_claims', 'plain', '{id,tenant_id,employee_id,title,status,total,pay_via,submitted_by_user_id,decided_by_user_id,decided_at,decision_note,paid_at,paid_by_user_id,payroll_run_id}'),
+	('expense_claims', 'plain', '{id,tenant_id,employee_id,title,status,total,pay_via,submitted_by_user_id,decided_by_user_id,decided_at,decision_note,paid_at,paid_by_user_id,payroll_run_id,travel_request_id}'),
 	('expense_items', 'plain', '{id,tenant_id,claim_id,category_id,spent_on,description,amount,receipt_key,receipt_name,receipt_type,receipt_size}'),
 	('loans', 'row_only', '{}'),
 	('loan_instalments', 'row_only', '{}'),
@@ -149,6 +149,8 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('comp_cycles', 'plain', '{id,tenant_id,name,effective_from,status,guideline_bp,created_by_user_id}'),
 	('comp_budgets', 'row_only', '{}'),
 	('comp_proposals', 'row_only', '{}'),
+	('travel_requests', 'plain', '{id,tenant_id,employee_id,status,depart_on,return_on,requested_by_user_id,decided_by_user_id,decided_at,loan_id}'),
+	('per_diem_rates', 'plain', '{id,tenant_id,country,city,daily_amount}'),
 	('report_shares', 'plain', '{id,tenant_id,report_id,title,period,recipient_membership_ids,shared_by_membership_id,shared_by_user_id,expires_on}')
 on conflict (table_name) do update set mode = excluded.mode, plain_columns = excluded.plain_columns;
 

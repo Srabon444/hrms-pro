@@ -63,6 +63,13 @@ export const MODULES = {
 		on: false,
 		routes: ['signatures']
 	},
+	travel: {
+		label: 'Travel and per diem',
+		about:
+			'Trip requests with manager approval, an optional travel advance, per diem rates by country or city, and expense claims settled against the advance.',
+		on: false,
+		routes: ['travel']
+	},
 	careers: {
 		label: 'Careers page',
 		about: 'A public page listing open jobs where anyone can apply with their CV, with spam and rate limits.',

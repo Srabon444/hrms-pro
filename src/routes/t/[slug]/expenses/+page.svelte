@@ -49,7 +49,9 @@
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each b.toApprove as c (c.id)}
 				<li class="py-3" data-testid="expense-to-approve">
-					<p class="text-slate-800">{c.name} · {c.title} · {money(c.total, data.currency)}</p>
+					<p class="text-slate-800">
+						{c.name} · {c.title} · {money(c.total, data.currency)}{c.trip ? ` · trip: ${c.trip}` : ''}
+					</p>
 					{@render items(c)}
 					<form method="POST" action="?/decide" class="mt-2 flex flex-wrap items-center gap-2">
 						<input type="hidden" name="claimId" value={c.id} />
@@ -73,7 +75,9 @@
 		<ul class="mt-3 divide-y divide-slate-100 text-sm">
 			{#each b.toPay as c (c.id)}
 				<li class="py-3" data-testid="expense-to-pay">
-					<p class="text-slate-800">{c.name} · {c.title} · {money(c.total, data.currency)}</p>
+					<p class="text-slate-800">
+						{c.name} · {c.title} · {money(c.total, data.currency)}{c.trip ? ` · trip: ${c.trip}` : ''}
+					</p>
 					{@render items(c)}
 					<form method="POST" action="?/pay" class="mt-2">
 						<input type="hidden" name="claimId" value={c.id} />
@@ -104,6 +108,26 @@
 					Title
 					<input name="title" required maxlength="120" class={`${input} block w-full`} />
 				</label>
+				{#if b.trips.length}
+					<label class="block text-slate-700">
+						Trip (optional)
+						<select name="travelRequestId" class={`${input} block w-full`}>
+							<option value="">Not for a trip</option>
+							{#each b.trips as t (t.id)}
+								<option value={t.id}>{t.purpose} · {t.departOn} to {t.returnOn}</option>
+							{/each}
+						</select>
+					</label>
+					<ul class="space-y-1 text-xs text-slate-500" aria-label="Per diem guidance">
+						{#each b.trips as t (t.id)}
+							<li>
+								{t.purpose}: {t.perDiem
+									? `per diem ${money(t.perDiem.daily, data.currency)} × ${t.perDiem.days} day(s) = ${money(t.perDiem.total, data.currency)}`
+									: 'no per diem rate for this place'}{t.advance ? ` · advance ${money(t.advance, data.currency)}` : ''}
+							</li>
+						{/each}
+					</ul>
+				{/if}
 				{#each { length: rows } as _, i (i)}
 					<fieldset class="grid gap-2 rounded-md border border-slate-200 p-3 sm:grid-cols-5">
 						<legend class="px-1 text-slate-600">Item {i + 1}</legend>
@@ -173,10 +197,9 @@
 			{#each b.mine as c (c.id)}
 				<li class="py-3" data-testid="my-expense">
 					<p class="text-slate-800">
-						{c.title} · {money(c.total, data.currency)} · {statusLabel[c.status]}{c.payVia === 'payroll' &&
-						c.status === 'approved'
-							? ' (with salary)'
-							: ''}
+						{c.title}{c.trip ? ` (trip: ${c.trip})` : ''} · {money(c.total, data.currency)} · {statusLabel[
+							c.status
+						]}{c.payVia === 'payroll' && c.status === 'approved' ? ' (with salary)' : ''}
 					</p>
 					{@render items(c)}
 					{#if c.status === 'submitted'}
