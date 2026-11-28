@@ -196,6 +196,26 @@ then the proposal can be saved again and re-applied. A closed review cannot be c
 readable in the database only with the salary flag, which `comp.propose` and `comp.manage` set, so an employee never
 reads their own proposal. Increment letters are not generated; issue them from Letters after approval.
 
+## Travel and per diem
+
+Off by default; turn on "Travel and per diem" in Settings, Modules. My work, Travel. `travel.request` (every employee)
+asks for a trip: purpose (1 to 200), country and optional city (1 to 60), leave and return dates (2000 to 2099, not
+in the past, return on or after leave), estimated cost and an optional advance no larger than the cost. The request
+goes to the same approver chain as leave: the manager, else the department head, else anyone with `travel.approve` or
+`travel.manage` for all; `travel.approve` is seeded to line managers (team) and department heads (department), and
+nobody decides their own trip unless single-admin approval is on. Only a waiting trip can be cancelled.
+
+Approving a trip with an advance creates a salary advance (one instalment, from the month of the return date or the
+current month if later, reason `Travel advance: <purpose>`) waiting in Loans for `loan.approve`; the trip is approved
+only if that works, so a person with a loan or advance already waiting cannot have an advance trip approved until
+finance decides it. `travel.manage` (HR admin) adds and removes per diem rates: one per country, or per country and
+city, case and spaces ignored, at most 500, amounts entered in the company currency (convert foreign rates yourself).
+Per diem guidance is the city rate, else the country rate, times the days including both travel days. A claim can be
+linked to the claimant's own approved trip while the module is on; settlement is the sum of linked claims that are not
+rejected or cancelled minus the advance, unless finance rejected or cancelled it. `travel.read` (HR admin, finance)
+lists everyone's decided trips in scope with the same figures. Per diem is guidance only; nothing is paid
+automatically.
+
 ## Careers page
 
 Turn on "Careers page" in Settings, Modules, then set "Who can see it" on an opening to "Public careers page" (or "Job

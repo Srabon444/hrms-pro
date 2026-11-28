@@ -131,6 +131,12 @@ Vitest · Playwright · Docker.
   proposal to finance as a pending salary change; nothing changes until finance approves it, and people who cannot be
   applied (a change already waiting, a salary changed since the proposal, a start date not after the current salary)
   are listed with the reason.
+- **Travel and per diem.** An optional module (off by default). Employees ask for a trip with its purpose, place,
+  dates, estimated cost and an optional advance; their manager (or department head, or a travel approver) decides it
+  from the inbox. An approved advance becomes a salary advance for finance to approve, repaid from the salary of the
+  month the trip ends. HR keeps daily per diem rates per country or city (a city rate wins), entered in the company
+  currency. Expense claims can be linked to the claimant's own approved trip, and the trip shows the per diem guidance
+  and the settlement: what was claimed minus the advance.
 - **Kudos and announcement discussion.** Colleagues thank up to 10 people at once (20 kudos a day each), tagged
   with one of the company values HR lists; kudos show on a wall, on the home page and in a monthly count by value,
   and recipients are notified. Announcements get six reactions (counts only, no list of who reacted) and
