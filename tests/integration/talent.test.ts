@@ -158,7 +158,7 @@ describe('internal job board', () => {
 		const ctx = userCtx(who.hr);
 		jobId = await saveOpening(ctx, { ...opening, referralBonus: '5000', skillIds: `${ts},${go}` });
 		hiddenId = await saveOpening(ctx, { ...opening, title: 'Secret role', visibility: 'none', skillIds: '' });
-		expect(await code(saveOpening(ctx, { ...opening, visibility: 'public' }))).toBe(
+		expect(await code(saveOpening(ctx, { ...opening, visibility: 'everyone' }))).toBe(
 			'invalid: Choose who can see the opening.'
 		);
 		expect(await code(saveOpening(ctx, { ...opening, referralBonus: '1234567' }))).toBe(

@@ -235,6 +235,13 @@ describe('CV text', () => {
 		expect(await textOf('candidate_id', id)).toMatchObject({ status: 'ok', model: 'gemini-4-neon' });
 	});
 
+	it('never spends OCR on a CV sent from the public careers page', async () => {
+		const id = await candidate('From the web', await pdf([]));
+		await sql()`update candidates set source = 'website' where id = ${id}`;
+		await extractFileText({ tenantId: a.id, candidateId: id });
+		expect(await textOf('candidate_id', id)).toMatchObject({ status: 'ok', model: null, text: '' });
+	});
+
 	it('reads a scanned PDF and a PDF holding only a watermark with OCR', async () => {
 		const blank = await candidate('Scanned', await pdf([]));
 		const marked = await candidate('Marked', await pdf(['Scanned with CamScanner']));

@@ -16,6 +16,7 @@ import {
 	DEFAULT_STAGES,
 	MAX_DOCUMENT_BYTES,
 	OFFER_DECISIONS,
+	OPENING_VISIBILITIES,
 	OPENING_STATUSES,
 	RECOMMENDATIONS,
 	candidateStageHistory,
@@ -67,7 +68,14 @@ const openingSchema = z.object({
 	headcount: z.coerce.number(headcount).int(headcount).min(1, headcount).max(500, headcount),
 	status: z.enum(OPENING_STATUSES, 'Choose a status.').default('open'),
 	description: z.string().max(5000, 'Keep the description under 5000 characters.').default(''),
-	visibility: z.enum(['none', 'internal'], 'Choose who can see the opening.').default('none'),
+	visibility: z.enum(OPENING_VISIBILITIES, 'Choose who can see the opening.').default('none'),
+	publicSlug: z
+		.string()
+		.trim()
+		.toLowerCase()
+		.regex(/^([a-z0-9][a-z0-9-]{0,62})?$/, 'Use up to 63 lowercase letters, digits and dashes for the link.')
+		.transform((v) => v || null)
+		.prefault(''),
 	referralBonus: z
 		.string()
 		.trim()
@@ -75,6 +83,39 @@ const openingSchema = z.object({
 		.transform((v) => (v ? poishaOf(v) : 0))
 		.prefault('')
 });
+
+export const slugOf = (title: string) =>
+	title
+		.toLowerCase()
+		.normalize('NFKD')
+		.replace(/\p{M}/gu, '')
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+/, '')
+		.slice(0, 63)
+		.replace(/-+$/, '') || 'job';
+
+const openingInput = (raw: Record<string, string>) => {
+	const input = openingSchema.parse(raw);
+	const listed = input.visibility === 'public' || input.visibility === 'both';
+	return { ...input, publicSlug: listed ? input.publicSlug : null, deriveSlug: listed && !input.publicSlug };
+};
+
+async function freeSlug(tx: Tx, title: string, openingId: string | null) {
+	const base = slugOf(title);
+	const rows = await tx
+		.select({ slug: jobOpenings.publicSlug })
+		.from(jobOpenings)
+		.where(
+			and(
+				sql`${jobOpenings.publicSlug} ~ ${`^${base}(-[0-9]+)?$`}`,
+				openingId ? sql`${jobOpenings.id} <> ${openingId}` : undefined
+			)
+		);
+	const taken = new Set(rows.map((r) => r.slug));
+	let slug = base;
+	for (let n = 2; taken.has(slug); n++) slug = `${base.slice(0, 62 - String(n).length)}-${n}`;
+	return slug;
+}
 
 const skillIdsSchema = z
 	.string()
@@ -84,7 +125,12 @@ const skillIdsSchema = z
 const tagError = 'Use up to 10 tags, each under 30 characters.';
 export const candidateSchema = z.object({
 	openingId: z.uuid({ error: 'Choose an opening.' }),
-	fullName: z.string().trim().min(1, 'Enter the candidate name.').max(120, 'Keep the name under 120 characters.'),
+	fullName: z
+		.string()
+		.trim()
+		.min(1, 'Enter the candidate name.')
+		.max(120, 'Keep the name under 120 characters.')
+		.regex(/^\P{Cc}*$/u, 'Remove unsupported characters.'),
 	email: z
 		.union([z.literal(''), z.email('Enter a valid email.').max(254, 'Enter a valid email.')])
 		.transform((v) => v || null)
@@ -141,9 +187,12 @@ async function assertOrgRefs(tx: Tx, input: { departmentId: string | null; desig
 export async function saveOpening(ctx: TenantCtx, raw: Record<string, string>): Promise<string> {
 	const openingId = raw.openingId ? z.uuid().safeParse(raw.openingId) : null;
 	if (openingId && !openingId.success) throw openingMissing();
-	const input = openingSchema.parse(raw);
+	const { deriveSlug, ...parsed } = openingInput(raw);
 	const skillIds = raw.skillIds === undefined ? null : skillIdsSchema.parse(raw.skillIds);
 	return withTenant(ctx, async (tx) => {
+		const input = deriveSlug
+			? { ...parsed, publicSlug: await freeSlug(tx, parsed.title, openingId?.data ?? null) }
+			: parsed;
 		await assertOrgRefs(tx, input);
 		if (skillIds?.length) {
 			const found = await tx.select({ id: skills.id }).from(skills).where(inArray(skills.id, skillIds));
@@ -168,10 +217,14 @@ export async function saveOpening(ctx: TenantCtx, raw: Record<string, string>): 
 					.values(skillIds.map((skillId) => ({ tenantId: ctx.tenantId, openingId: id, skillId })));
 		}
 		return id;
+	}).catch((err) => {
+		if (pgCode(err) === UNIQUE_VIOLATION)
+			throw new AppError('slug_taken', 'Another opening already uses that careers link.', 409);
+		throw err;
 	});
 }
 
-async function createOpening(tx: Tx, ctx: TenantCtx, input: z.infer<typeof openingSchema>) {
+async function createOpening(tx: Tx, ctx: TenantCtx, input: Omit<ReturnType<typeof openingInput>, 'deriveSlug'>) {
 	const [row] = await tx
 		.insert(jobOpenings)
 		.values({ tenantId: ctx.tenantId, ...input, createdByUserId: ctx.userId ?? null })

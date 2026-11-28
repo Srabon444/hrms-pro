@@ -169,28 +169,28 @@ async function ocrText(tenantId: string, bytes: Uint8Array, mime: string) {
 	return { text: cleanText(result.text), model: result.model };
 }
 
-async function pdfFileText(tenantId: string, bytes: Uint8Array) {
+async function pdfFileText(tenantId: string, bytes: Uint8Array, ocr: boolean) {
 	const layer = await pdfLayer(bytes).catch((err: Error) => {
 		if (err instanceof TextError) throw err;
 		return { text: '', pages: 1 };
 	});
 	const text = cleanText(layer.text);
-	if (text.length >= MIN_CHARS_PER_PAGE * Math.max(layer.pages, 1)) return { text, model: null };
+	if (!ocr || text.length >= MIN_CHARS_PER_PAGE * Math.max(layer.pages, 1)) return { text, model: null };
 	return ocrText(tenantId, bytes, 'application/pdf').catch((err: Error) => {
 		if (text) return { text, model: null };
 		throw err;
 	});
 }
 
-export async function readFileText(tenantId: string, bytes: Uint8Array, mime: string) {
+export async function readFileText(tenantId: string, bytes: Uint8Array, mime: string, ocr = true) {
 	if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new TextError('too_large');
-	if (mime === 'application/pdf') return pdfFileText(tenantId, bytes);
+	if (mime === 'application/pdf') return pdfFileText(tenantId, bytes, ocr);
 	if (mime === DOCX) return { text: cleanText(docxText(bytes)), model: null };
-	if (IMAGE_TYPES.includes(mime)) return ocrText(tenantId, bytes, mime);
+	if (IMAGE_TYPES.includes(mime) && ocr) return ocrText(tenantId, bytes, mime);
 	throw new TextError('unsupported');
 }
 
-type Source = { key: string; type: string; sha256: string | null };
+type Source = { key: string; type: string; sha256: string | null; ocr: boolean };
 
 async function sourceOf(job: FileTextJob): Promise<Source | null> {
 	return withTenant(systemCtx(job.tenantId), async (tx) => {
@@ -199,13 +199,13 @@ async function sourceOf(job: FileTextJob): Promise<Source | null> {
 				.select({ key: policies.storageKey, type: policies.contentType, sha256: policies.sha256 })
 				.from(policies)
 				.where(eq(policies.id, job.policyId));
-			return p ?? null;
+			return p ? { ...p, ocr: true } : null;
 		}
 		const [c] = await tx
-			.select({ key: candidates.resumeKey, type: candidates.resumeType })
+			.select({ key: candidates.resumeKey, type: candidates.resumeType, source: candidates.source })
 			.from(candidates)
 			.where(eq(candidates.id, job.candidateId!));
-		return c?.key && c.type ? { key: c.key, type: c.type, sha256: null } : null;
+		return c?.key && c.type ? { key: c.key, type: c.type, sha256: null, ocr: c.source !== 'website' } : null;
 	});
 }
 
@@ -266,7 +266,7 @@ export async function extractFileText(job: FileTextJob): Promise<void> {
 	const tries = before?.sha256 === sha256 ? before.attempts : 0;
 	try {
 		if (!bytes) throw new TextError('missing');
-		const { text, model } = await readFileText(job.tenantId, bytes, src.type);
+		const { text, model } = await readFileText(job.tenantId, bytes, src.type, src.ocr);
 		await save(job, {
 			sha256,
 			status: 'ok',

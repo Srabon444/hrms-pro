@@ -22,12 +22,30 @@
 		other: 'Other'
 	};
 	const base = $derived(`/t/${data.tenant.slug}/recruitment`);
+	const visibilityOptions = $derived(
+		(
+			[
+				['none', 'Only the hiring team', true],
+				['internal', 'Internal job board', data.talent],
+				['public', 'Public careers page', data.careers],
+				['both', 'Job board and careers page', data.talent && data.careers]
+			] as const
+		).filter(([value, , shown]) => shown || value === o.visibility)
+	);
+	const careersLink = $derived(
+		data.careers && o.publicSlug && (o.visibility === 'public' || o.visibility === 'both') && o.status === 'open'
+			? `/careers/${data.tenant.slug}/${o.publicSlug}`
+			: null
+	);
 </script>
 
 <svelte:head><title>{o.title} · Recruitment · {data.tenant.name}</title></svelte:head>
 
 <a class="text-sm text-brand-700 underline" href={base}>All openings</a>
 <h1 class="page-title mt-2">{o.title} · {statusLabel[o.status]}</h1>
+{#if careersLink}<p class="mt-1 text-sm">
+		On the careers page: <a class="text-brand-700 underline" href={careersLink}>{careersLink}</a>
+	</p>{/if}
 
 <div class="mt-4 max-w-5xl space-y-2">
 	<Alert message={form?.message} />
@@ -119,14 +137,36 @@
 					{#each data.statuses as s (s)}<option value={s} selected={s === o.status}>{statusLabel[s]}</option>{/each}
 				</select>
 			</label>
-			{#if data.talent}
+			{#if data.talent || data.careers}
 				<label class="block text-sm font-medium text-slate-700">
-					Show on the internal job board
+					Who can see it
 					<select name="visibility" class={input}>
-						<option value="none" selected={o.visibility !== 'internal'}>No</option>
-						<option value="internal" selected={o.visibility === 'internal'}>Yes</option>
+						{#each visibilityOptions as [value, label] (value)}<option {value} selected={value === o.visibility}>
+								{label}
+							</option>{/each}
 					</select>
 				</label>
+			{:else}
+				<input type="hidden" name="visibility" value={o.visibility} />
+			{/if}
+			{#if data.careers}
+				<label class="block text-sm font-medium text-slate-700">
+					Careers page link
+					<span class="block text-xs font-normal text-slate-500">
+						/careers/{data.tenant.slug}/…, left blank uses the title
+					</span>
+					<input
+						name="publicSlug"
+						maxlength="63"
+						pattern={'[a-z0-9][a-z0-9\\-]{0,62}'}
+						class={input}
+						value={o.publicSlug ?? ''}
+					/>
+				</label>
+			{:else}
+				<input type="hidden" name="publicSlug" value={o.publicSlug ?? ''} />
+			{/if}
+			{#if data.talent}
 				<label class="block text-sm font-medium text-slate-700">
 					Referral bonus
 					<input
@@ -147,7 +187,6 @@
 					</select>
 				</label>
 			{:else}
-				<input type="hidden" name="visibility" value={o.visibility === 'internal' ? 'internal' : 'none'} />
 				<input type="hidden" name="referralBonus" value={o.referralBonus ? taka(o.referralBonus) : ''} />
 			{/if}
 			<label class="block text-sm font-medium text-slate-700 sm:col-span-2">
