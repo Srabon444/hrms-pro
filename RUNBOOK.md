@@ -148,6 +148,31 @@ derived from the server key ring (`keyedMac`), so they cannot be forged without 
 own tenant and shows as expired after its renewal date. Archiving a course stops new progress but keeps passed
 certificates downloadable.
 
+## E-signature
+
+Turn on "E-signature" in Settings, Modules. `signature.manage` (HR admin) creates requests at Signatures: a title, a PDF
+up to 10 MB (checked by its header) and 1 to 90 days to sign, counted from when it is sent. Signers are added while the request
+is a draft, up to 10, each email once; staff must have an active login. People sign strictly in the order added, and
+only the current signer is invited: staff by notification and email, outside people by an email link to
+`/sign/<token>`. Staff sign on the request page after confirming their password (10 minute window, the same one API keys
+use). Outside signers ask for a 6 digit code by email; a code lasts 10 minutes, each signer gets at most 3 codes and 5
+tries in total, a new code never resets the tries, and after 5 wrong tries the link is locked, so cancel and send a new
+request. Wrong links count against the address (20 an hour), and each link allows 60 requests an hour. A link stops
+working when the request is cancelled, declined, completed or expired, the module is off or the organisation is
+suspended. Expiry is checked when someone opens or acts on the request; nothing runs on a schedule and no reminders go
+out. "Resend invite" sends the current signer a fresh link (the old one stops working). A decline (with an optional
+reason) ends the request and tells its creator. When the last signer signs, the certificate of completion is built
+with each signer's details and the consent text they agreed to, stored as `<original key>-certificate`, its SHA-256 is
+saved, and the creator is told. Cancelling closes every link, including the document link of someone who already
+signed. Every step is in the audit log with actor kind `signature` (sent, invite_resent, code_sent, code_failed,
+signed, declined, completed, cancelled); names, emails, IP addresses, browser details and typed names are kept out of
+the audit log. For an offer letter (needs `recruitment.manage` to create and to send) pick the pending offer: the
+candidate, who must have an email, is added first and cannot be removed, sending refuses an expired offer, and the
+offer is marked accepted as soon as the candidate signs, through the normal offer rules, even if a later signer
+declines. When HR accepts, declines or withdraws the offer on the offer page, its open signature request is
+cancelled. Purging a candidate also deletes their offer's signature request and both files. The legal level is a
+simple electronic signature with an audit trail, not a qualified one.
+
 ## Careers page
 
 Turn on "Careers page" in Settings, Modules, then set "Who can see it" on an opening to "Public careers page" (or "Job
