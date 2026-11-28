@@ -4,15 +4,20 @@
 		slug
 	}: {
 		a: {
+			id: string;
 			title: string;
 			body: string;
 			pinned: boolean;
 			publishOn: string;
 			target: string | null;
 			files: { id: string; filename: string }[];
+			reactions: number;
+			comments: number;
 		};
 		slug: string;
 	} = $props();
+	const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+	const social = $derived(`${plural(a.reactions, 'reaction')} · ${plural(a.comments, 'comment')}`);
 </script>
 
 <article
@@ -31,4 +36,13 @@
 			{/each}
 		</ul>
 	{/if}
+	<p class="mt-3 text-sm">
+		<a
+			class="text-brand-700 underline"
+			href="/t/{slug}/announcements/{a.id}/comments"
+			data-testid="announcement-social"
+		>
+			{social}
+		</a>
+	</p>
 </article>

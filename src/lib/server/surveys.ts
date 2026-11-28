@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { audienceFilter } from './announcements';
+import { activeMember, audienceMembers, memberNames } from './audience';
 import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import {
 	branches,
@@ -25,7 +26,6 @@ import { systemCtx, withTenant, type Tx } from './tenancy';
 type Member = ReturnType<typeof requireMember>;
 type Survey = typeof surveys.$inferSelect;
 type Question = typeof surveyQuestions.$inferSelect;
-type Audience = Pick<Survey, 'audience' | 'departmentId' | 'branchId'>;
 
 export const SURVEY_MAX_QUESTIONS = 20;
 export const SUGGESTIONS_PER_DAY = 5;
@@ -140,25 +140,6 @@ const surveySchema = z
 		departmentId: v.audience === 'department' ? v.departmentId : null,
 		branchId: v.audience === 'branch' ? v.branchId : null
 	}));
-
-export async function audienceMembers(tx: Tx, a: Audience): Promise<string[]> {
-	const rows = await tx.execute<{ id: string }>(sql`
-		with recursive down(id, depth) as (
-			select id, 0 from departments where id = ${a.departmentId}::uuid
-			union all
-			select d.id, down.depth + 1 from departments d join down on d.parent_id = down.id where down.depth < 20
-		)
-		select tu.membership_id as id
-		from tenant_users tu left join employees e on e.id = tu.employee_id
-		where tu.membership_status = 'active' and tu.user_status = 'active' and (
-			${a.audience} = 'all'
-			or (${a.audience} = 'department' and e.department_id in (select id from down))
-			or (${a.audience} = 'branch' and e.branch_id = ${a.branchId}::uuid))`);
-	return rows.map((r) => r.id);
-}
-
-const activeMember = (membershipId: string) =>
-	sql`exists (select 1 from memberships am where am.id = ${membershipId}::uuid and am.status = 'active')`;
 
 const isOpen = (s: Pick<Survey, 'status' | 'closesOn' | 'kind'>, today: string) =>
 	s.status === 'open' && (s.kind === 'suggestion' || (s.closesOn !== null && s.closesOn >= today));
@@ -631,14 +612,6 @@ const namedTexts = (tx: Tx, id: string) =>
 		)
 		.orderBy(asc(surveyAnswers.questionId))
 		.limit(TEXTS_SHOWN);
-
-async function memberNames(tx: Tx, ids: string[]) {
-	if (!ids.length) return new Map<string, string>();
-	const rows = await tx.execute<{ id: string; name: string }>(
-		sql`select membership_id as id, name from tenant_users where membership_id in ${ids}`
-	);
-	return new Map(rows.map((r) => [r.id, r.name]));
-}
 
 async function sliceLabels(tx: Tx, dimension: SliceDimension, ids: string[]) {
 	const t = dimension === 'department' ? departments : branches;

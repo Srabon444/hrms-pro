@@ -31,6 +31,12 @@ export const MODULES = {
 		on: true,
 		routes: ['surveys']
 	},
+	kudos: {
+		label: 'Kudos',
+		about: 'A recognition wall where colleagues thank each other, tagged with the company values.',
+		on: true,
+		routes: ['kudos']
+	},
 	kiosk: {
 		label: 'Attendance kiosk',
 		about: 'A shared tablet at a work site where staff punch in with their employee code and a PIN.',

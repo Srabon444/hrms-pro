@@ -197,4 +197,23 @@
 			{#each home.announcements as a (a.id)}<AnnouncementCard {a} slug={data.tenant.slug} />{/each}
 		</section>
 	{/if}
+
+	{#if home.kudos}
+		<section class="mt-6 max-w-3xl rounded-xl bg-white p-5 ring-1 ring-slate-200" aria-label="Kudos">
+			<h2 class="section-title">
+				Kudos
+				<a class="ml-2 text-sm font-normal text-brand-700 underline" href={`${base}/kudos`}>Give kudos</a>
+			</h2>
+			<ul class="mt-3 space-y-2 text-sm">
+				{#each home.kudos as k (k.id)}
+					<li class="break-words" data-testid="home-kudos">
+						<span class="font-medium text-slate-900">{k.from}</span> thanked
+						<span class="font-medium text-slate-900">{k.to.join(', ')}</span>: {k.message}
+					</li>
+				{:else}
+					<li class="text-slate-600">No kudos yet.</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
 {/if}
