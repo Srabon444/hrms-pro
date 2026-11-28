@@ -126,6 +126,28 @@ working, and voids it if the hire has left. Rewards are salary data: only the re
 see them, and only `salary.update` can mark one paid or void it; nothing is added to payroll, so pay it in the next run
 yourself.
 
+## Learning
+
+Turn on "Learning" in Settings, Modules. `course.manage` (HR admin) builds, publishes and assigns courses;
+`course.report` (HR admin everywhere, department heads for their department, line managers for their team) sees the
+training report at Learning, Training report, and can check a certificate code there. A course publishes only with at
+least one lesson, questions on every quiz and a file on every file lesson; removing a lesson or question that a
+published course needs is refused, and quiz or file lessons can be added only while the course is a draft. Removing a
+lesson marks anyone who has now done every remaining lesson as passed. Quiz options are typed one per line with `*`
+before each correct one; a question with more than one correct option needs all of them picked, and scores round down.
+Course managers see the answer key on the course page, so a manager taking their own course sees it too. When someone
+runs out of attempts (also when HR lowers the limit below what they used) the course shows them as "Out of attempts"
+and HR can allow another try, which resets the unpassed quizzes only. A person is on a course once per cycle: the first
+assignment that reaches them sets the due date, a later one only adds people not yet on it, and an assignment taking
+over a passed self-enrolment sets its renewal date without a new notification. The days to finish must be shorter than
+the renewal period. The daily lifecycle step `learning` (counter `learning_day`, once per tenant day) enrols people who
+now match an assignment, opens a renewal cycle `due_in_days` before a passed course expires (the last certificate stays
+downloadable meanwhile), and sends the 7 and 1 day reminders; a missed day does not resend them. Removing an assignment
+deletes enrolments nobody started and keeps the rest as optional, without further renewals. Certificate codes are
+derived from the server key ring (`keyedMac`), so they cannot be forged without it; a code is checked only inside its
+own tenant and shows as expired after its renewal date. Archiving a course stops new progress but keeps passed
+certificates downloadable.
+
 ## Careers page
 
 Turn on "Careers page" in Settings, Modules, then set "Who can see it" on an opening to "Public careers page" (or "Job

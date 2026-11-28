@@ -9,6 +9,7 @@ import { checklistItemAttachments } from './checklists';
 import { auditEvent } from './audit';
 import { discardFiles } from './file-store';
 import { ticketAttachments, ticketCommentAttachments } from './helpdesk';
+import { certificationAttachments, lessonAttachments } from './learning';
 import { leaveAttachments } from './leave-requests';
 import { loanAttachments } from './loans';
 import { mealBillAttachments } from './meal-bills';
@@ -39,7 +40,9 @@ const owners = (): Record<AttachmentOwner, AttachmentRules> => ({
 	attendance_request: attendanceAttachments,
 	change_request: changeAttachments,
 	candidate: candidateAttachments,
+	certification: certificationAttachments,
 	checklist_item: checklistItemAttachments,
+	course_lesson: lessonAttachments,
 	education: educationAttachments,
 	experience: experienceAttachments,
 	goal: goalAttachments,

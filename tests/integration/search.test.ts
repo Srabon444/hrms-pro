@@ -6,6 +6,8 @@ import { withTestNow } from '../../src/lib/server/clock';
 import { closePools, ownerPool } from '../../src/lib/server/db';
 import { memberships } from '../../src/lib/server/db/schema';
 import { createEmployee, EMPLOYMENT_FIELDS, PROFILE_FIELDS } from '../../src/lib/server/employees';
+import { MODULE_IDS, MODULES } from '../../src/lib/modules';
+import { saveModules } from '../../src/lib/server/modules';
 import { searchLimit } from '../../src/lib/server/ratelimit';
 import { addMember, seedTenant } from '../../src/lib/server/platform/tenants';
 import { loadAccess, userCtx, type requireMember } from '../../src/lib/server/rbac/access';
@@ -163,6 +165,10 @@ beforeAll(async () => {
 
 	await sql()`insert into payroll_runs (tenant_id, run_type, title, period, inputs_hash, output_hash, computed_by_user_id, computed_at)
 		values (${a.id}, 'bonus', 'Zebra bonus', '2026-10', 'i', 'o', ${who.owner.m.user.userId}, now())`;
+
+	await saveModules(systemCtx(a.id), [...MODULE_IDS.filter((id) => MODULES[id].on), 'learning']);
+	await sql()`insert into courses (tenant_id, title, status) values
+		(${a.id}, 'Zebra safety', 'published'), (${a.id}, 'Zebra draft course', 'draft')`;
 });
 
 afterAll(closePools);
@@ -246,6 +252,12 @@ describe('global search visibility', () => {
 		expect(await titles('owner', 'payroll')).toEqual(['Zebra bonus']);
 		expect(await titles('rec', 'payroll')).toEqual([]);
 		expect(await titles('ana', 'payroll')).toEqual([]);
+	});
+
+	it('shows staff published courses and course managers the drafts too', async () => {
+		expect(await titles('ana', 'course')).toEqual(['Zebra safety']);
+		expect(await titles('owner', 'course')).toEqual(['Zebra draft course', 'Zebra safety']);
+		expect(await titles('ex', 'course')).toEqual([]);
 	});
 
 	it('gives an ex-employee only their own record and nothing that needs an active membership', async () => {

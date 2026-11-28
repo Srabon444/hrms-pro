@@ -83,3 +83,30 @@ export function write(doc: PDFKit.PDFDocument, text: string, x: number, y: numbe
 		else doc.text(run.text, opts);
 	});
 }
+
+const runsWidth = (doc: PDFKit.PDFDocument, text: string) =>
+	fontRuns(text).reduce((w, r) => w + doc.font(r.font).widthOfString(r.text), 0);
+
+export function centred(doc: PDFKit.PDFDocument, text: string, x: number, y: number, width: number): number {
+	const fits = (t: string) => runsWidth(doc, t) <= width;
+	const pieces = [...text.split(/\s+/).filter(Boolean)].flatMap((word) =>
+		fits(word)
+			? [word]
+			: [...word].reduce<string[]>((out, ch) => {
+					if (out.length && fits(out[out.length - 1] + ch)) out[out.length - 1] += ch;
+					else out.push(ch);
+					return out;
+				}, [])
+	);
+	const lines = pieces.reduce<string[]>((out, word) => {
+		if (out.length && fits(`${out[out.length - 1]} ${word}`)) out[out.length - 1] += ` ${word}`;
+		else out.push(word);
+		return out;
+	}, []);
+	const height = doc.currentLineHeight(true);
+	lines.forEach((line, i) => {
+		const start = x + Math.max(0, (width - runsWidth(doc, line)) / 2);
+		write(doc, line, start, y + i * height, x + width - start + 4);
+	});
+	return y + lines.length * height;
+}

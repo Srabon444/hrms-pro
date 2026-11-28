@@ -252,6 +252,7 @@ export const NAV: NavItem[] = [
 	},
 	{ href: 'loans', label: 'Loans', group: 'My work', perm: ['loan.request', 'loan.approve'] },
 	{ href: 'policies', label: 'Policies', group: 'Learn', active: true },
+	{ href: 'learning', label: 'Learning', group: 'Learn', module: 'learning' },
 	{ href: 'employees', label: 'Employees', group: 'People', perm: 'employee.read' },
 	{ href: 'lifecycle', label: 'Lifecycle', group: 'People', perm: 'employee.update' },
 	{ href: 'recruitment', label: 'Recruitment', group: 'People', perm: 'recruitment.read' },
