@@ -5,6 +5,7 @@ import { runLifecycle } from './exits';
 import { runLeaveAccrual } from './leave';
 import { runCelebrations } from './directory';
 import { runEventReminders } from './events';
+import { runReferralRewards } from './job-board';
 import { extractFileText, reconcileFileTexts, type FileTextJob } from './file-text';
 import { deliverMail, type Mail } from './mail';
 import { sendMealBill, sweepMealBills, type BillJob } from './meal-bills';
@@ -28,7 +29,8 @@ export const LIFECYCLE_STEPS: Record<string, () => Promise<unknown>> = {
 	swaps: expireSwaps,
 	aiRetention: purgeAiUsage,
 	fileTexts: reconcileFileTexts,
-	webhooks: runWebhooks
+	webhooks: runWebhooks,
+	referralRewards: runReferralRewards
 };
 
 export const processors: Record<QueueName, Processor> = {

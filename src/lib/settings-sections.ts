@@ -86,6 +86,14 @@ export const LIMITS = {
 		'days',
 		'Older audit entries are deleted.'
 	),
+	referralQualifyDays: int(
+		'referralQualifyDays',
+		'Referral bonus qualifying period',
+		1,
+		730,
+		'days',
+		'A referral bonus becomes due this long after the hire starts, if they are still employed.'
+	),
 	retentionCandidatesDays: int(
 		'retentionCandidatesDays',
 		'Keep rejected candidates',
@@ -136,7 +144,8 @@ export const SETTING_SECTIONS = {
 			LIMITS.noticePeriodDays,
 			LIMITS.exEmployeeAccessDays,
 			LIMITS.probationAlertDays,
-			LIMITS.documentExpiryAlertDays
+			LIMITS.documentExpiryAlertDays,
+			LIMITS.referralQualifyDays
 		]
 	},
 	attendance: {

@@ -43,6 +43,12 @@ export const MODULES = {
 		on: false,
 		routes: ['one-on-ones', 'feedback']
 	},
+	talent: {
+		label: 'Skills and internal jobs',
+		about: 'A skills catalogue with manager validation, an internal job board with skill match, and referral bonuses.',
+		on: false,
+		routes: ['skills', 'jobs']
+	},
 	kiosk: {
 		label: 'Attendance kiosk',
 		about: 'A shared tablet at a work site where staff punch in with their employee code and a PIN.',

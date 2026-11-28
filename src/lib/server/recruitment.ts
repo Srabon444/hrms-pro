@@ -22,12 +22,16 @@ import {
 	candidates,
 	departments,
 	designations,
+	employees,
 	interviewFeedback,
 	interviews,
 	jobOpenings,
 	offers,
+	openingSkills,
 	pipelineStages,
+	referralRewards,
 	roles,
+	skills,
 	tenantSettings,
 	tenants
 } from './db/schema';
@@ -54,6 +58,7 @@ const RESUME_TYPES = new Set([
 const optionalId = (message: string) =>
 	z.union([z.literal(''), z.uuid({ error: message })]).transform((v) => v || null);
 const headcount = 'Headcount is 1 to 500.';
+const bonus = 'Enter the referral bonus, up to 999999.99.';
 
 const openingSchema = z.object({
 	title: z.string().trim().min(1, 'Enter the job title.').max(120, 'Keep the job title under 120 characters.'),
@@ -61,8 +66,20 @@ const openingSchema = z.object({
 	designationId: optionalId('Choose a designation.').prefault(''),
 	headcount: z.coerce.number(headcount).int(headcount).min(1, headcount).max(500, headcount),
 	status: z.enum(OPENING_STATUSES, 'Choose a status.').default('open'),
-	description: z.string().max(5000, 'Keep the description under 5000 characters.').default('')
+	description: z.string().max(5000, 'Keep the description under 5000 characters.').default(''),
+	visibility: z.enum(['none', 'internal'], 'Choose who can see the opening.').default('none'),
+	referralBonus: z
+		.string()
+		.trim()
+		.regex(/^(\d{1,6}(\.\d{1,2})?)?$/, bonus)
+		.transform((v) => (v ? poishaOf(v) : 0))
+		.prefault('')
 });
+
+const skillIdsSchema = z
+	.string()
+	.transform((v) => [...new Set(v.split(',').filter(Boolean))])
+	.pipe(z.array(z.uuid('Choose skills from the catalogue.')).max(20, 'Choose up to 20 skills.'));
 
 const tagError = 'Use up to 10 tags, each under 30 characters.';
 export const candidateSchema = z.object({
@@ -79,7 +96,10 @@ export const candidateSchema = z.object({
 		.regex(/^([+\d][\d\s-]*)?$/, 'Enter a valid phone number.')
 		.transform((v) => v || null)
 		.prefault(''),
-	source: z.enum(CANDIDATE_SOURCES, 'Choose where the candidate came from.').default('other'),
+	source: z
+		.enum(CANDIDATE_SOURCES, 'Choose where the candidate came from.')
+		.refine((v) => v !== 'internal', 'Choose where the candidate came from.')
+		.default('other'),
 	tags: z
 		.string()
 		.default('')
@@ -122,26 +142,44 @@ export async function saveOpening(ctx: TenantCtx, raw: Record<string, string>): 
 	const openingId = raw.openingId ? z.uuid().safeParse(raw.openingId) : null;
 	if (openingId && !openingId.success) throw openingMissing();
 	const input = openingSchema.parse(raw);
+	const skillIds = raw.skillIds === undefined ? null : skillIdsSchema.parse(raw.skillIds);
 	return withTenant(ctx, async (tx) => {
 		await assertOrgRefs(tx, input);
-		if (openingId) {
-			const [row] = await tx
-				.update(jobOpenings)
-				.set(input)
-				.where(eq(jobOpenings.id, openingId.data))
-				.returning({ id: jobOpenings.id });
-			if (!row) throw openingMissing();
-			return row.id;
+		if (skillIds?.length) {
+			const found = await tx.select({ id: skills.id }).from(skills).where(inArray(skills.id, skillIds));
+			if (found.length !== skillIds.length)
+				throw new AppError('invalid_skill', 'Choose skills from the catalogue.', 400);
 		}
-		const [row] = await tx
-			.insert(jobOpenings)
-			.values({ tenantId: ctx.tenantId, ...input, createdByUserId: ctx.userId ?? null })
-			.returning({ id: jobOpenings.id });
-		await tx
-			.insert(pipelineStages)
-			.values(DEFAULT_STAGES.map((s, i) => ({ tenantId: ctx.tenantId, openingId: row.id, sortOrder: i + 1, ...s })));
-		return row.id;
+		const id = openingId
+			? (
+					await tx
+						.update(jobOpenings)
+						.set(input)
+						.where(eq(jobOpenings.id, openingId.data))
+						.returning({ id: jobOpenings.id })
+				)[0]?.id
+			: await createOpening(tx, ctx, input);
+		if (!id) throw openingMissing();
+		if (skillIds) {
+			await tx.delete(openingSkills).where(eq(openingSkills.openingId, id));
+			if (skillIds.length)
+				await tx
+					.insert(openingSkills)
+					.values(skillIds.map((skillId) => ({ tenantId: ctx.tenantId, openingId: id, skillId })));
+		}
+		return id;
 	});
+}
+
+async function createOpening(tx: Tx, ctx: TenantCtx, input: z.infer<typeof openingSchema>) {
+	const [row] = await tx
+		.insert(jobOpenings)
+		.values({ tenantId: ctx.tenantId, ...input, createdByUserId: ctx.userId ?? null })
+		.returning({ id: jobOpenings.id });
+	await tx
+		.insert(pipelineStages)
+		.values(DEFAULT_STAGES.map((s, i) => ({ tenantId: ctx.tenantId, openingId: row.id, sortOrder: i + 1, ...s })));
+	return row.id;
 }
 
 export async function recruitmentBoard(tx: Tx) {
@@ -216,7 +254,19 @@ export async function openingView(tx: Tx, openingId: string) {
 		stages.map((s) => ({ id: s.id, name: s.name, sort_order: s.sortOrder })),
 		people.map((p) => ({ id: p.id, current_stage_id: p.stageId }))
 	);
-	return { opening, stages, candidates: people, funnel, ...(await orgOptions(tx)) };
+	const chosen = await tx
+		.select({ id: openingSkills.skillId })
+		.from(openingSkills)
+		.where(eq(openingSkills.openingId, openingId));
+	return {
+		opening,
+		stages,
+		candidates: people,
+		funnel,
+		skillIds: chosen.map((s) => s.id),
+		skills: await tx.select({ id: skills.id, name: skills.name }).from(skills).orderBy(asc(skills.name)).limit(500),
+		...(await orgOptions(tx))
+	};
 }
 
 export async function addCandidate(ctx: TenantCtx, raw: Record<string, string>, file: File | null): Promise<string> {
@@ -274,7 +324,7 @@ export async function addCandidate(ctx: TenantCtx, raw: Record<string, string>, 
 	}
 }
 
-async function openStage(tx: Tx, openingId: string) {
+export async function openStage(tx: Tx, openingId: string) {
 	const [opening] = await tx
 		.select({ status: jobOpenings.status })
 		.from(jobOpenings)
@@ -294,14 +344,25 @@ async function openStage(tx: Tx, openingId: string) {
 export async function moveCandidate(ctx: TenantCtx, raw: Record<string, string>) {
 	const input = moveSchema.parse(raw);
 	await withTenant(ctx, async (tx) => {
-		const [c] = await tx.select().from(candidates).where(eq(candidates.id, input.candidateId)).for('update');
+		const [c] = await tx
+			.select({
+				id: candidates.id,
+				openingId: candidates.openingId,
+				stageId: candidates.stageId,
+				employeeId: candidates.employeeId,
+				stageKind: pipelineStages.kind
+			})
+			.from(candidates)
+			.innerJoin(pipelineStages, eq(pipelineStages.id, candidates.stageId))
+			.where(eq(candidates.id, input.candidateId))
+			.for('update', { of: candidates });
 		if (!c) throw candidateMissing();
 		const [stage] = await tx
 			.select({ id: pipelineStages.id, kind: pipelineStages.kind })
 			.from(pipelineStages)
 			.where(and(eq(pipelineStages.id, input.stageId), eq(pipelineStages.openingId, c.openingId)));
 		if (!stage) throw new AppError('invalid_stage', 'Choose a stage of this opening.', 400);
-		if (c.employeeId) throw new AppError('hired', 'This candidate is already hired.', 409);
+		if (c.employeeId || c.stageKind === 'hired') throw new AppError('hired', 'This candidate is already hired.', 409);
 		if (stage.id === c.stageId) throw new AppError('same_stage', 'The candidate is already in that stage.', 409);
 		if (stage.kind === 'hired') throw new AppError('use_hire', 'Use Hire to move a candidate to Hired.', 409);
 		const [opening] = await tx
@@ -347,8 +408,11 @@ export async function candidateView(tx: Tx, candidateId: string, viewerMembershi
 		.orderBy(desc(candidateStageHistory.createdAt));
 	const nameOf = (id: string | null) => stages.find((s) => s.id === id)?.name ?? null;
 	const { resumeKey, ...rest } = c;
+	const [referrer] = c.referredByEmployeeId
+		? await tx.select({ name: employees.fullName }).from(employees).where(eq(employees.id, c.referredByEmployeeId))
+		: [];
 	return {
-		candidate: { ...rest, hasResume: resumeKey !== null },
+		candidate: { ...rest, hasResume: resumeKey !== null, referrer: referrer?.name ?? null },
 		opening,
 		stages,
 		history: history.map((h) => ({ from: nameOf(h.fromStageId), to: nameOf(h.toStageId)!, note: h.note, at: h.at })),
@@ -467,6 +531,8 @@ async function liveCandidate(tx: Tx, candidateId: string) {
 			openingId: candidates.openingId,
 			stageId: candidates.stageId,
 			employeeId: candidates.employeeId,
+			internalEmployeeId: candidates.internalEmployeeId,
+			referredByEmployeeId: candidates.referredByEmployeeId,
 			stageKind: pipelineStages.kind,
 			openingStatus: jobOpenings.status
 		})
@@ -712,7 +778,7 @@ export async function decideOffer(ctx: TenantCtx, raw: Record<string, string>) {
 export async function hireCandidate(m: Member, raw: Record<string, string>) {
 	if (!can(m.access, 'employee.create'))
 		throw new AppError('forbidden', 'Hiring needs permission to add employees.', 403);
-	const ctx = userCtx(m);
+	const ctx = userCtx(m, { salaryAll: true });
 	const hired = await withTenant(ctx, async (tx) => {
 		const c = await liveCandidate(tx, raw.candidateId ?? '');
 		const [opening] = await tx.select().from(jobOpenings).where(eq(jobOpenings.id, c.openingId)).for('update');
@@ -724,7 +790,8 @@ export async function hireCandidate(m: Member, raw: Record<string, string>) {
 		const [filled] = await tx
 			.select({ n: count() })
 			.from(candidates)
-			.where(and(eq(candidates.openingId, opening.id), isNotNull(candidates.employeeId)));
+			.innerJoin(pipelineStages, eq(pipelineStages.id, candidates.stageId))
+			.where(and(eq(candidates.openingId, opening.id), eq(pipelineStages.kind, 'hired')));
 		if (filled.n >= opening.headcount)
 			throw new AppError('headcount_full', 'All positions for this opening are filled.', 409);
 		const [stage] = await tx
@@ -734,6 +801,27 @@ export async function hireCandidate(m: Member, raw: Record<string, string>) {
 			.orderBy(asc(pipelineStages.sortOrder))
 			.limit(1);
 		if (!stage) throw new AppError('no_stage', 'This opening has no Hired stage.', 409);
+		const moved = async (employeeId: string | null) => {
+			await tx.update(candidates).set({ employeeId, stageId: stage.id }).where(eq(candidates.id, c.id));
+			await tx.insert(candidateStageHistory).values({
+				tenantId: ctx.tenantId,
+				candidateId: c.id,
+				fromStageId: c.stageId,
+				toStageId: stage.id,
+				movedByUserId: ctx.userId ?? null,
+				note: 'Hired'
+			});
+		};
+		if (c.internalEmployeeId) {
+			const [staff] = await tx
+				.select({ status: employees.status })
+				.from(employees)
+				.where(eq(employees.id, c.internalEmployeeId));
+			if (!staff || staff.status === 'exited')
+				throw new AppError('left', 'This internal applicant no longer works here.', 409);
+			await moved(null);
+			return { employeeId: c.internalEmployeeId, email: null, roleId: null, internal: true };
+		}
 		const form = Object.fromEntries(
 			[...Object.keys(PROFILE_FIELDS), ...Object.keys(EMPLOYMENT_FIELDS)].map((k) => [k, ''])
 		);
@@ -748,18 +836,26 @@ export async function hireCandidate(m: Member, raw: Record<string, string>) {
 			joinDate: offer.joinDate,
 			status: 'onboarding'
 		});
-		await tx.update(candidates).set({ employeeId, stageId: stage.id }).where(eq(candidates.id, c.id));
-		await tx.insert(candidateStageHistory).values({
-			tenantId: ctx.tenantId,
-			candidateId: c.id,
-			fromStageId: c.stageId,
-			toStageId: stage.id,
-			movedByUserId: ctx.userId ?? null,
-			note: 'Hired'
-		});
+		await moved(employeeId);
+		if (c.referredByEmployeeId && opening.referralBonus > 0) {
+			const [s] = await tx.select({ days: tenantSettings.referralQualifyDays }).from(tenantSettings);
+			await tx.insert(referralRewards).values({
+				tenantId: ctx.tenantId,
+				candidateId: c.id,
+				employeeId: c.referredByEmployeeId,
+				hiredEmployeeId: employeeId,
+				amount: opening.referralBonus,
+				dueOn: sql`${offer.joinDate}::date + ${s?.days ?? 90}::int`
+			});
+		}
 		const [role] = await tx.select({ id: roles.id }).from(roles).where(eq(roles.key, 'employee'));
-		return { employeeId, email: c.email, roleId: role?.id ?? null };
+		return { employeeId, email: c.email, roleId: role?.id ?? null, internal: false };
 	});
+	if (hired.internal)
+		return {
+			employeeId: hired.employeeId,
+			invite: 'Hired. Update their department, designation and manager on their profile.'
+		};
 	if (raw.invite !== 'on') return { employeeId: hired.employeeId, invite: null };
 	if (!can(m.access, 'user.manage'))
 		return { employeeId: hired.employeeId, invite: 'Hired. Ask someone who manages users to send the invite.' };
@@ -855,6 +951,7 @@ export async function purgeTenantCandidates(tenantId: string): Promise<number> {
 					sql`exists (
 						select 1 from pipeline_stages ps join job_openings jo on jo.id = ps.opening_id
 						where ps.id = ${candidates.stageId}
+						and ps.kind <> 'hired'
 						and (ps.kind = 'rejected' or (jo.status = 'closed' and jo.updated_at < ${cutoff.toISOString()}))
 					)`
 				)

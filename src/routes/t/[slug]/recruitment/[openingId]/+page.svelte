@@ -3,6 +3,8 @@
 	import Alert from '#lib/components/ui/Alert.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Field from '#lib/components/ui/Field.svelte';
+	import Markdown from '#lib/components/Markdown.svelte';
+	import { taka } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -16,6 +18,7 @@
 		website: 'Website',
 		agency: 'Agency',
 		walk_in: 'Walk-in',
+		internal: 'Internal',
 		other: 'Other'
 	};
 	const base = $derived(`/t/${data.tenant.slug}/recruitment`);
@@ -116,8 +119,42 @@
 					{#each data.statuses as s (s)}<option value={s} selected={s === o.status}>{statusLabel[s]}</option>{/each}
 				</select>
 			</label>
+			{#if data.talent}
+				<label class="block text-sm font-medium text-slate-700">
+					Show on the internal job board
+					<select name="visibility" class={input}>
+						<option value="none" selected={o.visibility !== 'internal'}>No</option>
+						<option value="internal" selected={o.visibility === 'internal'}>Yes</option>
+					</select>
+				</label>
+				<label class="block text-sm font-medium text-slate-700">
+					Referral bonus
+					<input
+						name="referralBonus"
+						inputmode="decimal"
+						pattern={'\\d{1,6}(\\.\\d{1,2})?'}
+						class={input}
+						value={o.referralBonus ? taka(o.referralBonus) : ''}
+					/>
+				</label>
+				<label class="block text-sm font-medium text-slate-700 sm:col-span-2">
+					Skills wanted
+					<input type="hidden" name="skillsShown" value="1" />
+					<select name="skillId" multiple size={Math.min(6, Math.max(2, v.skills.length))} class={input}>
+						{#each v.skills as sk (sk.id)}<option value={sk.id} selected={v.skillIds.includes(sk.id)}>
+								{sk.name}
+							</option>{/each}
+					</select>
+				</label>
+			{:else}
+				<input type="hidden" name="visibility" value={o.visibility === 'internal' ? 'internal' : 'none'} />
+				<input type="hidden" name="referralBonus" value={o.referralBonus ? taka(o.referralBonus) : ''} />
+			{/if}
 			<label class="block text-sm font-medium text-slate-700 sm:col-span-2">
 				Description
+				<span class="block text-xs font-normal text-slate-500">
+					Supports **bold**, *italic*, # headings, - lists and [links](https://…).
+				</span>
 				<textarea name="description" rows="4" maxlength="5000" class={input} value={o.description}></textarea>
 			</label>
 			{#if data.ai.write}
@@ -135,6 +172,6 @@
 {:else if o.description}
 	<section class="mt-6 max-w-5xl panel" aria-label="Description">
 		<h2 class="section-title">Description</h2>
-		<p class="mt-2 text-sm whitespace-pre-line text-slate-700">{o.description}</p>
+		<Markdown class="mt-2" source={o.description} />
 	</section>
 {/if}

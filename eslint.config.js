@@ -20,6 +20,7 @@ export default ts.config(
 			'svelte/no-navigation-without-resolve': 'off'
 		}
 	},
+	{ files: ['src/lib/components/Markdown.svelte'], rules: { 'svelte/no-at-html-tags': 'off' } },
 	{
 		files: ['**/*.svelte', '**/*.svelte.ts'],
 		languageOptions: { parserOptions: { projectService: true, extraFileExtensions: ['.svelte'], parser: ts.parser } }

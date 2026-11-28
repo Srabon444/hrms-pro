@@ -4,6 +4,7 @@ import { CANDIDATE_SOURCES, OPENING_STATUSES } from '#lib/server/db/schema/index
 import { AppError } from '#lib/server/errors.ts';
 import { formFields } from '#lib/server/http/employee-form.ts';
 import { actionError } from '#lib/server/http/forms.ts';
+import { modulesOn } from '#lib/server/modules.ts';
 import { can, requirePerm, userCtx } from '#lib/server/rbac/access.ts';
 import { addCandidate, openingView, saveOpening } from '#lib/server/recruitment.ts';
 import { withTenant } from '#lib/server/tenancy/index.ts';
@@ -13,10 +14,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const m = requirePerm(locals, 'recruitment.read');
 	try {
 		return {
-			view: await withTenant(userCtx(m), (tx) => openingView(tx, params.openingId)),
+			...(await withTenant(userCtx(m), async (tx) => ({
+				view: await openingView(tx, params.openingId),
+				talent: (await modulesOn(tx)).has('talent')
+			}))),
 			canManage: can(m.access, 'recruitment.manage'),
 			statuses: OPENING_STATUSES,
-			sources: CANDIDATE_SOURCES
+			sources: CANDIDATE_SOURCES.filter((s) => s !== 'internal')
 		};
 	} catch (err) {
 		if (err instanceof AppError) error(err.status, err.message);
@@ -27,7 +31,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 const fieldsOf = async (request: Request) => {
 	const data = await request.formData();
 	const file = data.get('resume');
-	return { form: formFields(data), file: file instanceof File ? file : null };
+	const form = formFields(data);
+	if (data.has('skillsShown')) form.skillIds = data.getAll('skillId').join(',');
+	return { form, file: file instanceof File ? file : null };
 };
 
 export const actions: Actions = {

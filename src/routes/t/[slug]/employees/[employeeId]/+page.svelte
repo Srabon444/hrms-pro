@@ -712,6 +712,24 @@
 	</section>
 {/if}
 
+{#if data.skills}
+	<section class="mt-6 max-w-3xl panel" aria-label="Skills">
+		<h2 class="section-title">Skills</h2>
+		{#if data.skills.length}
+			<ul class="mt-2 flex flex-wrap gap-2 text-sm">
+				{#each data.skills as s (s.id)}
+					<li class="rounded-full bg-slate-100 px-3 py-1 text-slate-800">
+						{s.name} · {s.level}/5{s.validated ? ' ✓' : ''}
+					</li>
+				{/each}
+			</ul>
+			<p class="mt-2 text-xs text-slate-500">✓ validated by a manager</p>
+		{:else}
+			<p class="mt-2 text-sm text-slate-600">No skills listed.</p>
+		{/if}
+	</section>
+{/if}
+
 {#if data.hiring}
 	<Attachments
 		slug={data.tenant.slug}

@@ -19,6 +19,8 @@ import { assignShift, employeeShift, removeShiftAssignment } from '#lib/server/s
 import { assignWorkWeek, employeeWorkWeek, removeWorkWeekAssignment } from '#lib/server/work-weeks.ts';
 import { noticeTerms, ownResignation, submitResignation, withdrawResignation } from '#lib/server/resignations.ts';
 import { hiringFiles } from '#lib/server/recruitment.ts';
+import { modulesOn } from '#lib/server/modules.ts';
+import { skillsOf } from '#lib/server/skills.ts';
 import { withTenant, type Tx } from '#lib/server/tenancy/index.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -44,6 +46,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			choices: record.canUpdate ? await employeeChoices(tx) : null,
 			documents: await listDocuments(tx, m.access, record.employee.id),
 			hiring: await hiringFiles(tx, m.access, record.employee.id),
+			skills: (await modulesOn(tx)).has('talent') ? await skillsOf(tx, record.employee.id) : null,
 			lists,
 			certificates: {
 				education: Object.fromEntries(
