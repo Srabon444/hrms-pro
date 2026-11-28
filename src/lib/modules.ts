@@ -49,6 +49,12 @@ export const MODULES = {
 		on: false,
 		routes: ['skills', 'jobs']
 	},
+	careers: {
+		label: 'Careers page',
+		about: 'A public page listing open jobs where anyone can apply with their CV, with spam and rate limits.',
+		on: false,
+		routes: []
+	},
 	kiosk: {
 		label: 'Attendance kiosk',
 		about: 'A shared tablet at a work site where staff punch in with their employee code and a PIN.',

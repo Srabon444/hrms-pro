@@ -48,7 +48,7 @@ test('HR posts an internal job, an employee with a validated skill applies and a
 	await expect(own.getByRole('heading', { name: 'Frontend engineer · Open' })).toBeVisible();
 	await own.locator('html[data-hydrated]').waitFor();
 	const edit = own.getByRole('region', { name: 'Edit opening' });
-	await edit.getByRole('combobox', { name: 'Show on the internal job board' }).selectOption('internal');
+	await edit.getByRole('combobox', { name: 'Who can see it' }).selectOption('internal');
 	await edit.getByLabel('Referral bonus').fill('1000');
 	await edit.getByRole('listbox', { name: 'Skills wanted' }).selectOption({ label: 'Svelte' });
 	await edit.getByLabel('Description').fill('We build **fast** apps.\n\n<script>alert(1)</script>');

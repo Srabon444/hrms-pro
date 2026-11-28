@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		return {
 			...(await withTenant(userCtx(m), async (tx) => ({
 				view: await openingView(tx, params.openingId),
-				talent: (await modulesOn(tx)).has('talent')
+				...(await modulesOn(tx).then((on) => ({ talent: on.has('talent'), careers: on.has('careers') })))
 			}))),
 			canManage: can(m.access, 'recruitment.manage'),
 			statuses: OPENING_STATUSES,
