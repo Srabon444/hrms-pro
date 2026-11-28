@@ -172,7 +172,7 @@ describe('building a request', () => {
 		expect(
 			await code(at(NOW, () => createRequest(who.hr, formOf({ title: 'x', expiresInDays: '91', file: pdf() }))))
 		).toBe('invalid: Allow 1 to 90 days to sign.');
-		expect(await code(at(NOW, () => createRequest(who.hr, formOf({ title: 'a‮b', file: pdf() }))))).toBe(
+		expect(await code(at(NOW, () => createRequest(who.hr, formOf({ title: 'a\u202eb', file: pdf() }))))).toBe(
 			'invalid: Remove unsupported characters.'
 		);
 		expect(await code(at(NOW, () => createRequest(who.hr, formOf({ title: 'Pay\u200bment', file: pdf() }))))).toBe(
