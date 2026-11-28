@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { slugOf } from '../recruitment';
-import { pdfName } from './careers';
+import { pdfName } from '../sniff';
 
 describe('careers links and CV names', () => {
 	it.each([

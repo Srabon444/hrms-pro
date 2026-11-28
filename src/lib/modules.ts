@@ -56,6 +56,13 @@ export const MODULES = {
 		on: false,
 		routes: ['learning']
 	},
+	esign: {
+		label: 'E-signature',
+		about:
+			'Send a PDF for signature in order to staff and outside people, with email codes, a document hash and a certificate of completion.',
+		on: false,
+		routes: ['signatures']
+	},
 	careers: {
 		label: 'Careers page',
 		about: 'A public page listing open jobs where anyone can apply with their CV, with spam and rate limits.',

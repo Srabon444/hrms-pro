@@ -49,7 +49,9 @@ describe('routes outside tenants and the sign-in pages are allowlisted', () => {
 		'src/routes/api/scim/v2/[...path]/+server.ts': 'src/lib/server/public/scim.ts',
 		'src/routes/ical/[file]/+server.ts': 'src/lib/server/public/ical.ts',
 		'src/routes/kiosk/+page.server.ts': 'src/lib/server/public/kiosk.ts',
-		'src/routes/kiosk/pair/+page.server.ts': 'src/lib/server/public/kiosk.ts'
+		'src/routes/kiosk/pair/+page.server.ts': 'src/lib/server/public/kiosk.ts',
+		'src/routes/sign/[token]/+page.server.ts': 'src/lib/server/public/esign.ts',
+		'src/routes/sign/[token]/document/+server.ts': 'src/lib/server/public/esign.ts'
 	};
 	const ANONYMOUS: Record<string, string> = {
 		'src/routes/careers/[tenant]/+page.server.ts': 'src/lib/server/public/careers.ts',

@@ -22,7 +22,7 @@ import { log } from '../log';
 import { modulesOn } from '../modules';
 import { hitOrLocal, overLimit } from '../ratelimit';
 import { candidateSchema, openStage } from '../recruitment';
-import { safeFileName, sniffType } from '../sniff';
+import { pdfName, sniffType } from '../sniff';
 import { deleteObject, putObject } from '../storage';
 import { systemCtx, withTenant, type Tx } from '../tenancy';
 import { clientIp } from '../work-sites';
@@ -129,11 +129,6 @@ function humanForm(form: FormData, tenantId: string, openingId: string) {
 	const age = now().getTime() - at;
 	return age >= CAREERS.minFillMs && age <= CAREERS.maxFormAgeMs;
 }
-
-export const pdfName = (name: string) => {
-	const safe = safeFileName(name).slice(0, 196);
-	return /\.pdf$/i.test(safe) ? safe : `${safe}.pdf`;
-};
 
 const busy = () =>
 	new AppError('busy', 'We are receiving a lot of applications right now. Please try again later.', 429);

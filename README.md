@@ -115,6 +115,15 @@ Vitest · Playwright · Docker.
   gives a PDF certificate with a verification code HR can check. Employees also keep external certifications with an
   expiry and a file. Reminders go out 7 days and 1 day before a course is due or a certification expires. The training
   report (completion, overdue, certifications expiring in 60 days) follows the `course.report` scope.
+- **E-signature** (module, off by default). HR uploads a PDF (up to 10 MB), adds up to 10 signers, staff or outside
+  people, and sends it; they sign one after another in that order. Staff sign in the app after confirming their
+  password (and authenticator code when 2FA is on); outside signers get an email link and confirm with a 6 digit email
+  code (10 minutes, at most 3 codes and 5 tries per signer, tries never reset). Each signer sees the consent text and
+  the document's SHA-256 and types their name. When everyone has signed, a separate certificate of completion PDF
+  (signers, emails, UTC times, IP addresses, browsers, the original SHA-256) is stored with its own hash next to the
+  untouched original. An offer letter request adds the candidate as the first signer and marks the offer accepted as
+  soon as the candidate signs; an HR decision on the offer cancels the open request. The signing window counts from
+  sending, a cancel closes every link, and signer personal data stays out of the audit log. This is a simple electronic signature with an audit trail, not a qualified electronic signature.
 - **Kudos and announcement discussion.** Colleagues thank up to 10 people at once (20 kudos a day each), tagged
   with one of the company values HR lists; kudos show on a wall, on the home page and in a monthly count by value,
   and recipients are notified. Announcements get six reactions (counts only, no list of who reacted) and

@@ -25,3 +25,4 @@ export * from './sso';
 export * from './social';
 export * from './surveys';
 export * from './learning';
+export * from './esign';

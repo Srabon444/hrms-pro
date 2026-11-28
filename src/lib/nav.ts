@@ -251,6 +251,7 @@ export const NAV: NavItem[] = [
 		perm: ['expense.submit', 'expense.approve', 'expense.pay']
 	},
 	{ href: 'loans', label: 'Loans', group: 'My work', perm: ['loan.request', 'loan.approve'] },
+	{ href: 'signatures', label: 'Signatures', group: 'My work', module: 'esign' },
 	{ href: 'policies', label: 'Policies', group: 'Learn', active: true },
 	{ href: 'learning', label: 'Learning', group: 'Learn', module: 'learning' },
 	{ href: 'employees', label: 'Employees', group: 'People', perm: 'employee.read' },

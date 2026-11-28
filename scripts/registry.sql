@@ -96,6 +96,8 @@ insert into audit_registry (table_name, mode, plain_columns) values
 	('course_assignments', 'plain', '{id,tenant_id,course_id,audience,department_id,branch_id,employee_id,due_in_days,mandatory,renew_every_months,created_by_user_id}'),
 	('course_enrolments', 'plain', '{id,tenant_id,course_id,employee_id,assignment_id,cycle,due_on,mandatory,status,score,completed_at,expires_on}'),
 	('lesson_progress', 'plain', '{id,tenant_id,enrolment_id,lesson_id,attempts,score,completed_at}'),
+	('signature_requests', 'plain', '{id,tenant_id,title,file_name,file_size,sha256,status,expires_at,offer_id,created_by_user_id,sent_at,completed_at,certificate_sha256}'),
+	('signature_signers', 'plain', '{id,tenant_id,request_id,sort_order,employee_id,candidate,status,invited_at,signed_at,declined_at,method,otp_attempts,otp_sends}'),
 	('certifications', 'plain', '{id,tenant_id,employee_id,name,issuer,issued_on,expires_on,added_by_user_id}'),
 	('candidate_stage_history', 'plain', '{id,tenant_id,candidate_id,from_stage_id,to_stage_id,moved_by_user_id}'),
 	('interviews', 'plain', '{id,tenant_id,candidate_id,title,scheduled_at,duration_minutes,status,created_by_user_id}'),
