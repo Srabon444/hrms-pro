@@ -28,7 +28,9 @@ import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { systemCtx, withTenant, type Tx } from './tenancy';
 import { emitWebhook } from './webhooks';
 import { forgetCommenters } from './announcement-comments';
+import { forgetFeedback } from './feedback';
 import { forgetKudos } from './kudos';
+import { forgetPrivateNotes } from './one-on-ones';
 import { forgetLeavers } from './surveys';
 import type { Mail } from './mail';
 
@@ -331,6 +333,8 @@ export async function runTenantLifecycle(tenant: { id: string; slug: string }) {
 		await forgetLeavers(tx, gone);
 		await forgetKudos(tx, gone);
 		await forgetCommenters(tx, gone);
+		await forgetPrivateNotes(tx, gone);
+		await forgetFeedback(tx, gone);
 		return out;
 	});
 	await sendAll(mails);

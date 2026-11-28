@@ -22,7 +22,9 @@ export const NOTIFICATION_CATEGORIES = {
 	webhooks: 'Webhook endpoints turned off after failures',
 	surveys: 'Surveys to answer',
 	kudos: 'Kudos you receive',
-	mentions: 'Mentions in announcement comments'
+	mentions: 'Mentions in announcement comments',
+	one_on_ones: '1:1 meetings scheduled with you',
+	feedback: 'Feedback and feedback requests'
 } as const;
 
 export type NotificationCategory = keyof typeof NOTIFICATION_CATEGORIES;

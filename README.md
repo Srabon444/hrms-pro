@@ -86,6 +86,12 @@ Vitest · Playwright · Docker.
   other people's leave just as "Out", stops working when the member, user or organisation is switched off or the
   password changes, and is rate limited per link and per address. Events go to everyone, a department or a branch;
   people answer going, maybe or not going and get a reminder the day before.
+- **1:1s and continuous feedback** (module, off by default). An employee and their manager schedule 1:1s with a
+  shared agenda and actions; open actions carry to their next 1:1. Each of the two can keep a private note that
+  only they can read; HR sees the meetings and shared items but never the notes, and the notes are not written to
+  the audit log. Anyone can give a colleague feedback, shared with them or kept for their manager and HR, and ask
+  colleagues for feedback; feedback from a review period shows on that review. Feedback is limited to 30 a day and
+  requests to 20.
 - **Kudos and announcement discussion.** Colleagues thank up to 10 people at once (20 kudos a day each), tagged
   with one of the company values HR lists; kudos show on a wall, on the home page and in a monthly count by value,
   and recipients are notified. Announcements get six reactions (counts only, no list of who reacted) and

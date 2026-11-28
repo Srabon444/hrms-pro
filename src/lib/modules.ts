@@ -37,6 +37,12 @@ export const MODULES = {
 		on: true,
 		routes: ['kudos']
 	},
+	one_on_ones: {
+		label: '1:1s and feedback',
+		about: 'Manager and employee 1:1s with shared agenda and actions, private notes, and continuous feedback.',
+		on: false,
+		routes: ['one-on-ones', 'feedback']
+	},
 	kiosk: {
 		label: 'Attendance kiosk',
 		about: 'A shared tablet at a work site where staff punch in with their employee code and a PIN.',

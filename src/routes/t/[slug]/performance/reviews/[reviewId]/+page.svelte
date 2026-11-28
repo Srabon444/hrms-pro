@@ -149,6 +149,22 @@
 	</section>
 {/if}
 
+{#if data.view.feedback.length}
+	<section class="mt-6 max-w-3xl space-y-2" aria-label="Feedback in this period">
+		<h2 class="section-title">Feedback in this period</h2>
+		{#each data.view.feedback as f (f.id)}
+			<article class="panel" data-testid="review-feedback">
+				<p class="text-xs text-slate-500">
+					<span class="font-medium text-slate-800">{f.from}</span> · {new Date(f.createdAt)
+						.toISOString()
+						.slice(0, 10)}{f.visibility === 'manager_only' ? ' · manager and HR only' : ''}
+				</p>
+				<p class="mt-1 text-sm break-words whitespace-pre-line text-slate-800">{f.text}</p>
+			</article>
+		{/each}
+	</section>
+{/if}
+
 {#if data.attachments && (data.attachments.canEdit || data.attachments.files.length)}
 	<Attachments slug={data.tenant.slug} attachments={data.attachments} {form} title="Review evidence" />
 {/if}

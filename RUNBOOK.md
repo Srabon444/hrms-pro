@@ -100,6 +100,17 @@ someone by mistake, reactivating them there turns them back on; if HR disabled t
 Members. A leaked token: Replace or Revoke it on the page; the old one stops at once. Turning company sign-in off
 does not stop provisioning; revoke the token for that.
 
+## 1:1s and feedback
+
+Turn on "1:1s and feedback" in Settings, Modules. A 1:1 can only be scheduled between an employee and their current
+manager. People with `performance.manage` see 1:1s and their agenda and actions for the people in their scope; private
+notes are only ever returned to their author and are excluded from the audit log. Feedback marked "manager and HR only"
+is shown to people with `performance.review` or `performance.manage` over the subject, never to the subject. When an
+ex-employee's access expires, their private notes, feedback requests and the feedback about them are deleted, and
+feedback they gave shows as "Former employee". A 1:1 belongs to the employee: when their manager changes, the new
+manager takes over their past 1:1s and open actions, and the old manager loses access. Feedback, feedback requests and
+1:1 items are audited by row only, so their text never reaches the audit log.
+
 ## Kudos and comments
 
 HR admins hold `kudos.moderate` and `announcement.manage`, which let them hide kudos and comments; hidden items stay

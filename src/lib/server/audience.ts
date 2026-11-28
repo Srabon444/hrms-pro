@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { AppError } from './errors';
 import type { Tx } from './tenancy';
 
 export type Audience = { audience: string; departmentId: string | null; branchId: string | null };
@@ -28,4 +29,9 @@ export async function memberNames(tx: Tx, ids: string[]) {
 		sql`select membership_id as id, name from tenant_users where membership_id in ${ids}`
 	);
 	return new Map(rows.map((r) => [r.id, r.name]));
+}
+
+export async function requireActiveMember(tx: Tx, membershipId: string) {
+	const [r] = await tx.execute<{ ok: boolean }>(sql`select ${activeMember(membershipId)} as ok`);
+	if (!r?.ok) throw new AppError('forbidden', 'Only active members can do that.', 403);
 }
