@@ -1,0 +1,4 @@
+ALTER TABLE "signature_requests" DROP CONSTRAINT "signature_requests_sent_ck";--> statement-breakpoint
+ALTER TABLE "signature_signers" ADD COLUMN "candidate" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "signature_requests" ADD CONSTRAINT "signature_requests_sent_ck" CHECK ("signature_requests"."status" = 'cancelled' or ("signature_requests"."status" = 'draft') = ("signature_requests"."sent_at" is null));--> statement-breakpoint
+ALTER TABLE "signature_signers" ADD CONSTRAINT "signature_signers_candidate_ck" CHECK (not "signature_signers"."candidate" or "signature_signers"."employee_id" is null);

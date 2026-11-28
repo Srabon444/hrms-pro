@@ -106,7 +106,7 @@ export const handleError: HandleServerError = (input) => {
 			{
 				err: input.error,
 				requestId: event.locals.requestId,
-				path: event.url.pathname.replace(/^\/ical\/.*/, '/ical/[file]')
+				path: event.url.pathname.replace(/^\/ical\/.*/, '/ical/[file]').replace(/^\/sign\/[^/]+/, '/sign/[token]')
 			},
 			'unhandled error'
 		);

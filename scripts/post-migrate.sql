@@ -346,6 +346,8 @@ begin
 	elsif p_kind = 'kiosk_pair' then
 		return query select k.tenant_id, k.id from public.kiosk_devices k
 			where k.pair_hash = p_hash and k.pair_expires_at > now() and k.revoked_at is null;
+	elsif p_kind = 'signature_signer' then
+		return query select s.tenant_id, s.id from public.signature_signers s where s.token_hash = p_hash;
 	else
 		raise exception 'unknown_token_kind' using errcode = 'P0001';
 	end if;

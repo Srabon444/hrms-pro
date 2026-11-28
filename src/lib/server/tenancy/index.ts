@@ -10,7 +10,7 @@ const ctxSchema = z.object({
 	tenantId: z.uuid(),
 	userId: z.uuid().nullish(),
 	employeeId: z.uuid().nullish(),
-	actor: z.enum(['user', 'system']),
+	actor: z.enum(['user', 'system', 'signature']),
 	payrollAll: z.boolean().optional(),
 	salaryAll: z.boolean().optional(),
 	auditSensitive: z.boolean().optional(),

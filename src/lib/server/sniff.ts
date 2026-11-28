@@ -24,3 +24,8 @@ export function safeFileName(name: string): string {
 			.slice(0, 200) || 'file'
 	);
 }
+
+export const pdfName = (name: string) => {
+	const safe = safeFileName(name).slice(0, 196);
+	return /\.pdf$/i.test(safe) ? safe : `${safe}.pdf`;
+};

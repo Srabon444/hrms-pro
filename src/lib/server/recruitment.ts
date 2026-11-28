@@ -30,6 +30,7 @@ import {
 	offers,
 	openingSkills,
 	pipelineStages,
+	signatureRequests,
 	referralRewards,
 	roles,
 	skills,
@@ -573,7 +574,7 @@ const decisionSchema = z.object({
 	decision: z.enum(OFFER_DECISIONS, 'Choose what happened to the offer.')
 });
 
-async function liveCandidate(tx: Tx, candidateId: string) {
+export async function liveCandidate(tx: Tx, candidateId: string) {
 	if (!z.uuid().safeParse(candidateId).success) throw candidateMissing();
 	const [c] = await tx
 		.select({
@@ -813,18 +814,33 @@ export async function makeOffer(ctx: TenantCtx, raw: Record<string, string>) {
 	}
 }
 
+export async function pendingOffer(tx: Tx, offerId: string) {
+	const [o] = await tx.select().from(offers).where(eq(offers.id, offerId)).for('update');
+	if (!o) throw new AppError('not_found', 'That offer does not exist.', 404);
+	if (o.status !== 'pending') throw new AppError('decided', 'This offer is already decided.', 409);
+	return o;
+}
+
+export async function decideOfferTx(tx: Tx, input: z.output<typeof decisionSchema>) {
+	const o = await pendingOffer(tx, input.offerId);
+	if (input.decision === 'accepted') {
+		await liveCandidate(tx, o.candidateId);
+		if (o.expiresOn && o.expiresOn < (await tenantToday(tx)))
+			throw new AppError('expired', 'This offer has expired.', 409);
+	}
+	await tx.update(offers).set({ status: input.decision, decidedAt: now() }).where(eq(offers.id, o.id));
+}
+
 export async function decideOffer(ctx: TenantCtx, raw: Record<string, string>) {
 	const input = decisionSchema.parse(raw);
 	await withTenant(ctx, async (tx) => {
-		const [o] = await tx.select().from(offers).where(eq(offers.id, input.offerId)).for('update');
-		if (!o) throw new AppError('not_found', 'That offer does not exist.', 404);
-		if (o.status !== 'pending') throw new AppError('decided', 'This offer is already decided.', 409);
-		if (input.decision === 'accepted') {
-			await liveCandidate(tx, o.candidateId);
-			if (o.expiresOn && o.expiresOn < (await tenantToday(tx)))
-				throw new AppError('expired', 'This offer has expired.', 409);
-		}
-		await tx.update(offers).set({ status: input.decision, decidedAt: now() }).where(eq(offers.id, o.id));
+		await decideOfferTx(tx, input);
+		await tx
+			.update(signatureRequests)
+			.set({ status: 'cancelled' })
+			.where(
+				and(eq(signatureRequests.offerId, input.offerId), inArray(signatureRequests.status, ['draft', 'pending']))
+			);
 	});
 }
 
@@ -1031,6 +1047,18 @@ export async function purgeTenantCandidates(tenantId: string): Promise<number> {
 				feedbackIds.map((f) => f.id)
 			))
 		];
+		const signed = offerIds.length
+			? await tx
+					.select({ file: signatureRequests.fileKey, cert: signatureRequests.certificateKey })
+					.from(signatureRequests)
+					.where(
+						inArray(
+							signatureRequests.offerId,
+							offerIds.map((o) => o.id)
+						)
+					)
+			: [];
+		attached.push(...signed.flatMap((r) => [{ key: r.file }, ...(r.cert ? [{ key: r.cert }] : [])]));
 		await tx.delete(candidates).where(inArray(candidates.id, ids));
 		const resumes = due.flatMap((c) => (c.key ? [{ key: c.key }] : []));
 		return { count: due.length, keys: [...resumes, ...attached] };
