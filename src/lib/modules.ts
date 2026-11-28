@@ -49,6 +49,13 @@ export const MODULES = {
 		on: false,
 		routes: ['skills', 'jobs']
 	},
+	learning: {
+		label: 'Learning',
+		about:
+			'Courses with lessons and quizzes, assignments with due dates and renewals, certificates and external certifications.',
+		on: false,
+		routes: ['learning']
+	},
 	careers: {
 		label: 'Careers page',
 		about: 'A public page listing open jobs where anyone can apply with their CV, with spam and rate limits.',

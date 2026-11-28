@@ -2,6 +2,7 @@ import type { Processor } from 'bullmq';
 import { purgeAiUsage } from './ai/service';
 import { runAttendance } from './attendance';
 import { runLifecycle } from './exits';
+import { runLearning } from './learning';
 import { runLeaveAccrual } from './leave';
 import { runCelebrations } from './directory';
 import { runEventReminders } from './events';
@@ -30,7 +31,8 @@ export const LIFECYCLE_STEPS: Record<string, () => Promise<unknown>> = {
 	aiRetention: purgeAiUsage,
 	fileTexts: reconcileFileTexts,
 	webhooks: runWebhooks,
-	referralRewards: runReferralRewards
+	referralRewards: runReferralRewards,
+	learning: runLearning
 };
 
 export const processors: Record<QueueName, Processor> = {

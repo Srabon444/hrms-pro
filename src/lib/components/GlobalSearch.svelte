@@ -20,7 +20,8 @@
 		project: 'Projects',
 		opening: 'Openings',
 		candidate: 'Candidates',
-		payroll: 'Payroll'
+		payroll: 'Payroll',
+		course: 'Courses'
 	};
 	const recentKey = $derived(`hrms.recent.${userId}`);
 	const SLASH_KEY = 'hrms.search.slash';

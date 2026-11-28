@@ -12,6 +12,7 @@ import {
 	announcements,
 	assets,
 	candidates,
+	courses,
 	employeeDocuments,
 	employees,
 	events,
@@ -50,7 +51,8 @@ export const SEARCH_KINDS = [
 	'project',
 	'opening',
 	'candidate',
-	'payroll'
+	'payroll',
+	'course'
 ] as const;
 export type SearchKind = (typeof SEARCH_KINDS)[number];
 export type SearchHit = { kind: SearchKind; id: string; title: string; sub: string | null; href: string };
@@ -456,6 +458,26 @@ const PROVIDERS: Provider[] = [
 				title: joined(runName(r), r.leaver) ?? r.period,
 				sub: joined(r.period, r.status),
 				href: `payroll?run=${r.id}`
+			}));
+		}
+	},
+	{
+		kind: 'course',
+		allowed: ({ active }) => active,
+		async find({ tx, access, match, rank }) {
+			if (!moduleOn(await moduleOverrides(tx), 'learning')) return [];
+			const rows = await tx
+				.select({ id: courses.id, title: courses.title, status: courses.status })
+				.from(courses)
+				.where(and(can(access, 'course.manage') ? undefined : eq(courses.status, 'published'), match(courses.title)))
+				.orderBy(rank(courses.title), asc(courses.title))
+				.limit(PER_KIND);
+			return rows.map((r) => ({
+				kind: 'course',
+				id: r.id,
+				title: r.title,
+				sub: r.status,
+				href: `learning/${r.id}`
 			}));
 		}
 	}

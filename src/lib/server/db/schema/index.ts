@@ -24,3 +24,4 @@ export * from './webhooks';
 export * from './sso';
 export * from './social';
 export * from './surveys';
+export * from './learning';
