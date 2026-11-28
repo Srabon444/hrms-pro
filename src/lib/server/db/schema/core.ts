@@ -234,6 +234,7 @@ export const tenantSettings = pgTable(
 		documentExpiryAlertDays: smallint().notNull().default(30),
 		upcomingHireDays: smallint().notNull().default(14),
 		mealOrderDaysAhead: smallint().notNull().default(14),
+		referralQualifyDays: smallint().notNull().default(90),
 		loanMaxInstalments: smallint().notNull().default(60),
 		invitationValidDays: smallint().notNull().default(7),
 		reportShareDays: smallint().notNull().default(30),
@@ -290,6 +291,7 @@ export const tenantSettings = pgTable(
 				'documentExpiryAlertDays',
 				'upcomingHireDays',
 				'mealOrderDaysAhead',
+				'referralQualifyDays',
 				'loanMaxInstalments',
 				'invitationValidDays',
 				'reportShareDays'

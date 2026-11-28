@@ -111,6 +111,21 @@ feedback they gave shows as "Former employee". A 1:1 belongs to the employee: wh
 manager takes over their past 1:1s and open actions, and the old manager loses access. Feedback, feedback requests and
 1:1 items are audited by row only, so their text never reaches the audit log.
 
+## Skills and internal jobs
+
+Turn on "Skills and internal jobs" in Settings, Modules. HR admins hold `skill.manage` for the catalogue; line managers
+and department heads hold `skill.validate` for their team or department, and nobody can validate their own skill.
+Removing a skill from the catalogue removes it from every employee and opening. On an opening, "Show on the internal
+job board" lists it on Internal jobs while it is open; the description accepts a safe Markdown subset (bold, italic,
+headings, lists and http(s) links; any HTML is shown as text). An internal applicant is a candidate with source
+"internal" linked to their employee record; hiring them moves them to Hired without creating a second employee, so
+update their department, designation and manager on their profile afterwards. Hiring a referred candidate from an
+opening with a referral bonus creates a pending reward due on the join date plus "Referral bonus qualifying period"
+(Settings, People). The nightly lifecycle job moves a pending reward to due once that date passes while the hire is
+working, and voids it if the hire has left. Rewards are salary data: only the referrer and people with salary access
+see them, and only `salary.update` can mark one paid or void it; nothing is added to payroll, so pay it in the next run
+yourself.
+
 ## Kudos and comments
 
 HR admins hold `kudos.moderate` and `announcement.manage`, which let them hide kudos and comments; hidden items stay

@@ -6,7 +6,18 @@ import { departments, designations, employees } from './org';
 
 export const OPENING_STATUSES = ['open', 'on_hold', 'closed'] as const;
 export const STAGE_KINDS = ['active', 'hired', 'rejected'] as const;
-export const CANDIDATE_SOURCES = ['referral', 'job_board', 'website', 'agency', 'walk_in', 'other'] as const;
+export const CANDIDATE_SOURCES = [
+	'referral',
+	'job_board',
+	'website',
+	'agency',
+	'walk_in',
+	'internal',
+	'other'
+] as const;
+export const OPENING_VISIBILITIES = ['none', 'internal', 'public', 'both'] as const;
+export const REWARD_STATUSES = ['pending', 'due', 'paid', 'void'] as const;
+export const MAX_REFERRAL_BONUS = 100_000_000;
 export const RECOMMENDATIONS = ['strong_no', 'no', 'yes', 'strong_yes'] as const;
 export const OFFER_DECISIONS = ['accepted', 'declined', 'withdrawn'] as const;
 export const DEFAULT_STAGES: { name: string; kind: (typeof STAGE_KINDS)[number] }[] = [
@@ -28,10 +39,19 @@ export const jobOpenings = pgTable(
 		headcount: smallint().notNull().default(1),
 		status: text().notNull().default('open'),
 		description: text().notNull().default(''),
+		visibility: text().notNull().default('none'),
+		publicSlug: text(),
+		referralBonus: integer().notNull().default(0),
 		createdByUserId: uuid()
 	},
 	(t) => [
 		tenantKey('job_openings', t),
+		uniqueIndex('job_openings_public_slug_uq')
+			.on(t.tenantId, t.publicSlug)
+			.where(sql`${t.publicSlug} is not null`),
+		check('job_openings_visibility_ck', sql`${t.visibility} in ('none','internal','public','both')`),
+		check('job_openings_public_slug_ck', sql`${t.publicSlug} is null or ${t.publicSlug} ~ '^[a-z0-9][a-z0-9-]{0,62}$'`),
+		check('job_openings_referral_bonus_ck', sql`${t.referralBonus} between 0 and 100000000`),
 		tfk('job_openings_department_fk', t, t.departmentId, departments, 'restrict'),
 		tfk('job_openings_designation_fk', t, t.designationId, designations, 'restrict'),
 		index('job_openings_status_idx').on(t.tenantId, t.status),
@@ -81,10 +101,18 @@ export const candidates = pgTable(
 		resumeType: text(),
 		resumeSize: integer(),
 		employeeId: uuid(),
+		internalEmployeeId: uuid(),
+		referredByEmployeeId: uuid(),
 		createdByUserId: uuid()
 	},
 	(t) => [
 		tenantKey('candidates', t),
+		tfk('candidates_internal_fk', t, t.internalEmployeeId, employees, 'cascade'),
+		tfk('candidates_referrer_fk', t, t.referredByEmployeeId, employees, 'restrict'),
+		uniqueIndex('candidates_internal_uq')
+			.on(t.tenantId, t.openingId, t.internalEmployeeId)
+			.where(sql`${t.internalEmployeeId} is not null`),
+		index('candidates_referrer_idx').on(t.tenantId, t.referredByEmployeeId),
 		tfk('candidates_opening_fk', t, t.openingId, jobOpenings, 'restrict'),
 		tfk('candidates_stage_fk', t, t.stageId, pipelineStages, 'restrict'),
 		tfk('candidates_employee_fk', t, t.employeeId, employees, 'restrict'),
@@ -98,7 +126,10 @@ export const candidates = pgTable(
 			.where(sql`${t.employeeId} is not null`),
 		check('candidates_name_ck', sql`length(trim(${t.fullName})) between 1 and 120`),
 		check('candidates_phone_ck', sql`${t.phone} is null or length(${t.phone}) <= 40`),
-		check('candidates_source_ck', sql`${t.source} in ('referral','job_board','website','agency','walk_in','other')`),
+		check(
+			'candidates_source_ck',
+			sql`${t.source} in ('referral','job_board','website','agency','walk_in','internal','other')`
+		),
 		check('candidates_tags_ck', sql`cardinality(${t.tags}) <= 10`),
 		check('candidates_notes_ck', sql`length(${t.notes}) <= 2000`),
 		check(
@@ -205,5 +236,78 @@ export const offers = pgTable(
 		check('offers_note_ck', sql`length(${t.note}) <= 500`),
 		check('offers_expiry_ck', sql`${t.expiresOn} is null or ${t.expiresOn} <= ${t.joinDate}`),
 		check('offers_decided_ck', sql`(${t.status} = 'pending') = (${t.decidedAt} is null)`)
+	]
+);
+
+export const skills = pgTable(
+	'skills',
+	{
+		...tenantBase(),
+		name: citext().notNull()
+	},
+	(t) => [
+		tenantKey('skills', t),
+		unique('skills_name_uq').on(t.tenantId, t.name),
+		check('skills_name_ck', sql`length(trim(${t.name})) between 1 and 60`)
+	]
+);
+
+export const employeeSkills = pgTable(
+	'employee_skills',
+	{
+		...tenantBase(),
+		employeeId: uuid().notNull(),
+		skillId: uuid().notNull(),
+		level: smallint().notNull(),
+		validatedByUserId: uuid(),
+		validatedAt: tstz()
+	},
+	(t) => [
+		tenantKey('employee_skills', t),
+		tfk('employee_skills_employee_fk', t, t.employeeId, employees, 'cascade'),
+		tfk('employee_skills_skill_fk', t, t.skillId, skills, 'cascade'),
+		unique('employee_skills_uq').on(t.tenantId, t.employeeId, t.skillId),
+		index('employee_skills_skill_idx').on(t.tenantId, t.skillId),
+		check('employee_skills_level_ck', sql`${t.level} between 1 and 5`)
+	]
+);
+
+export const openingSkills = pgTable(
+	'opening_skills',
+	{
+		...tenantBase(),
+		openingId: uuid().notNull(),
+		skillId: uuid().notNull()
+	},
+	(t) => [
+		tenantKey('opening_skills', t),
+		tfk('opening_skills_opening_fk', t, t.openingId, jobOpenings, 'cascade'),
+		tfk('opening_skills_skill_fk', t, t.skillId, skills, 'cascade'),
+		unique('opening_skills_uq').on(t.tenantId, t.openingId, t.skillId)
+	]
+);
+
+export const referralRewards = pgTable(
+	'referral_rewards',
+	{
+		...tenantBase(),
+		candidateId: uuid().notNull(),
+		employeeId: uuid().notNull(),
+		hiredEmployeeId: uuid().notNull(),
+		amount: integer().notNull(),
+		status: text().notNull().default('pending'),
+		dueOn: date().notNull(),
+		paidAt: tstz(),
+		paidByUserId: uuid()
+	},
+	(t) => [
+		tenantKey('referral_rewards', t),
+		tfk('referral_rewards_candidate_fk', t, t.candidateId, candidates, 'cascade'),
+		tfk('referral_rewards_employee_fk', t, t.employeeId, employees, 'restrict'),
+		tfk('referral_rewards_hired_fk', t, t.hiredEmployeeId, employees, 'restrict'),
+		unique('referral_rewards_candidate_uq').on(t.tenantId, t.candidateId),
+		index('referral_rewards_status_idx').on(t.tenantId, t.status, t.dueOn),
+		check('referral_rewards_amount_ck', sql`${t.amount} between 1 and 100000000`),
+		check('referral_rewards_status_ck', sql`${t.status} in ('pending','due','paid','void')`)
 	]
 );

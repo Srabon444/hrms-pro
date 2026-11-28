@@ -24,7 +24,8 @@ export const NOTIFICATION_CATEGORIES = {
 	kudos: 'Kudos you receive',
 	mentions: 'Mentions in announcement comments',
 	one_on_ones: '1:1 meetings scheduled with you',
-	feedback: 'Feedback and feedback requests'
+	feedback: 'Feedback and feedback requests',
+	jobs: 'Internal job applications from your team'
 } as const;
 
 export type NotificationCategory = keyof typeof NOTIFICATION_CATEGORIES;

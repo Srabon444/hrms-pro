@@ -69,6 +69,22 @@
 				</dd>
 			</div>
 		{/if}
+		{#if c.internalEmployeeId}
+			<div>
+				<dt class="text-slate-500">Internal applicant</dt>
+				<dd>
+					<a class="text-brand-700 underline" href={`/t/${data.tenant.slug}/employees/${c.internalEmployeeId}`}>
+						Open employee record
+					</a>
+				</dd>
+			</div>
+		{/if}
+		{#if c.referrer}
+			<div>
+				<dt class="text-slate-500">Referred by</dt>
+				<dd>{c.referrer}</dd>
+			</div>
+		{/if}
 		{#if c.notes}<div class="sm:col-span-2">
 				<dt class="text-slate-500">Notes</dt>
 				<dd class="whitespace-pre-line">{c.notes}</dd>
@@ -83,7 +99,7 @@
 	title="Candidate files"
 />
 
-{#if data.canManage && !c.employeeId && targets.length}
+{#if data.canManage && !c.employeeId && stage?.kind !== 'hired' && targets.length}
 	<section class="mt-6 max-w-3xl panel" aria-label="Move candidate">
 		<h2 class="section-title">Move candidate</h2>
 		<form method="POST" action="?/move" class="mt-3 grid gap-3 sm:grid-cols-2">
@@ -247,10 +263,12 @@
 	<section class="mt-6 max-w-3xl panel" aria-label="Hire">
 		<h2 class="section-title">Hire</h2>
 		<p class="mt-1 text-sm text-slate-600">
-			Creates an onboarding employee record from the accepted offer and starts the onboarding checklist.
+			{c.internalEmployeeId
+				? 'Marks this colleague as hired for the opening. Update their role on their profile afterwards.'
+				: 'Creates an onboarding employee record from the accepted offer and starts the onboarding checklist.'}
 		</p>
 		<form method="POST" action="?/hire" class="mt-3 space-y-3">
-			{#if data.canInvite && c.email}
+			{#if data.canInvite && c.email && !c.internalEmployeeId}
 				<label class="flex items-center gap-2 text-sm">
 					<input type="checkbox" name="invite" checked /> Invite {c.email} to sign in
 				</label>
