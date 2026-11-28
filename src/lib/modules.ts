@@ -25,6 +25,12 @@ export const MODULES = {
 		on: true,
 		routes: ['schedule']
 	},
+	surveys: {
+		label: 'Surveys and suggestion box',
+		about: 'Pulse and eNPS surveys, anonymous by default, and an always-open anonymous suggestion box.',
+		on: true,
+		routes: ['surveys']
+	},
 	kiosk: {
 		label: 'Attendance kiosk',
 		about: 'A shared tablet at a work site where staff punch in with their employee code and a PIN.',

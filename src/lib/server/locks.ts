@@ -10,7 +10,8 @@ export const LOCK = {
 	helpdesk: 7,
 	letters: 8,
 	calendarFeed: 9,
-	scim: 10
+	scim: 10,
+	survey: 11
 } as const;
 
 export const advisoryLock = (tx: Tx, ns: (typeof LOCK)[keyof typeof LOCK], key: string) =>

@@ -177,7 +177,7 @@ describe('module toggles', () => {
 		expect(await inA((tx) => weekCelebrations(tx, '2026-02-25'))).toBeNull();
 		const [s] = await sql()<{ e: string[]; d: string[] }[]>`
 			select modules_enabled as e, modules_disabled as d from tenant_settings where tenant_id = ${w.a.id}`;
-		expect(s).toEqual({ e: ['celebrations_birthdays'], d: ['directory', 'calendar', 'events', 'schedule'] });
+		expect(s).toEqual({ e: ['celebrations_birthdays'], d: ['directory', 'calendar', 'events', 'schedule', 'surveys'] });
 		await expect(saveModules(systemCtx(w.a.id), ['payroll'])).rejects.toThrow();
 		await saveModules(systemCtx(w.a.id), ['directory', 'calendar', 'events']);
 		expect([...(await inA(modulesOn))]).toEqual(['directory', 'calendar', 'events']);

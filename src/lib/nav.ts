@@ -235,6 +235,7 @@ export const NAV: NavItem[] = [
 	{ href: 'announcements', label: 'Announcements', group: 'Communicate', active: true },
 	{ href: 'events', label: 'Events', group: 'Communicate', perm: 'calendar.read', module: 'events' },
 	{ href: 'directory', label: 'Directory', group: 'Communicate', perm: 'directory.read', module: 'directory' },
+	{ href: 'surveys', label: 'Surveys', group: 'Communicate', module: 'surveys' },
 	{ href: 'leave', label: 'Leave', group: 'My work', perm: 'leave.request' },
 	{ href: 'schedule', label: 'Schedule', group: 'My work', perm: 'schedule.read', module: 'schedule' },
 	{ href: 'attendance', label: 'Attendance', group: 'My work', perm: 'attendance.read' },
