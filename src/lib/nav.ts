@@ -257,6 +257,8 @@ export const NAV: NavItem[] = [
 	{ href: 'recruitment', label: 'Recruitment', group: 'People', perm: 'recruitment.read' },
 	{ href: 'recruitment/interviews', label: 'My interviews', group: 'People', perm: 'interview.feedback' },
 	{ href: 'performance', label: 'Performance', group: 'People', perm: 'performance.read' },
+	{ href: 'one-on-ones', label: '1:1s', group: 'People', perm: 'performance.read', module: 'one_on_ones' },
+	{ href: 'feedback', label: 'Feedback', group: 'People', module: 'one_on_ones' },
 	{ href: 'projects', label: 'Projects', group: 'People', perm: 'project.read' },
 	{ href: 'assets', label: 'Assets', group: 'People', perm: 'asset.read' },
 	{ href: 'payroll', label: 'Payroll', group: 'Finance', perm: ['payroll.run', 'payroll.approve'] },

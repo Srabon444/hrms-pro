@@ -7,7 +7,9 @@ import { pgCode, UNIQUE_VIOLATION } from './db/errors';
 import { employees, goals, MAX_GOALS, reviewCycles, reviews } from './db/schema';
 import type { AttachmentRules } from './attachments';
 import { AppError } from './errors';
+import { feedbackFor } from './feedback';
 import { discardFiles, dropFiles } from './file-store';
+import { modulesOn } from './modules';
 import { notify } from './notifications';
 import { can, scopesOf, userCtx, type Access, type requireMember } from './rbac/access';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
@@ -186,6 +188,8 @@ async function loadReview(tx: Tx, access: Access, id: string, lock = false) {
 		.select({
 			review: reviews,
 			cycleName: reviewCycles.name,
+			periodStart: reviewCycles.periodStart,
+			periodEnd: reviewCycles.periodEnd,
 			cycleOpen: sql<boolean>`${reviewCycles.status} = 'open'`,
 			name: employees.fullName,
 			managerId: employees.managerId
@@ -255,7 +259,10 @@ export async function reviewView(tx: Tx, access: Access, id: string) {
 			selfRating: g.selfRating,
 			managerRating: showManager ? g.managerRating : null
 		})),
-		allowed: r.allowed
+		allowed: r.allowed,
+		feedback: (await modulesOn(tx)).has('one_on_ones')
+			? await feedbackFor(tx, access, review.employeeId, r.periodStart, r.periodEnd)
+			: []
 	};
 }
 
