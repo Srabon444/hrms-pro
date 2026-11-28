@@ -92,6 +92,14 @@ Vitest · Playwright · Docker.
   the audit log. Anyone can give a colleague feedback, shared with them or kept for their manager and HR, and ask
   colleagues for feedback; feedback from a review period shows on that review. Feedback is limited to 30 a day and
   requests to 20.
+- **Skills, internal job board and referrals** (module, off by default). HR keeps a skills catalogue; employees list
+  their skills with a level from 1 to 5 and a manager in scope validates them (any change sends the skill back for
+  validation); skills show on the employee profile. Openings marked for the internal job board list the skills they
+  want, a safe Markdown description and an optional referral bonus; employees see their skill match, apply in one
+  click (their manager is told only if they choose) and refer friends. Referrers and internal applicants see the stage
+  of their own applications and referrals only. Hiring a referred candidate starts a referral bonus that falls due
+  after the qualifying period (90 days by default) while the hire is still employed; payroll marks it paid. Ten
+  applications and ten referrals a day per person.
 - **Kudos and announcement discussion.** Colleagues thank up to 10 people at once (20 kudos a day each), tagged
   with one of the company values HR lists; kudos show on a wall, on the home page and in a monthly count by value,
   and recipients are notified. Announcements get six reactions (counts only, no list of who reacted) and
