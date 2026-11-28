@@ -1,7 +1,15 @@
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
-import { ANNOUNCEMENT_AUDIENCES, announcements, branches, departments, employees } from './db/schema';
+import {
+	ANNOUNCEMENT_AUDIENCES,
+	announcementComments,
+	announcementReactions,
+	announcements,
+	branches,
+	departments,
+	employees
+} from './db/schema';
 import type { AttachmentRules } from './attachments';
 import { AppError } from './errors';
 import { discardFiles, dropFiles, filesFor } from './file-store';
@@ -134,6 +142,31 @@ export async function liveFor(tx: Tx, access: Access) {
 	);
 }
 
+export async function socialCounts(tx: Tx, ids: string[]) {
+	if (!ids.length) return new Map<string, { reactions: number; comments: number }>();
+	const [reactions, comments] = await Promise.all([
+		tx
+			.select({ id: announcementReactions.announcementId, n: sql<number>`count(*)::int` })
+			.from(announcementReactions)
+			.where(inArray(announcementReactions.announcementId, ids))
+			.groupBy(announcementReactions.announcementId),
+		tx
+			.select({ id: announcementComments.announcementId, n: sql<number>`count(*)::int` })
+			.from(announcementComments)
+			.where(and(inArray(announcementComments.announcementId, ids), isNull(announcementComments.hiddenAt)))
+			.groupBy(announcementComments.announcementId)
+	]);
+	return new Map(
+		ids.map((id) => [
+			id,
+			{
+				reactions: reactions.find((r) => r.id === id)?.n ?? 0,
+				comments: comments.find((r) => r.id === id)?.n ?? 0
+			}
+		])
+	);
+}
+
 export async function announcementFeed(tx: Tx, access: Access, limit = 50) {
 	const rows = await tx
 		.select(fields)
@@ -143,12 +176,13 @@ export async function announcementFeed(tx: Tx, access: Access, limit = 50) {
 		.where(await liveFor(tx, access))
 		.orderBy(desc(announcements.pinned), desc(announcements.publishOn), desc(announcements.createdAt))
 		.limit(limit);
-	const attached = await filesFor(
-		tx,
-		'announcement',
-		rows.map((r) => r.id)
-	);
-	return rows.map((r) => ({ ...r, files: attached.get(r.id) ?? [] }));
+	const ids = rows.map((r) => r.id);
+	const [attached, social] = await Promise.all([filesFor(tx, 'announcement', ids), socialCounts(tx, ids)]);
+	return rows.map((r) => ({
+		...r,
+		files: attached.get(r.id) ?? [],
+		...(social.get(r.id) ?? { reactions: 0, comments: 0 })
+	}));
 }
 
 export const announcementAttachments: AttachmentRules = {

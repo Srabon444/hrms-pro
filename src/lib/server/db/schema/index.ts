@@ -22,4 +22,5 @@ export * from './ai';
 export * from './api';
 export * from './webhooks';
 export * from './sso';
+export * from './social';
 export * from './surveys';

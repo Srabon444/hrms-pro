@@ -86,6 +86,14 @@ Vitest · Playwright · Docker.
   other people's leave just as "Out", stops working when the member, user or organisation is switched off or the
   password changes, and is rate limited per link and per address. Events go to everyone, a department or a branch;
   people answer going, maybe or not going and get a reminder the day before.
+- **Kudos and announcement discussion.** Colleagues thank up to 10 people at once (20 kudos a day each), tagged
+  with one of the company values HR lists; kudos show on a wall, on the home page and in a monthly count by value,
+  and recipients are notified. Announcements get six reactions (counts only, no list of who reacted) and
+  comments. Only people in an announcement's audience can read or write them, and they can mention only people in
+  that audience, who are notified. Comments are limited to 10 a minute; authors delete their own, and people who
+  manage announcements or moderate kudos can hide and show them again, with an audit trail. When an
+  ex-employee's access ends, their kudos and comments show as "Former employee" and their reactions and mentions
+  are removed.
 - **Surveys, eNPS and suggestion box.** HR builds short surveys (1 to 5 ratings, eNPS, one choice from a list,
   written answers) for everyone, a department or a branch, opens them, sends up to two reminders to people who have
   not answered and closes them. Anonymous surveys keep no link between a person and their answers: who answered and

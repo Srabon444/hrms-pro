@@ -245,7 +245,11 @@ export const tenantSettings = pgTable(
 			.array()
 			.notNull()
 			.default(sql`'{}'::text[]`),
-		punchLocationRule: text().notNull().default('off')
+		punchLocationRule: text().notNull().default('off'),
+		kudosValues: text()
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`)
 	},
 	(t) => [
 		tenantKey('tenant_settings', t),

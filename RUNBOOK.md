@@ -100,6 +100,14 @@ someone by mistake, reactivating them there turns them back on; if HR disabled t
 Members. A leaked token: Replace or Revoke it on the page; the old one stops at once. Turning company sign-in off
 does not stop provisioning; revoke the token for that.
 
+## Kudos and comments
+
+HR admins hold `kudos.moderate` and `announcement.manage`, which let them hide kudos and comments; hidden items stay
+visible to moderators, marked hidden, and can be shown again. Company values for kudos are edited on the Kudos page.
+Comments and reactions are allowed only while the announcement is live and only for its audience; a comment that
+mentions someone outside the audience is refused. When an ex-employee's access expires, the same run that removes
+survey data anonymises their kudos and comments and deletes their reactions, mentions and received kudos.
+
 ## Surveys
 
 Anonymous answers cannot be traced back to a person, even with database access: there is no person, time or

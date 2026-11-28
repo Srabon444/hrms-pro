@@ -6,10 +6,12 @@ import { todayPunches } from './attendance';
 import { addDays } from './dates';
 import { weekCelebrations } from './directory';
 import { employeeDocuments, employees, payrollRuns, payslips } from './db/schema';
+import { kudosWall } from './kudos';
 import { ownBalances } from './leave';
 import { whoIsOut } from './leave-requests';
 import { probationDue, tenantToday } from './lifecycle';
 import { myMeals } from './meal-orders';
+import { modulesOn } from './modules';
 import { canSeePayroll } from './payroll';
 import { can, userCtx, type Access, type requireMember } from './rbac/access';
 import { resolveScope, scopeWhere } from './rbac/scope';
@@ -103,7 +105,8 @@ export async function homeDashboard(m: ReturnType<typeof requireMember>) {
 			probation: can(a, 'employee.update') ? (await probationDue(tx, a)).rows.slice(0, DASHBOARD_LIST_SIZE) : null,
 			documents: await expiringDocuments(tx, a, today),
 			payroll: payroll ? await lastRun(tx) : null,
-			celebrations: can(a, 'directory.read') ? await weekCelebrations(tx, today) : null
+			celebrations: can(a, 'directory.read') ? await weekCelebrations(tx, today) : null,
+			kudos: (await modulesOn(tx)).has('kudos') ? await kudosWall(tx, a, DASHBOARD_LIST_SIZE, false) : null
 		};
 	});
 }

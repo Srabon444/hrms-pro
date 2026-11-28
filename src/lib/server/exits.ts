@@ -27,6 +27,8 @@ import { lockOwnerRole, otherActiveOwners } from './rbac/members';
 import { inScope, resolveScope, scopeWhere } from './rbac/scope';
 import { systemCtx, withTenant, type Tx } from './tenancy';
 import { emitWebhook } from './webhooks';
+import { forgetCommenters } from './announcement-comments';
+import { forgetKudos } from './kudos';
 import { forgetLeavers } from './surveys';
 import type { Mail } from './mail';
 
@@ -325,10 +327,10 @@ export async function runTenantLifecycle(tenant: { id: string; slug: string }) {
 			.set({ status: 'disabled', disabledBy: 'exit' })
 			.where(and(eq(memberships.status, 'ex_employee'), lte(memberships.exAccessUntil, now())))
 			.returning({ id: memberships.id });
-		await forgetLeavers(
-			tx,
-			expired.map((m) => m.id)
-		);
+		const gone = expired.map((m) => m.id);
+		await forgetLeavers(tx, gone);
+		await forgetKudos(tx, gone);
+		await forgetCommenters(tx, gone);
 		return out;
 	});
 	await sendAll(mails);
