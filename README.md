@@ -107,6 +107,14 @@ Vitest · Playwright · Docker.
   applications per address per opening an hour, 200 per opening and 1000 per organisation a day. The CV is checked to
   be a real PDF (not a malware scan) and always downloads as an attachment. No email is ever sent to the applicant,
   and a repeat email shows the same thank-you page. A suspended organisation or the module being off answers 404.
+- **Learning** (module, off by default). HR builds courses from text, link (videos are plain links, nothing is
+  embedded), file and quiz lessons, with a pass mark and up to 10 attempts per quiz. Quizzes are graded on the server and
+  the correct answers never reach the learner's browser. Courses are assigned to everyone, a department (with its
+  sub-departments), a branch or one person, with a due date, required or optional, and an optional renewal every N
+  months; new joiners are enrolled on the daily run, and a passed course opens its next cycle ahead of expiry. Passing
+  gives a PDF certificate with a verification code HR can check. Employees also keep external certifications with an
+  expiry and a file. Reminders go out 7 days and 1 day before a course is due or a certification expires. The training
+  report (completion, overdue, certifications expiring in 60 days) follows the `course.report` scope.
 - **Kudos and announcement discussion.** Colleagues thank up to 10 people at once (20 kudos a day each), tagged
   with one of the company values HR lists; kudos show on a wall, on the home page and in a monthly count by value,
   and recipients are notified. Announcements get six reactions (counts only, no list of who reacted) and
