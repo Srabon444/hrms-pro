@@ -86,6 +86,16 @@ Vitest · Playwright · Docker.
   other people's leave just as "Out", stops working when the member, user or organisation is switched off or the
   password changes, and is rate limited per link and per address. Events go to everyone, a department or a branch;
   people answer going, maybe or not going and get a reminder the day before.
+- **Surveys, eNPS and suggestion box.** HR builds short surveys (1 to 5 ratings, eNPS, one choice from a list,
+  written answers) for everyone, a department or a branch, opens them, sends up to two reminders to people who have
+  not answered and closes them. Anonymous surveys keep no link between a person and their answers: who answered and
+  what they answered sit in separate tables with no person, time or shared key, the list of who answered is
+  rewritten in random order after every answer, and neither is written to the audit log. Results show only after
+  the survey closes and with at least the chosen group size (5 or more); a department or branch with fewer people
+  than that is never recorded on an answer, and hidden groups always add up to at least the group size. Named
+  surveys show results while open and names on written answers. The suggestion box takes anonymous suggestions (5 a day per person) and shows them
+  to HR only in batches of five, in random order. When an ex-employee's access ends, their participation and named
+  answers are removed; anonymous answers stay.
 - **Leave balance cards.** The Leave page shows one card per leave type: days left, the balance today, after
   approved leave still to come and after pending requests, the accrual rule in plain words, and a history of every
   credit, leave, adjustment and lapse with the balance after it and links to attached files. The numbers come

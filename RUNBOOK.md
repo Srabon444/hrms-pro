@@ -100,6 +100,19 @@ someone by mistake, reactivating them there turns them back on; if HR disabled t
 Members. A leaked token: Replace or Revoke it on the page; the old one stops at once. Turning company sign-in off
 does not stop provisioning; revoke the token for that.
 
+## Surveys
+
+Anonymous answers cannot be traced back to a person, even with database access: there is no person, time or
+response id on `survey_answers`, and `survey_participation` and `survey_answers` are excluded from the audit log.
+After each anonymous answer the participation rows of that survey are rewritten in random order, so row versions
+do not pair a person with an answer; the old row versions stay on disk until autovacuum removes them. Errors while
+saving answers are logged without the answer values. Do not add a join, a trigger or a log line that links the
+two. A survey cannot be edited once saved; delete it and
+create it again. Results of an anonymous survey stay hidden until it closes and has at least its group size of
+answers. Suggestions show to HR only once five are waiting. When an ex-employee's access expires, their
+participation rows and named answers are deleted; anonymous answers stay. Deleting a department or branch deletes
+the surveys sent to it.
+
 ## Health and monitoring
 
 - `GET /healthz`: process is up.
